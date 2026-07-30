@@ -3455,7 +3455,8 @@ function checkButtonFontSizeWarning(el) {
                 if (offset === 0 && isTypingFamilyEntrance(previewVal)) {
                   offset = -0.1;
                 }
-                const bgDelay = Number(baseDelay) + offset;
+                const bgDelay = offset;
+                const totalDur = Number(mergedEl.animDuration || 1);
                 target.style.backgroundImage = '';
                 target.style.boxDecorationBreak = '';
                 target.style.removeProperty('-webkit-box-decoration-break');
@@ -3463,6 +3464,7 @@ function checkButtonFontSizeWarning(el) {
                 target.style.position = 'relative';
                 target.style.isolation = 'isolate';
                 target.style.maxWidth = '100%';
+                delete target.dataset.bgInited;
                 target.dataset.bgColor = bgRgba;
                 target.dataset.bgPadL = lr;
                 target.dataset.bgPadV = tb;

@@ -1064,11 +1064,41 @@ function seqStartPlayback() {
         const escS = (s) => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
         const html = buildTextEntranceHTML(el, escS, animType, false, displayText);
         if (html !== null) {
-          seqPlayTextTargets.push({ node: target, html: target.innerHTML });
+          seqPlayTextTargets.push({ node: target, html: target.innerHTML, style: target.getAttribute('style') || '' });
           target.innerHTML = html;
           // Rise Line mode groups by the visual lines only measurable post-layout.
           const riseMarker = target.querySelector('[data-rise-lines]');
           if (riseMarker && typeof setupRiseLines === 'function') setupRiseLines(riseMarker);
+
+          const fadeBg = el.animFadeBg !== undefined ? el.animFadeBg : (el.type === 'button' ? true : !!el.animateBg);
+          if (el.type === 'text' && el.hasBg && fadeBg && typeof isTypingFamilyEntrance === 'function' && isTypingFamilyEntrance(animType) && typeof setupTextLineBgs === 'function') {
+            const lr = el.bgPadL !== undefined ? el.bgPadL : 8;
+            const tb = el.bgPadV !== undefined ? el.bgPadV : 4;
+            const cov = el.bgCoverage !== undefined ? el.bgCoverage : 100;
+            const opa = (el.bgOpacity !== undefined ? el.bgOpacity : 100) / 100;
+            const bgRgba = (typeof hexToRgba === 'function') ? hexToRgba(el.bg || '#000000', opa) : (el.bg || '#000000');
+            let offset = Number(el.bgOffset) || 0;
+            if (offset === 0) {
+              offset = -0.1;
+            }
+            const inDelay = animInEnabled(el) ? (el.animDelay || 0) : 0;
+            const bgDelay = Number(inDelay) + offset;
+            const totalDur = el.animDuration || 1;
+            target.style.backgroundImage = '';
+            target.style.boxDecorationBreak = '';
+            target.style.removeProperty('-webkit-box-decoration-break');
+            target.style.display = 'inline-block';
+            target.style.position = 'relative';
+            target.style.isolation = 'isolate';
+            target.style.maxWidth = '100%';
+            target.dataset.bgColor = bgRgba;
+            target.dataset.bgPadL = lr;
+            target.dataset.bgPadV = tb;
+            target.dataset.bgCov = cov;
+            target.dataset.bgDelay = bgDelay;
+            target.dataset.bgDuration = totalDur;
+            requestAnimationFrame(() => setupTextLineBgs(target));
+          }
         }
       }
       // A button's fill/stroke must join the entrance (with the real delay),
@@ -1233,8 +1263,15 @@ function seqStopPlayback() {
     SEQ_PLAY_VARS.forEach(v => node.style.removeProperty(v));
   });
   seqPlayNodes = [];
-  // Put the span-driven text entrances back to their plain markup.
-  seqPlayTextTargets.forEach(t => { t.node.innerHTML = t.html; });
+  // Put the span-driven text entrances back to their plain markup and styles.
+  seqPlayTextTargets.forEach(t => {
+    t.node.innerHTML = t.html;
+    if (t.style !== undefined) {
+      t.node.setAttribute('style', t.style);
+    }
+    t.node.querySelectorAll('.line-bg-overlay').forEach(el => el.remove());
+    delete t.node.dataset.bgInited;
+  });
   seqPlayTextTargets = [];
   const styleTag = document.getElementById('sequencer-play-styles');
   if (styleTag) styleTag.remove();
