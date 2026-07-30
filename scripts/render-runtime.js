@@ -73,6 +73,42 @@ function findMaskAbove(c, imageEl) {
   return isActiveMask(above) ? above : null;
 }
 
+// 'Rise' Line mode: true VISUAL-line grouping. The builder emits one mask per
+// word with the riser parked hidden (translateY, no animation) inside a
+// [data-rise-lines] marker; after layout this measures which wrapped line each
+// word actually landed on (offsetTop) and starts one shared, staggered rise
+// per line — so the grouping adapts whenever the text re-wraps to more or
+// fewer lines. Runs from the editor's hover preview and the exported runtime
+// (serialized via .toString(), like setupTextLineBgs below); re-shows of a
+// frame restart the CSS animations via its display toggle, so this only needs
+// to measure once (riseInited).
+function setupRiseLines(wrapper) {
+  if (wrapper.dataset.riseInited) return;
+  if (wrapper.offsetWidth === 0 && wrapper.offsetHeight === 0) return; // not laid out yet (hidden frame)
+  var masks = wrapper.querySelectorAll('.rise-mask');
+  if (!masks.length) return;
+  wrapper.dataset.riseInited = '1';
+  var totalDur = parseFloat(wrapper.getAttribute('data-rise-dur')) || 1;
+  var baseDelay = parseFloat(wrapper.getAttribute('data-rise-delay')) || 0;
+  // Group masks (document order = reading order) into visual lines by offsetTop.
+  var lines = [];
+  var lineTop = null;
+  for (var i = 0; i < masks.length; i++) {
+    var t = masks[i].offsetTop;
+    if (lineTop === null || Math.abs(t - lineTop) > 2) { lines.push([]); lineTop = t; }
+    lines[lines.length - 1].push(masks[i]);
+  }
+  var step = totalDur / Math.max(1, lines.length);
+  var unitDur = Math.max(0.3, Math.round(totalDur * 0.55 * 100) / 100);
+  for (var li = 0; li < lines.length; li++) {
+    var del = (baseDelay + li * step).toFixed(3);
+    for (var mi = 0; mi < lines[li].length; mi++) {
+      var inner = lines[li][mi].firstChild;
+      if (inner && inner.style) inner.style.animation = 'anim-rise ' + unitDur + 's cubic-bezier(0.19, 1, 0.22, 1) ' + del + 's both';
+    }
+  }
+}
+
 // Runtime per-line BG measurement: reads the per-char spans inside `wrapper`,
 // groups them by offsetTop into "lines", and inserts an absolute-positioned bg
 // overlay per line with a staggered scaleX animation that tracks each line's
@@ -207,7 +243,7 @@ function getElementAnimationCSS(el, isImageExport, frameCtx) {
       const isSlideLike = ['slide-up', 'slide-down', 'slide-left', 'slide-right', 'pop-in', 'zoom-in'].includes(animType);
       const fadeOn = el.animFade !== false;
       const suffix = isSwipe ? (fadeOn ? '-fade' : '') : (isSlideLike && !fadeOn ? '-nofade' : '');
-      if ((el.type !== 'text' && el.type !== 'button') || (animType !== 'typing' && animType !== 'fade-typing' && animType !== 'word-fade')) {
+      if ((el.type !== 'text' && el.type !== 'button') || (animType !== 'typing' && animType !== 'fade-typing' && animType !== 'word-fade' && animType !== 'rise')) {
         entryAnims.push(`anim-${animType}${suffix} ${el.animDuration || 1}s ${animType === 'typing' ? 'steps(30, end)' : 'ease-out'} ${el.animDelay || 0}s both`);
       }
     }

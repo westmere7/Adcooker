@@ -330,6 +330,12 @@ body.theme-rmit-navy {
       to { opacity: 1; }
     }
 
+    /* 'Rise' text entrance — unit slides up from under its overflow mask. */
+    @keyframes anim-rise {
+      from { transform: translateY(115%); }
+      to { transform: translateY(0); }
+    }
+
     @keyframes anim-slide-up {
       from { opacity: 0; translate: 0 20px; }
       to { opacity: 1; translate: 0 0; }
@@ -5113,6 +5119,25 @@ body.fullscreen-mode .workspace-isolation-outline {
 .custom-select-item:hover {
   background: var(--accent-base) !important;
   color: var(--text-bright) !important;
+}
+/* Small rounded outline badge after preset names (e.g. "text" on text-only
+   presets). Accent-coloured at rest; flips to white on the accent hover bg
+   so it stays readable. */
+.preset-badge {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--accent-base);
+  border: 1px solid var(--accent-base);
+  border-radius: 999px;
+  padding: 1px 6px;
+  flex-shrink: 0;
+  line-height: 1.4;
+}
+.custom-select-item:hover .preset-badge {
+  color: var(--text-bright);
+  border-color: var(--text-bright);
 }
 
 .custom-select-dropdown::-webkit-scrollbar {

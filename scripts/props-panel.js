@@ -34,6 +34,7 @@ const PRESET_DESCRIPTIONS = {
   'in-split': "Splits open the element from a center angle.",
   'in-blur': "Fades in the element with a smooth camera blur.",
   'in-typing': "Fades/types in text characters or words sequentially.",
+  'in-rise': "Letters, words, or lines rise into view from beneath a mask.",
 
   // Animation FX
   'eff-none': "No active Animation FX.",
@@ -646,7 +647,8 @@ function customSelect(key, options, currentVal, title, isFrameTrans = false, fra
     return `
     <div class="custom-select-item" data-value="${opt.val}" style="padding: 5px 8px; font-size: 11px; color: var(--text-main); cursor: pointer; transition: background 0.1s; display: flex; align-items: center; gap: 8px;" title="${itemTitle}">
       ${opt.img ? `<img src="${opt.img}" style="max-height: 18px; max-width: 40px; object-fit: contain; flex-shrink: 0; background: #475569; padding: 2px 4px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.15);" />` : ''}
-      <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1;">${opt.label}</span>
+      <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; ${opt.badge ? '' : 'flex: 1;'}">${opt.label}</span>
+      ${opt.badge ? `<span class="preset-badge" style="margin-right: auto;">${opt.badge}</span>` : ''}
       ${favHtml}
     </div>
   `}).join('');
@@ -1146,7 +1148,7 @@ function wireCustomSelects(el, updateProp) {
         }
       } else {
         if (el) {
-          if (key === 'animDirection') {
+          if (key === 'animDirection' || key === 'riseSplit') {
             if (startElementAnimPreviewFn) startElementAnimPreviewFn(el.animType || 'none');
           } else if (key === 'panDir') {
             hoverEffectPreviewActive = true;
@@ -1173,7 +1175,7 @@ function wireCustomSelects(el, updateProp) {
       if (isFrame) {
         stopFrameTransitionPreview();
       } else {
-        if (key === 'animDirection' || key === 'animType') {
+        if (key === 'animDirection' || key === 'animType' || key === 'riseSplit') {
           if (stopElementAnimPreviewFn) stopElementAnimPreviewFn();
         } else if (key === 'panDir') {
           hoverEffectPreviewActive = false;
@@ -1252,7 +1254,7 @@ function wireCustomSelects(el, updateProp) {
           }
           pushHistory();
           renderProps();
-          if (key === 'animDirection') {
+          if (key === 'animDirection' || key === 'riseSplit') {
             if (startElementAnimPreviewFn) startElementAnimPreviewFn(el.animType || 'none');
           } else if (key === 'animType') {
             if (startElementAnimPreviewFn) startElementAnimPreviewFn(el.animType || 'none');
@@ -1300,8 +1302,12 @@ function wireCustomSelects(el, updateProp) {
           const origPanDir = el.panDir;
           const origExitType = el.exitType;
           const origExitDirection = el.exitDirection;
+          const origRiseSplit = el.riseSplit;
 
-          if (key === 'animDirection') {
+          if (key === 'riseSplit') {
+            el.riseSplit = val;
+            if (startElementAnimPreviewFn) startElementAnimPreviewFn(el.animType || 'none');
+          } else if (key === 'animDirection') {
             if ((el.animType || '').startsWith('swipe-')) {
               el.animType = `swipe-${val}`;
             } else {
@@ -1331,7 +1337,8 @@ function wireCustomSelects(el, updateProp) {
             el.panDir = origPanDir;
             el.exitType = origExitType;
             el.exitDirection = origExitDirection;
-            if (key === 'animDirection') {
+            if (origRiseSplit === undefined) delete el.riseSplit; else el.riseSplit = origRiseSplit;
+            if (key === 'animDirection' || key === 'riseSplit') {
               if (startElementAnimPreviewFn) startElementAnimPreviewFn(el.animType || 'none');
             } else if (key === 'panDir') {
               hoverEffectPreviewActive = true;
@@ -2478,7 +2485,8 @@ function renderProps() {
       { val: 'blur', label: 'Blur' }
     ];
     if (el.type === 'text' || el.type === 'button') {
-      animOptions.push({ val: 'typing', label: 'Typing' });
+      animOptions.push({ val: 'typing', label: 'Typing', badge: 'text' });
+      animOptions.push({ val: 'rise', label: 'Rise', badge: 'text' });
     }
 
     let filteredOptions = animOptions;
@@ -2661,6 +2669,19 @@ function renderProps() {
               <label>Angle (°)</label>
               <input type="number" data-k="animAngle" value="${el.animAngle !== undefined ? el.animAngle : 0}" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:4px 6px; font-size:11px; height:24px; outline:none; text-align:right;" title="Split reveal angle in degrees" />
             </div>
+          </div>
+        </div>
+      `);
+    } else if (el.animType === 'rise') {
+      f.push(`
+        <div class="prop-row" style="margin-bottom:8px;">
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label>Rise by</label>
+            ${customSelect('riseSplit', [
+              { val: 'letter', label: 'Letters' },
+              { val: 'word', label: 'Words' },
+              { val: 'line', label: 'Lines' }
+            ], el.riseSplit || 'word', 'What emerges as one unit — letters, words, or lines (lines split on your line breaks)')}
           </div>
         </div>
       `);
@@ -3392,7 +3413,8 @@ function checkButtonFontSizeWarning(el) {
             animFade: el.animFade,
             animBounce: el.animBounce,
             animDirection: el.animDirection,
-            animDistance: el.animDistance
+            animDistance: el.animDistance,
+            riseSplit: el.riseSplit
           };
           let previewVal = val;
           if (previewVal === 'swipe') {
@@ -3405,7 +3427,7 @@ function checkButtonFontSizeWarning(el) {
           const del = Number(mergedEl.animDelay || 0);
           maxDur = Math.max(maxDur, dur + del);
 
-          if ((mergedEl.type === 'text' || mergedEl.type === 'button') && (previewVal === 'typing' || previewVal === 'fade-typing' || previewVal === 'word-fade')) {
+          if ((mergedEl.type === 'text' || mergedEl.type === 'button') && (previewVal === 'typing' || previewVal === 'fade-typing' || previewVal === 'word-fade' || previewVal === 'rise')) {
             const target = node.querySelector('.editable') || node.querySelector('span');
             if (target) {
               target.dataset.origHtml = target.innerHTML;
@@ -3416,7 +3438,14 @@ function checkButtonFontSizeWarning(el) {
               const overrides = typeof dmDisplay === 'function' ? dmDisplay(mergedEl) : {};
               const displayText = overrides.text !== undefined ? overrides.text : (mergedEl.text || '');
 
-              if (previewVal === 'typing' || previewVal === 'fade-typing') {
+              if (previewVal === 'rise' && typeof buildRiseContentHTML === 'function') {
+                // Same builder the export uses — identical markup, timing, ease.
+                const escP = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                target.innerHTML = buildRiseContentHTML({ ...mergedEl, text: displayText }, escP, false);
+                // Line mode: group by the VISUAL lines the words landed on.
+                const riseMarker = target.querySelector('[data-rise-lines]');
+                if (riseMarker && typeof setupRiseLines === 'function') setupRiseLines(riseMarker);
+              } else if (previewVal === 'typing' || previewVal === 'fade-typing') {
                 const chars = [...displayText];
                 const fadeLetters = mergedEl.animFadeLetters !== false;
                 const charDur = fadeLetters ? 0.3 : 0.01;

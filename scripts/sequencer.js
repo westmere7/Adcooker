@@ -602,7 +602,7 @@ function seqPresetLabel(kind, val) {
     if (v === 'slide' || v.startsWith('slide-')) return 'Slide';
     if (v === 'zoom' || v === 'zoom-in' || v === 'pop-in') return 'Zoom';
     if (v === 'typing' || v === 'fade-typing' || v === 'word-fade') return 'Typing';
-    return { 'none': 'None', 'fade-in': 'Fade In', 'split': 'Split', 'blur': 'Blur' }[v] || v;
+    return { 'none': 'None', 'fade-in': 'Fade In', 'split': 'Split', 'blur': 'Blur', 'rise': 'Rise' }[v] || v;
   }
   if (kind === 'out') {
     return { 'fade-out': 'Fade Out', 'slide': 'Slide', 'swipe': 'Swipe', 'zoom': 'Zoom', 'blur': 'Blur' }[v] || v;
@@ -814,7 +814,10 @@ function seqPresetOptions(el, kind) {
       { val: 'split', label: 'Split' },
       { val: 'blur', label: 'Blur' }
     ];
-    if (el.type === 'text' || el.type === 'button') opts.push({ val: 'typing', label: 'Typing' });
+    if (el.type === 'text' || el.type === 'button') {
+      opts.push({ val: 'typing', label: 'Typing', badge: 'text' });
+      opts.push({ val: 'rise', label: 'Rise', badge: 'text' });
+    }
     return opts;
   }
   if (kind === 'out') {
@@ -862,7 +865,9 @@ function seqOpenPresetPopover(el, kind, anchorRect) {
   pop.className = 'seq-popover';
   pop.innerHTML = `<div class="seq-popover-title">${titles[kind]}</div>` +
     seqPresetOptions(el, kind).map(o =>
-      `<div class="seq-popover-item ${o.label === current ? 'seq-popover-active' : ''}" data-val="${o.val}">${o.label}</div>`
+      `<div class="seq-popover-item ${o.label === current ? 'seq-popover-active' : ''}" data-val="${o.val}" style="display:flex;align-items:center;gap:7px;">` +
+      `<span>${o.label}</span>` +
+      `${o.badge ? `<span class="preset-badge">${o.badge}</span>` : ''}</div>`
     ).join('');
   document.body.appendChild(pop);
   const rect = pop.getBoundingClientRect();
@@ -1007,9 +1012,9 @@ function seqStartPlayback() {
     const a = getElementAnimationCSS(el, false, frameCtx);
     let anims = [...(a.entryAnimList || []), ...(a.exitAnimList || []), ...(a.effAnimList || [])];
 
-    // Typing-family text entrances are span-driven in export; in-canvas play
-    // approximates them with a fade of the same duration/delay.
-    if ((el.type === 'text' || el.type === 'button') && ['typing', 'fade-typing', 'word-fade'].includes(animType)) {
+    // Typing-family and Rise text entrances are span-driven in export;
+    // in-canvas play approximates them with a fade of the same duration/delay.
+    if ((el.type === 'text' || el.type === 'button') && ['typing', 'fade-typing', 'word-fade', 'rise'].includes(animType)) {
       anims.unshift(`anim-fade-in ${el.animDuration || 1}s ease-out ${el.animDelay || 0}s both`);
     }
 

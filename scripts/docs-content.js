@@ -663,6 +663,21 @@ document.getElementById('menu-help-documentation').addEventListener('click', ope
 
 const CHANGELOG_DATA = [
   {
+    version: 'v0.31.1',
+    date: 'July 2026 — Engine v2.19',
+    items: [
+      'Rise "Lines" Mode Follows Visual Lines: Line mode now animates the lines you actually SEE — the wrapped layout is measured at runtime, so a headline that wraps to 2, 3, or 4 lines rises line by line, and the grouping adapts automatically when the text re-wraps (resize, auto-size, edits). Previously it only split on explicit line breaks, so auto-wrapped text rose as one block.',
+      '"Text" Badge on Text-Only Presets: The Typing and Rise presets now show a small rounded "text" badge in the IN animation dropdown (and the timeline\'s preset menu), marking them as text/button-only animations.'
+    ]
+  },
+  {
+    version: 'v0.31.0',
+    date: 'July 2026 — Engine v2.19',
+    items: [
+      'New "Rise" Text Animation: A new IN preset for text and buttons where the content emerges from below through a mask — pure vertical motion with a smooth ease, staggered across your animation Duration. A "Rise by" control chooses what emerges as one unit: Letters, Words, or Lines. In letter mode, words stay unbreakable so text still wraps naturally. Works in the hover preview, exports, and previews identically; supported by link-group sync and the timeline. In-canvas timeline Play approximates it with a fade (like Typing); previews and exports are exact.'
+    ]
+  },
+  {
     version: 'v0.30.3',
     date: 'July 2026 — Engine v2.19',
     items: [

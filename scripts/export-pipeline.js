@@ -91,6 +91,71 @@ function buildMaskClipPath(mask, image) {
   return 'none';
 }
 
+// 'Rise' entrance (v0.31.0) — shared markup builder used by the export's text
+// and button branches AND the editor's hover preview, so all surfaces render
+// identical animation. Each unit (letter / word / line, per el.riseSplit) sits
+// inside an overflow-hidden mask and slides up from below it — Y-only motion,
+// eased — staggered across el.animDuration. In letter mode the chars of each
+// word are grouped in a nowrap span so text still wraps at word boundaries.
+function buildRiseContentHTML(el, esc, isImageExport) {
+  const text = el.text || '';
+  const lines = text.split('\n');
+  if (isImageExport) return lines.map(l => esc(l)).join('<br/>');
+
+  const split = el.riseSplit || 'word';
+  const totalDur = el.animDuration || 1;
+  const baseDelay = Number(el.animDelay || 0);
+  const EASE = 'cubic-bezier(0.19, 1, 0.22, 1)';
+
+  // The mask: overflow-hidden box the unit emerges through. The small bottom
+  // padding (+ negative margin so layout is unchanged) protects descenders
+  // from being clipped at rest on tight line-heights; translateY(115%) keeps
+  // the unit fully hidden through that padding before it rises.
+  const MASK_STYLE = 'display:inline-block;overflow:hidden;vertical-align:bottom;padding-bottom:0.08em;margin-bottom:-0.08em;';
+
+  if (split === 'line') {
+    // Line mode groups by VISUAL (wrapped) lines, which only exist after
+    // layout. Emit one mask per word with the riser parked hidden and no
+    // animation; the runtime hook setupRiseLines() measures which line each
+    // word landed on and starts one shared, staggered rise per line — so the
+    // grouping tracks the text as it re-wraps to more or fewer lines.
+    const still = (content) =>
+      `<span class="rise-mask" style="${MASK_STYLE}">` +
+      `<span style="display:inline-block;transform:translateY(115%);">${content}</span></span>`;
+    const inner = lines.map(line => {
+      if (!/\S/.test(line)) return esc(line);
+      return line.split(/(\s+)/).map(tok => /\S/.test(tok) ? still(esc(tok)) : tok).join('');
+    }).join('<br/>');
+    return `<span data-rise-lines="1" data-rise-dur="${totalDur}" data-rise-delay="${baseDelay}">${inner}</span>`;
+  }
+
+  // Letter / word modes: unit count is known statically, so the stagger is
+  // baked into inline animation delays (pure CSS, no runtime hook needed).
+  let unitCount = 0;
+  lines.forEach(l => l.split(/(\s+)/).forEach(tok => {
+    if (/\S/.test(tok)) unitCount += (split === 'letter') ? [...tok].length : 1;
+  }));
+  unitCount = Math.max(1, unitCount);
+  const step = totalDur / unitCount;
+  const unitDur = Math.max(0.3, Math.round(totalDur * 0.55 * 100) / 100);
+
+  let i = 0;
+  const mask = (content) => {
+    const del = (baseDelay + i * step).toFixed(3); i++;
+    return `<span style="${MASK_STYLE}">` +
+      `<span style="display:inline-block;transform:translateY(115%);animation:anim-rise ${unitDur}s ${EASE} ${del}s both;">${content}</span></span>`;
+  };
+
+  return lines.map(line => {
+    if (!/\S/.test(line)) return esc(line);
+    return line.split(/(\s+)/).map(tok => {
+      if (!/\S/.test(tok)) return tok; // spaces flow as plain text between masks
+      if (split === 'word') return mask(esc(tok));
+      return `<span style="display:inline-block;white-space:nowrap;">${[...tok].map(ch => mask(esc(ch))).join('')}</span>`;
+    }).join('');
+  }).join('<br/>');
+}
+
 function generateMaskClipPathKeyframes(mask, image, presetOverride) {
   const animType = presetOverride || mask.animType || 'none';
   if (animType === 'none') return null;
@@ -1681,6 +1746,8 @@ function _generateExportHTMLRaw(targetCanvas, zipRef, isImageExport = false, opt
           const animStyle = isImageExport ? '' : `opacity:0; display:inline-block; animation: anim-fade-in ${wordDur}s linear ${del}s both;`;
           return `<span style="${animStyle}">${wordContent}</span>`;
         }).join('');
+      } else if (animType === 'rise') {
+        content = buildRiseContentHTML(el, esc, isImageExport);
       }
       const vAlignMap = { top: 'flex-start', middle: 'center', bottom: 'flex-end' };
       const hAlignMap = { left: 'flex-start', center: 'center', right: 'flex-end' };
@@ -1803,8 +1870,10 @@ function _generateExportHTMLRaw(targetCanvas, zipRef, isImageExport = false, opt
           const animStyle = isImageExport ? '' : `opacity:0; display:inline-block; animation: anim-fade-in ${wordDur}s linear ${del}s both;`;
           return `<span style="${animStyle}">${wordContent}</span>`;
         }).join('');
+      } else if (animType === 'rise') {
+        btnContent = buildRiseContentHTML(el, esc, isImageExport);
       }
-      
+
       let staggerStyle = '';
       if (!isImageExport && animType === 'zoom' && el.animStaggerText) {
         const timing = el.animBounce ? 'linear' : 'ease-out';
@@ -2135,6 +2204,7 @@ ${fontFaceRules.join('\n')}
 ${dynamicKeyframes}
 
   @keyframes anim-fade-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes anim-rise { from { transform: translateY(115%); } to { transform: translateY(0); } }
   @keyframes anim-zoom-in { from { opacity: 0; transform: scale(var(--zoom-from, 1.1)); } to { opacity: 1; transform: scale(1); } }
   @keyframes anim-zoom-in-nofade { from { transform: scale(var(--zoom-from, 1.1)); } to { transform: scale(1); } }
   @keyframes anim-slide-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
@@ -2262,6 +2332,7 @@ ${elsTop}
       nextFrameEl.style.zIndex = '2';
       nextFrameEl.style.display = 'block';
       nextFrameEl.querySelectorAll('[data-bg-anim]').forEach(setupTextLineBgs);
+      nextFrameEl.querySelectorAll('[data-rise-lines]').forEach(setupRiseLines);
       
       var t = frames[currentFrame].transition;
       var td = (frames[currentFrame].transitionDuration || 0.5) + 's';
@@ -2327,6 +2398,7 @@ ${elsTop}
       void document.documentElement.offsetHeight; // flush the hide so the re-show restarts CSS animations
       frameEl.style.display = 'block';
       frameEl.querySelectorAll('[data-bg-anim]').forEach(setupTextLineBgs);
+      frameEl.querySelectorAll('[data-rise-lines]').forEach(setupRiseLines);
 
       var t = fr.transition;
       if (t && t !== 'none') {
@@ -2340,6 +2412,8 @@ ${elsTop}
     }
 
     ${setupTextLineBgs.toString()}
+
+    ${setupRiseLines.toString()}
 
     function adjustAutoSizes() {
       document.querySelectorAll('.auto-size-text').forEach(function(wrapper) {
@@ -2499,6 +2573,8 @@ ${elsTop}
       adjustAutoSizes();
       updatePersistentLayersVisibility(0);
       document.querySelectorAll('[data-bg-anim]').forEach(setupTextLineBgs);
+      // After adjustAutoSizes so Rise's line grouping measures the FINAL wrap.
+      document.querySelectorAll('[data-rise-lines]').forEach(setupRiseLines);
 
       var ad = document.getElementById('ad');
       if (ad) {
@@ -2555,6 +2631,7 @@ ${options.previewControls ? `
         if (adEl) adEl.style.background = cur.style.background;
         document.documentElement.style.background = cur.style.background;
         cur.querySelectorAll('[data-bg-anim]').forEach(setupTextLineBgs);
+        cur.querySelectorAll('[data-rise-lines]').forEach(setupRiseLines);
       }
       updatePersistentLayersVisibility(currentFrame);
       if (loopSingle) {
