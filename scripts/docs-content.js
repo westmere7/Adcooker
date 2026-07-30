@@ -663,6 +663,28 @@ document.getElementById('menu-help-documentation').addEventListener('click', ope
 
 const CHANGELOG_DATA = [
   {
+    version: 'v0.34.2',
+    date: 'July 2026 — Engine v2.19',
+    items: [
+      'Fixed Animations on Masked Images During Timeline Play: An image inside a mask group now plays its own entrance on Play — Split in particular did nothing, because its reveal was being applied to the same layer that holds the mask shape and the two cancelled each other out. The animation now runs inside the mask, matching what the hover preview and the exported ad already did. A mask\'s own reveal and the image\'s entrance can now also run together without one replacing the other.'
+    ]
+  },
+  {
+    version: 'v0.34.1',
+    date: 'July 2026 — Engine v2.19',
+    items: [
+      'Buttons Animate as One Piece with Text Presets: With Typing or Rise on a button, the button\'s background and border now fade in together with its label — including on the timeline\'s Play, where the background used to appear instantly while only the text was delayed. The rule is now shared by Play, the hover previews and exports, so the three always match (previews still start immediately, playback and exports still honour your Delay). Rise on a button previously left the background un-animated everywhere; it now joins in, and gets a "Fade BG" checkbox so you can switch it off.'
+    ]
+  },
+  {
+    version: 'v0.34.0',
+    date: 'July 2026 — Engine v2.19',
+    items: [
+      'Hover Previews Ignore the Delay Consistently: Hovering a preset to preview it now always starts the motion immediately, including for the text animations (Typing, Rise) — they used to sit still for the element\'s configured Delay first, unlike every other preset. Actual playback, previews and exports still respect your Delay exactly.',
+      'Animation Presets Now Come From One Shared Definition: Internal groundwork so the Animation panel and the timeline can never disagree again. The list of IN / OUT / FX presets, the animation keyframes each preset needs, and the per-letter/word/line markup for text animations are now each defined in exactly one place, and every surface reads from them — the panel\'s dropdowns and hover previews, the timeline\'s preset menus and Play, the in-app previews, and exports. A newly added animation appears and plays identically everywhere with no extra wiring. No change to how any existing animation looks or exports.'
+    ]
+  },
+  {
     version: 'v0.33.1',
     date: 'July 2026 — Engine v2.19',
     items: [

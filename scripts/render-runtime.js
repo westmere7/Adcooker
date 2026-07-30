@@ -194,6 +194,85 @@ function strokeOverlayHTML(el) {
 // Default length of the exit ("out") leaving motion, in seconds if undefined.
 const DEFAULT_EXIT_MOTION_DURATION = 0.6;
 
+// ============================================================================
+// ANIMATION PRESET REGISTRY — the single source of truth.
+//
+// ADDING A NEW ANIMATION PRESET: everything a preset needs is declared here or
+// in one shared builder, so every surface (props panel, timeline, hover
+// previews, in-canvas playback, full preview, export) picks it up together.
+//   1. Add an entry to ANIM_IN_PRESETS / ANIM_OUT_PRESETS / ANIM_FX_PRESETS
+//      below. The props panel and the timeline's preset menus both render from
+//      these lists, so it appears in both automatically.
+//        • textOnly: true  — offered only for text/button layers, and listed
+//                            first for them (with an optional `badge`).
+//   2. If it needs PER-ID @keyframes (values baked from element props, like
+//      slide distance or zoom origin), add it to buildElementKeyframesCSS()
+//      in export-pipeline.js. Export, timeline playback and the hover preview
+//      all emit keyframes through that one function.
+//   3. If it animates PER CHARACTER / WORD / LINE rather than the element as a
+//      whole, add it to SPAN_DRIVEN_ENTRANCES below AND to
+//      buildTextEntranceHTML() in export-pipeline.js — the shared markup
+//      builder used by export, playback and the previews.
+//   4. Nothing else is required for a preset that reuses a shared @keyframes
+//      named `anim-<val>`: getElementAnimationCSS's generic branch and the
+//      preview/playback paths already resolve those by name.
+// Anything you add in these places is, by construction, identical across the
+// panel and the timeline — that's the point of routing them all through here.
+// ============================================================================
+
+// Entrances that animate per character / word / line via generated spans, so
+// the ELEMENT wrapper must not carry the animation itself.
+const SPAN_DRIVEN_ENTRANCES = ['typing', 'fade-typing', 'word-fade', 'rise'];
+function isSpanDrivenEntrance(animType) {
+  return SPAN_DRIVEN_ENTRANCES.indexOf(animType) !== -1;
+}
+// Typing-family entrances share the staggered per-line background treatment.
+function isTypingFamilyEntrance(animType) {
+  return animType === 'typing' || animType === 'fade-typing' || animType === 'word-fade';
+}
+
+const ANIM_IN_PRESETS = [
+  { val: 'none', label: 'None' },
+  { val: 'fade-in', label: 'Fade In' },
+  { val: 'slide', label: 'Slide' },
+  { val: 'swipe', label: 'Swipe' },
+  { val: 'zoom', label: 'Zoom' },
+  { val: 'split', label: 'Split' },
+  { val: 'blur', label: 'Blur' },
+  { val: 'typing', label: 'Typing', badge: 'text', textOnly: true },
+  { val: 'rise', label: 'Rise', badge: 'text', textOnly: true }
+];
+const ANIM_OUT_PRESETS = [
+  { val: 'fade-out', label: 'Fade Out' },
+  { val: 'slide', label: 'Slide' },
+  { val: 'swipe', label: 'Swipe' },
+  { val: 'zoom', label: 'Zoom' },
+  { val: 'blur', label: 'Blur' }
+];
+const ANIM_FX_PRESETS = [
+  { val: 'none', label: 'None' },
+  { val: 'pulse', label: 'Pulse' },
+  { val: 'float', label: 'Float' },
+  { val: 'flash', label: 'Flash' },
+  { val: 'wiggle', label: 'Wiggle' },
+  { val: 'spin', label: 'Spin' },
+  { val: 'heartbeat', label: 'Heartbeat' },
+  { val: 'pan', label: 'Move' },
+  { val: 'zoom', label: 'Zoom' }
+];
+
+// Presets offered for an element: text-only entries are dropped for non-text
+// layers, and lead the list (right after "None") for text/buttons.
+function getInAnimPresets(el) {
+  const isTextLike = !!el && (el.type === 'text' || el.type === 'button');
+  const general = ANIM_IN_PRESETS.filter(p => !p.textOnly);
+  if (!isTextLike) return general.map(p => ({ ...p }));
+  const textOnly = ANIM_IN_PRESETS.filter(p => p.textOnly);
+  return [general[0], ...textOnly, ...general.slice(1)].map(p => ({ ...p }));
+}
+function getOutAnimPresets() { return ANIM_OUT_PRESETS.map(p => ({ ...p })); }
+function getFxPresets() { return ANIM_FX_PRESETS.map(p => ({ ...p })); }
+
 // Animation-category enable flags. Each category (IN / OUT / FX / TRANS) has an
 // explicit on/off flag that is independent of its chosen preset, so turning a
 // category off and back on restores whatever preset was selected — including
@@ -249,7 +328,7 @@ function getElementAnimationCSS(el, isImageExport, frameCtx) {
       const isSlideLike = ['slide-up', 'slide-down', 'slide-left', 'slide-right', 'pop-in', 'zoom-in'].includes(animType);
       const fadeOn = el.animFade !== false;
       const suffix = isSwipe ? (fadeOn ? '-fade' : '') : (isSlideLike && !fadeOn ? '-nofade' : '');
-      if ((el.type !== 'text' && el.type !== 'button') || (animType !== 'typing' && animType !== 'fade-typing' && animType !== 'word-fade' && animType !== 'rise')) {
+      if ((el.type !== 'text' && el.type !== 'button') || !isSpanDrivenEntrance(animType)) {
         entryAnims.push(`anim-${animType}${suffix} ${el.animDuration || 1}s ${animType === 'typing' ? 'steps(30, end)' : 'ease-out'} ${el.animDelay || 0}s both`);
       }
     }

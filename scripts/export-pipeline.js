@@ -169,23 +169,106 @@ function buildRiseContentHTML(el, esc, isImageExport) {
   }).join('<br/>');
 }
 
+// A button's own chrome (fill + stroke) during a span-driven text entrance.
+// The spans animate the LABEL only, so without this the button's background
+// would pop in instantly while its text is still arriving — the chrome has to
+// join the animation. Shared by the export, the timeline's playback and the
+// panel's hover preview so all three agree.
+//   delayOverride — hover previews pass 0 (they ignore configured delays)
+// Returns '' when it shouldn't animate (Fade BG off, or a whole-element preset
+// that already animates the entire button).
+function buttonChromeEntranceCSS(el, animType, delayOverride) {
+  const fadeBg = el.animFadeBg !== undefined ? el.animFadeBg : (el.type === 'button' ? true : !!el.animateBg);
+  if (!fadeBg || !isSpanDrivenEntrance(animType)) return '';
+  const delay = delayOverride !== undefined ? delayOverride : (el.animDelay || 0);
+  return `anim-fade-in ${el.animDuration || 1}s ease-out ${delay}s both`;
+}
+
+// Per-id @keyframes an element's animations need — i.e. the ones whose values
+// are baked from element properties (slide distance, zoom origin, split angle,
+// pan curve) and so can't live in the shared stylesheet. THE one place that
+// decides which keyframes a preset needs: the export, the timeline's in-canvas
+// playback and the panel's hover preview all emit through this, so a new preset
+// added here works on every surface. See the preset registry in
+// render-runtime.js for the full "adding an animation" checklist.
+//   opts.isImageExport — skip motion entirely (still frames)
+//   opts.includeExit   — also emit per-id EXIT keyframes (per-frame elements)
+//   opts.animTypeOverride — preview a preset other than the element's own
+function buildElementKeyframesCSS(el, opts = {}) {
+  const isImageExport = !!opts.isImageExport;
+  let out = '';
+  const animType = opts.animTypeOverride !== undefined
+    ? opts.animTypeOverride
+    : (animInEnabled(el) ? (el.animType || 'none') : 'none');
+
+  if (animType === 'split' && !isImageExport) {
+    const fromPoly = getSplitClipPath(el.animAngle || 0);
+    const fadeFrom = el.animFade !== false ? 'opacity: 0;' : '';
+    const fadeTo = el.animFade !== false ? 'opacity: 1;' : '';
+    out += `
+  @keyframes anim-split-${el.id} {
+    from { clip-path: ${fromPoly}; ${fadeFrom} }
+    to { clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%); ${fadeTo} }
+  }`;
+  }
+  const isZoomLike = animType === 'zoom' || animType === 'zoom-in' || animType === 'pop-in';
+  if (isZoomLike && !isImageExport) {
+    const tempEl = { ...el };
+    if (animType === 'pop-in') {
+      tempEl.zoomFrom = 80;
+      tempEl.animFade = true;
+    } else if (animType === 'zoom-in') {
+      tempEl.zoomFrom = 110;
+      tempEl.animFade = true;
+    }
+    out += '\n' + getZoomKeyframes(tempEl);
+  }
+  if (animType === 'blur' && !isImageExport) {
+    out += '\n' + getBlurKeyframes(el);
+  }
+  const isSlideLike = animType === 'slide' || animType === 'slide-up' || animType === 'slide-down' || animType === 'slide-left' || animType === 'slide-right';
+  if (isSlideLike && !isImageExport) {
+    const tempEl = { ...el };
+    if (animType === 'slide-up') { tempEl.animDirection = 'up'; tempEl.animDistance = 20; }
+    else if (animType === 'slide-down') { tempEl.animDirection = 'down'; tempEl.animDistance = 20; }
+    else if (animType === 'slide-left') { tempEl.animDirection = 'left'; tempEl.animDistance = 20; }
+    else if (animType === 'slide-right') { tempEl.animDirection = 'right'; tempEl.animDistance = 20; }
+    out += '\n' + getSlideKeyframes(tempEl);
+  }
+  if (animFxEnabled(el) && el.effectType === 'pan' && !isImageExport) {
+    out += '\n' + getPanCurveKeyframes(el);
+  }
+  // Per-id EXIT keyframes — only when the element actually exits (its frame
+  // transitions away). Static exit presets (fade/swipe/blur) use shared
+  // keyframes and need no per-id emission.
+  if (opts.includeExit && !isImageExport && animOutEnabled(el)) {
+    if (el.exitType === 'slide') out += '\n' + getSlideOutKeyframes(el);
+    else if (el.exitType === 'zoom') out += '\n' + getZoomOutKeyframes(el);
+  }
+  return out;
+}
+
 // Span markup for the text entrance presets that animate per character / word /
 // line (typing, fade-typing, word-fade, rise). Single source of truth shared by
 // the export's text branch, its button branch, and the editor's timeline
 // playback — so a preset behaves identically everywhere. Returns null for
 // presets that animate the element as a whole (the caller keeps its own
 // content). `textOverride` lets callers pass dynamic-data resolved text.
-function buildTextEntranceHTML(el, esc, animType, isImageExport, textOverride) {
-  const text = textOverride !== undefined ? textOverride : (el.text || '');
+// `delayOverride` (seconds) replaces the element's own animDelay — hover
+// previews pass 0 so the motion starts instantly instead of making the user
+// wait out a configured delay, matching how every other preset previews.
+function buildTextEntranceHTML(el, esc, animType, isImageExport, textOverride, delayOverride) {
+  const src = (delayOverride !== undefined) ? { ...el, animDelay: delayOverride } : el;
+  const text = textOverride !== undefined ? textOverride : (src.text || '');
   if (animType === 'rise') {
-    return buildRiseContentHTML(textOverride !== undefined ? { ...el, text } : el, esc, isImageExport);
+    return buildRiseContentHTML(textOverride !== undefined ? { ...src, text } : src, esc, isImageExport);
   }
   if (animType === 'typing' || animType === 'fade-typing') {
     const chars = [...text];
-    const totalDur = el.animDuration || 1;
-    const fadeLetters = el.animFadeLetters !== false;
+    const totalDur = src.animDuration || 1;
+    const fadeLetters = src.animFadeLetters !== false;
     const charDur = fadeLetters ? 0.3 : 0.01;
-    const baseDelay = el.animDelay || 0;
+    const baseDelay = src.animDelay || 0;
     const nonNewlines = chars.filter(c => c !== '\n').length;
     const charDelay = totalDur / Math.max(1, nonNewlines);
     let spanIdx = 0;
@@ -201,9 +284,9 @@ function buildTextEntranceHTML(el, esc, animType, isImageExport, textOverride) {
   if (animType === 'word-fade') {
     const words = text.split(/(\s+)/);
     const nonSpas = words.filter(w => /\S/.test(w));
-    const totalDur = el.animDuration || 1;
+    const totalDur = src.animDuration || 1;
     const wordDur = 0.3;
-    const baseDelay = el.animDelay || 0;
+    const baseDelay = src.animDelay || 0;
     const wordDelay = totalDur / Math.max(1, nonSpas.length);
     let wordIdx = 0;
     return words.map(w => {
@@ -1708,51 +1791,9 @@ function _generateExportHTMLRaw(targetCanvas, zipRef, isImageExport = false, opt
     const wrapAttrs = `data-id="${el.id}" style="${wrapStyle}"`;
 
     const animType = animInEnabled(el) ? (el.animType || 'none') : 'none';
-    if (animType === 'split' && !isImageExport) {
-      const fromPoly = getSplitClipPath(el.animAngle || 0);
-      const fadeFrom = el.animFade !== false ? 'opacity: 0;' : '';
-      const fadeTo = el.animFade !== false ? 'opacity: 1;' : '';
-      dynamicKeyframes += `
-  @keyframes anim-split-${el.id} {
-    from { clip-path: ${fromPoly}; ${fadeFrom} }
-    to { clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%); ${fadeTo} }
-  }`;
-    }
-    const isZoomLike = animType === 'zoom' || animType === 'zoom-in' || animType === 'pop-in';
-    if (isZoomLike && !isImageExport) {
-      const tempEl = { ...el };
-      if (animType === 'pop-in') {
-        tempEl.zoomFrom = 80;
-        tempEl.animFade = true;
-      } else if (animType === 'zoom-in') {
-        tempEl.zoomFrom = 110;
-        tempEl.animFade = true;
-      }
-      dynamicKeyframes += '\n' + getZoomKeyframes(tempEl);
-    }
-    if (animType === 'blur' && !isImageExport) {
-      dynamicKeyframes += '\n' + getBlurKeyframes(el);
-    }
-    const isSlideLike = animType === 'slide' || animType === 'slide-up' || animType === 'slide-down' || animType === 'slide-left' || animType === 'slide-right';
-    if (isSlideLike && !isImageExport) {
-      const tempEl = { ...el };
-      if (animType === 'slide-up') { tempEl.animDirection = 'up'; tempEl.animDistance = 20; }
-      else if (animType === 'slide-down') { tempEl.animDirection = 'down'; tempEl.animDistance = 20; }
-      else if (animType === 'slide-left') { tempEl.animDirection = 'left'; tempEl.animDistance = 20; }
-      else if (animType === 'slide-right') { tempEl.animDirection = 'right'; tempEl.animDistance = 20; }
-      dynamicKeyframes += '\n' + getSlideKeyframes(tempEl);
-    }
-    if (animFxEnabled(el) && el.effectType === 'pan' && !isImageExport) {
-      dynamicKeyframes += '\n' + getPanCurveKeyframes(el);
-    }
-    // Per-id EXIT keyframes — only when the element actually exits (its frame
-    // transitions away). Static exit presets (fade/swipe/blur) use shared
-    // keyframes and need no per-id emission.
-    if (frameCtx && !isImageExport && animOutEnabled(el)) {
-      usesExitKeyframes = true;
-      if (el.exitType === 'slide') dynamicKeyframes += '\n' + getSlideOutKeyframes(el);
-      else if (el.exitType === 'zoom') dynamicKeyframes += '\n' + getZoomOutKeyframes(el);
-    }
+    // All per-id keyframes come from the one shared builder (see its comment).
+    dynamicKeyframes += buildElementKeyframesCSS(el, { isImageExport, includeExit: !!frameCtx });
+    if (frameCtx && !isImageExport && animOutEnabled(el)) usesExitKeyframes = true;
     const { entryConfig, entryVars, effConfig, effVars } = getElementAnimationCSS(el, isImageExport, frameCtx);
     // Continuous-effect wrapper goes OUTSIDE the entry wrapper. Clip-path entry
     // animations (swipe / typing) settle on `clip-path: inset(0 0 0 0)` (their
@@ -1791,7 +1832,7 @@ function _generateExportHTMLRaw(targetCanvas, zipRef, isImageExport = false, opt
       let bgStyle = '';
       let bgDataAttrs = '';
       const fadeBg = el.animFadeBg !== undefined ? el.animFadeBg : (el.type === 'button' ? true : !!el.animateBg);
-      const useLineBgScript = el.hasBg && fadeBg && !isImageExport && (animType === 'typing' || animType === 'fade-typing' || animType === 'word-fade');
+      const useLineBgScript = el.hasBg && fadeBg && !isImageExport && isTypingFamilyEntrance(animType);
       if (el.hasBg) {
         const lr = el.bgPadL !== undefined ? el.bgPadL : 8;
         const tb = el.bgPadV !== undefined ? el.bgPadV : 4;
@@ -1801,7 +1842,7 @@ function _generateExportHTMLRaw(targetCanvas, zipRef, isImageExport = false, opt
         if (useLineBgScript) {
           const dur = el.animDuration || 1;
           let offset = Number(el.bgOffset) || 0;
-          if (offset === 0 && (animType === 'typing' || animType === 'fade-typing' || animType === 'word-fade')) {
+          if (offset === 0 && isTypingFamilyEntrance(animType)) {
             offset = -0.1;
           }
           const delay = (Number(el.animDelay) || 0) + offset;
@@ -1873,9 +1914,8 @@ function _generateExportHTMLRaw(targetCanvas, zipRef, isImageExport = false, opt
         : `${staggerStyle || 'display:inline;'}white-space:nowrap;position:relative;${lsStyle}`;
 
       const fadeBg = el.animFadeBg !== undefined ? el.animFadeBg : (el.type === 'button' ? true : !!el.animateBg);
-      let bgAnimStyle = (!isImageExport && fadeBg && (animType === 'typing' || animType === 'fade-typing' || animType === 'word-fade'))
-        ? `;animation:anim-fade-in ${el.animDuration || 1}s ease-out ${el.animDelay || 0}s both`
-        : '';
+      const chromeAnim = isImageExport ? '' : buttonChromeEntranceCSS(el, animType);
+      let bgAnimStyle = chromeAnim ? `;animation:${chromeAnim}` : '';
       if (!isImageExport && animType === 'zoom' && el.animStaggerText) {
         const timing = el.animBounce ? 'linear' : 'ease-out';
         bgAnimStyle = `;animation:anim-zoom-${el.id} ${el.animDuration || 1}s ${timing} ${el.animDelay || 0}s both;transform-origin:${getTransformOriginValue(el.zoomAnchor || 'center')}`;
@@ -1884,8 +1924,8 @@ function _generateExportHTMLRaw(targetCanvas, zipRef, isImageExport = false, opt
       const strokeHtml = strokeOverlayHTML(el);
       let animatedStrokeHtml = strokeHtml;
       if (strokeHtml && !isImageExport) {
-        if (fadeBg && (animType === 'typing' || animType === 'fade-typing' || animType === 'word-fade')) {
-          animatedStrokeHtml = strokeHtml.replace('style="position:absolute;inset:0;', `style="position:absolute;inset:0;animation:anim-fade-in ${el.animDuration || 1}s ease-out ${el.animDelay || 0}s both;`);
+        if (chromeAnim) {
+          animatedStrokeHtml = strokeHtml.replace('style="position:absolute;inset:0;', `style="position:absolute;inset:0;animation:${chromeAnim};`);
         } else if (animType === 'zoom' && el.animStaggerText) {
           const timing = el.animBounce ? 'linear' : 'ease-out';
           animatedStrokeHtml = strokeHtml.replace('style="position:absolute;inset:0;', `style="position:absolute;inset:0;animation:anim-zoom-${el.id} ${el.animDuration || 1}s ${timing} ${el.animDelay || 0}s both;transform-origin:${getTransformOriginValue(el.zoomAnchor || 'center')};`);

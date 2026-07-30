@@ -603,7 +603,7 @@ function seqPresetLabel(kind, val) {
     if (v.startsWith('swipe')) return 'Swipe';
     if (v === 'slide' || v.startsWith('slide-')) return 'Slide';
     if (v === 'zoom' || v === 'zoom-in' || v === 'pop-in') return 'Zoom';
-    if (v === 'typing' || v === 'fade-typing' || v === 'word-fade') return 'Typing';
+    if (isTypingFamilyEntrance(v)) return 'Typing';
     return { 'none': 'None', 'fade-in': 'Fade In', 'split': 'Split', 'blur': 'Blur', 'rise': 'Rise' }[v] || v;
   }
   if (kind === 'out') {
@@ -805,48 +805,13 @@ function seqComputeBarPairs(kind, el, m) {
 // same hover-to-preview behaviour (via the panel's registered preview fns).
 // ---------------------------------------------------------------------------
 
+// Reads the shared preset registry (render-runtime.js) so the timeline menus and
+// the Animation panel always offer exactly the same presets.
 function seqPresetOptions(el, kind) {
-  if (kind === 'in') {
-    const opts = [
-      { val: 'none', label: 'None' },
-      { val: 'fade-in', label: 'Fade In' },
-      { val: 'slide', label: 'Slide' },
-      { val: 'swipe', label: 'Swipe' },
-      { val: 'zoom', label: 'Zoom' },
-      { val: 'split', label: 'Split' },
-      { val: 'blur', label: 'Blur' }
-    ];
-    // Text-only presets lead the list for text/buttons (mirrors the panel).
-    if (el.type === 'text' || el.type === 'button') {
-      opts.splice(1, 0,
-        { val: 'typing', label: 'Typing', badge: 'text' },
-        { val: 'rise', label: 'Rise', badge: 'text' }
-      );
-    }
-    return opts;
-  }
-  if (kind === 'out') {
-    // OUT has no 'none' preset — turning the category off is its own entry.
-    return [
-      { val: '__off', label: 'None' },
-      { val: 'fade-out', label: 'Fade Out' },
-      { val: 'slide', label: 'Slide' },
-      { val: 'swipe', label: 'Swipe' },
-      { val: 'zoom', label: 'Zoom' },
-      { val: 'blur', label: 'Blur' }
-    ];
-  }
-  return [
-    { val: 'none', label: 'None' },
-    { val: 'pulse', label: 'Pulse' },
-    { val: 'float', label: 'Float' },
-    { val: 'flash', label: 'Flash' },
-    { val: 'wiggle', label: 'Wiggle' },
-    { val: 'spin', label: 'Spin' },
-    { val: 'heartbeat', label: 'Heartbeat' },
-    { val: 'pan', label: 'Move' },
-    { val: 'zoom', label: 'Zoom' }
-  ];
+  if (kind === 'in') return getInAnimPresets(el);
+  // OUT has no 'none' preset — turning the category off is its own entry.
+  if (kind === 'out') return [{ val: '__off', label: 'None' }, ...getOutAnimPresets()];
+  return getFxPresets();
 }
 
 function seqCloseNPopover() {
@@ -984,35 +949,9 @@ function seqStartPlayback() {
     const frameCtx = el.persistent === false ? { seqPlay: true } : undefined;
     const animType = animInEnabled(el) ? (el.animType || 'none') : 'none';
 
-    // Per-id keyframes — mirrors the export pipeline's emission block.
-    if (animType === 'split') {
-      const fromPoly = getSplitClipPath(el.animAngle || 0);
-      const fadeFrom = el.animFade !== false ? 'opacity: 0;' : '';
-      const fadeTo = el.animFade !== false ? 'opacity: 1;' : '';
-      kf += `\n@keyframes anim-split-${el.id} { from { clip-path: ${fromPoly}; ${fadeFrom} } to { clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%); ${fadeTo} } }`;
-    }
-    if (animType === 'zoom' || animType === 'zoom-in' || animType === 'pop-in') {
-      const tempEl = { ...el };
-      if (animType === 'pop-in') { tempEl.zoomFrom = 80; tempEl.animFade = true; }
-      else if (animType === 'zoom-in') { tempEl.zoomFrom = 110; tempEl.animFade = true; }
-      kf += '\n' + getZoomKeyframes(tempEl);
-    }
-    if (animType === 'blur') kf += '\n' + getBlurKeyframes(el);
-    if (animType === 'slide' || animType.startsWith('slide-')) {
-      const tempEl = { ...el };
-      if (animType === 'slide-up') { tempEl.animDirection = 'up'; tempEl.animDistance = 20; }
-      else if (animType === 'slide-down') { tempEl.animDirection = 'down'; tempEl.animDistance = 20; }
-      else if (animType === 'slide-left') { tempEl.animDirection = 'left'; tempEl.animDistance = 20; }
-      else if (animType === 'slide-right') { tempEl.animDirection = 'right'; tempEl.animDistance = 20; }
-      kf += '\n' + getSlideKeyframes(tempEl);
-    }
-    if (animFxEnabled(el) && el.effectType === 'pan' && (el.panTowards || (el.panMidX !== undefined && el.panMidY !== undefined))) {
-      kf += '\n' + getPanCurveKeyframes(el);
-    }
-    if (frameCtx && animOutEnabled(el)) {
-      if (el.exitType === 'slide') kf += '\n' + getSlideOutKeyframes(el);
-      else if (el.exitType === 'zoom') kf += '\n' + getZoomOutKeyframes(el);
-    }
+    // Per-id keyframes come from the SAME shared builder the export uses, so a
+    // newly added preset animates identically here without extra wiring.
+    kf += buildElementKeyframesCSS(el, { includeExit: !!frameCtx });
 
     const a = getElementAnimationCSS(el, false, frameCtx);
     let anims = [...(a.entryAnimList || []), ...(a.exitAnimList || []), ...(a.effAnimList || [])];
@@ -1023,7 +962,7 @@ function seqStartPlayback() {
     // and its fade, typing's Fade-letters, etc. The original HTML is stashed and
     // restored by seqStopPlayback.
     if ((el.type === 'text' || el.type === 'button') &&
-        ['typing', 'fade-typing', 'word-fade', 'rise'].includes(animType) &&
+        isSpanDrivenEntrance(animType) &&
         typeof buildTextEntranceHTML === 'function') {
       const target = node.querySelector('.editable') || node.querySelector('span');
       if (target) {
@@ -1039,15 +978,48 @@ function seqStartPlayback() {
           if (riseMarker && typeof setupRiseLines === 'function') setupRiseLines(riseMarker);
         }
       }
+      // A button's fill/stroke must join the entrance (with the real delay),
+      // or the background would pop in while the label is still arriving.
+      // Same shared rule the export and the hover preview use.
+      if (el.type === 'button' && typeof buttonChromeEntranceCSS === 'function') {
+        const chromeAnim = buttonChromeEntranceCSS(el, animType);
+        if (chromeAnim) {
+          const fillBg = node.querySelector('div[style*="position: absolute"], div[style*="position:absolute"]');
+          if (fillBg) { fillBg.style.animation = chromeAnim; seqPlayNodes.push(fillBg); }
+          const strokeSvg = node.querySelector('svg[style*="position: absolute"], svg[style*="position:absolute"]');
+          if (strokeSvg) { strokeSvg.style.animation = chromeAnim; seqPlayNodes.push(strokeSvg); }
+        }
+      }
     }
 
     // Mask group: translate the mask's IN/OUT/FX onto this image node, exactly
     // like the export pipeline does (the mask's own node is invisible).
     const m = findMaskAbove(c, el);
     const innerImg = node.querySelector('img');
+
+    // Animations are collected per target node, then applied once each. Two
+    // reasons this must not be a single node:
+    //  • The MASK's reveal animates clip-path and has to sit on the wrapper,
+    //    where the mask's own clip-path lives (as export's maskCss does).
+    //  • The ELEMENT's own entrance therefore has to move INSIDE the mask —
+    //    onto the <img> — or a clip-path entrance like Split would fight the
+    //    mask clip on the wrapper and never appear. Export achieves the same
+    //    separation with its inner entry wrapper; the hover preview does it
+    //    with `targetNode = isMaskedImg ? img : node`.
+    // Accumulating also stops the mask's inverse-FX from clobbering an
+    // entrance already placed on the <img>.
+    const pending = new Map();
+    const addAnims = (target, list) => {
+      if (!target || !list || !list.length) return;
+      if (!pending.has(target)) pending.set(target, []);
+      pending.get(target).push(...list);
+    };
+    const elTarget = (m && innerImg) ? innerImg : node;
+    addAnims(elTarget, anims);
+
     if (m) {
       const mk = generateMaskClipPathKeyframes(m, el);
-      if (mk) { kf += '\n' + mk.keyframes; anims.push(mk.animationCss); }
+      if (mk) { kf += '\n' + mk.keyframes; addAnims(node, [mk.animationCss]); }
       if (frameCtx && animOutEnabled(m)) {
         const mExitType = m.exitType || 'fade-out';
         const mDelay = animInEnabled(m) ? (m.animDelay || 0) : 0;
@@ -1055,19 +1027,18 @@ function seqStartPlayback() {
         const mDur = m.exitDuration !== undefined ? m.exitDuration : DEFAULT_EXIT_MOTION_DURATION;
         const mFade = m.exitFade !== false;
         const mDir = m.exitDirection || (mExitType === 'swipe' ? 'left' : 'down');
-        if (mExitType === 'fade-out') anims.push(`anim-fade-out ${mDur}s ease-in ${mStart}s forwards`);
-        else if (mExitType === 'blur') anims.push(`anim-blur-out${mFade ? '' : '-nofade'} ${mDur}s ease-in ${mStart}s forwards`);
-        else if (mExitType === 'slide') { kf += '\n' + getSlideOutKeyframes(m); anims.push(`anim-slide-out-${m.id} ${mDur}s ease-in ${mStart}s forwards`); }
-        else if (mExitType === 'zoom') { kf += '\n' + getZoomOutKeyframes(m); anims.push(`anim-zoom-out-${m.id} ${mDur}s ease-in ${mStart}s forwards`); }
+        if (mExitType === 'fade-out') addAnims(node, [`anim-fade-out ${mDur}s ease-in ${mStart}s forwards`]);
+        else if (mExitType === 'blur') addAnims(node, [`anim-blur-out${mFade ? '' : '-nofade'} ${mDur}s ease-in ${mStart}s forwards`]);
+        else if (mExitType === 'slide') { kf += '\n' + getSlideOutKeyframes(m); addAnims(node, [`anim-slide-out-${m.id} ${mDur}s ease-in ${mStart}s forwards`]); }
+        else if (mExitType === 'zoom') { kf += '\n' + getZoomOutKeyframes(m); addAnims(node, [`anim-zoom-out-${m.id} ${mDur}s ease-in ${mStart}s forwards`]); }
         else if (mExitType === 'swipe' && innerImg) {
-          innerImg.style.animation = `anim-swipe-out-${mDir}${mFade ? '-fade' : ''} ${mDur}s ease-in ${mStart}s forwards`;
-          seqPlayNodes.push(innerImg);
+          addAnims(innerImg, [`anim-swipe-out-${mDir}${mFade ? '-fade' : ''} ${mDur}s ease-in ${mStart}s forwards`]);
         }
         maxEnd = Math.max(maxEnd, mStart + mDur);
       }
       const me = getElementAnimationCSS(m, false);
       if (me.effAnimList && me.effAnimList.length) {
-        anims.push(...me.effAnimList);
+        addAnims(node, me.effAnimList);
         seqApplyVars(node, me.effVars);
         const maskCenterX = m.x + m.width / 2 - el.x;
         const maskCenterY = m.y + m.height / 2 - el.y;
@@ -1075,17 +1046,16 @@ function seqStartPlayback() {
         if (innerImg && typeof getInverseElementAnimationCSS === 'function') {
           const inv = getInverseElementAnimationCSS(m, false, el);
           if (inv.effConfig) {
-            innerImg.style.animation = inv.effConfig.replace(/^animation:\s*/, '').replace(/;$/, '');
+            addAnims(innerImg, [inv.effConfig.replace(/^animation:\s*/, '').replace(/;$/, '')]);
             seqApplyVars(innerImg, inv.effVars);
             innerImg.style.transformOrigin = `${maskCenterX}px ${maskCenterY}px`;
-            seqPlayNodes.push(innerImg);
           }
         }
         hasInfinite = true;
       }
     }
 
-    if (!anims.length) return;
+    if (!pending.size) return;
 
     // Track total runtime for auto-stop.
     const b = seqBars(el);
@@ -1093,14 +1063,18 @@ function seqStartPlayback() {
     if (b.fx) { if (b.fx.infinite) hasInfinite = true; else maxEnd = Math.max(maxEnd, b.fx.start + b.fx.dur); }
     if (m && (m.animType || 'none') !== 'none') maxEnd = Math.max(maxEnd, (m.animDelay || 0) + (m.animDuration || 1));
 
-    node.style.animation = anims.join(', ');
-    seqApplyVars(node, (a.entryVars || '') + (a.effVars || ''));
-    if (animType === 'zoom' || animType === 'zoom-in' || animType === 'pop-in') {
-      node.style.transformOrigin = getTransformOriginValue(el.zoomAnchor || 'center');
-    } else if (frameCtx && animOutEnabled(el) && el.exitType === 'zoom') {
-      node.style.transformOrigin = getTransformOriginValue(el.exitZoomAnchor || 'center');
+    if (anims.length) {
+      seqApplyVars(elTarget, (a.entryVars || '') + (a.effVars || ''));
+      if (animType === 'zoom' || animType === 'zoom-in' || animType === 'pop-in') {
+        elTarget.style.transformOrigin = getTransformOriginValue(el.zoomAnchor || 'center');
+      } else if (frameCtx && animOutEnabled(el) && el.exitType === 'zoom') {
+        elTarget.style.transformOrigin = getTransformOriginValue(el.exitZoomAnchor || 'center');
+      }
     }
-    seqPlayNodes.push(node);
+    pending.forEach((list, target) => {
+      target.style.animation = list.join(', ');
+      seqPlayNodes.push(target);
+    });
   });
 
   if (!seqPlayNodes.length) {

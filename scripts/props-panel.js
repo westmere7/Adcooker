@@ -2479,23 +2479,9 @@ function renderProps() {
     f.push(`<div id="in-transition-preview-area" class="animation-sub-panel" style="${showIn ? '' : 'display:none;'}">`);
     f.push(`<div class="prop-row" style="margin-bottom:6px;"><label class="anim-sub-head"><svg id="fi_18562238" width="12" height="12" viewBox="0 0 100 100" style="color: var(--accent-base); flex-shrink: 0;" fill="currentColor"><path d="m21.5527992 16.0015984h-16.6498918c-2.1364791 0-3.2064319 2.5830956-1.695713 4.0938129l29.9045877 29.9045887-29.9045878 29.9045868c-1.5107189 1.5107193-.4407661 4.093811 1.695713 4.093811h16.6498909c.6360168 0 1.2459831-.252655 1.695713-.7023849l31.6003047-31.6002999c.9365158-.9365158.9365158-2.4549103 0-3.3914261l-31.6003036-31.6003017c-.44973-.4497299-1.0596962-.7023868-1.6957131-.7023868z"></path><path d="m63.5015984 16.0015984h-16.6498948c-2.1364784 0-3.2064323 2.5830956-1.695713 4.0938129l29.9045868 29.9045887-29.9045868 29.9045868c-1.5107193 1.5107193-.4407654 4.093811 1.695713 4.093811h16.6498947c.636013 0 1.2459831-.252655 1.695713-.7023849l31.6003038-31.6002999c.9365158-.9365158.9365158-2.4549103 0-3.3914261l-31.6003037-31.6003017c-.4497299-.4497299-1.0597-.7023868-1.695713-.7023868z"></path></svg>IN</label></div>`);
 
-    const animOptions = [
-      { val: 'none', label: 'None' },
-      { val: 'fade-in', label: 'Fade In' },
-      { val: 'slide', label: 'Slide' },
-      { val: 'swipe', label: 'Swipe' },
-      { val: 'zoom', label: 'Zoom' },
-      { val: 'split', label: 'Split' },
-      { val: 'blur', label: 'Blur' }
-    ];
-    // Text-only presets lead the list for text/buttons — they're the ones
-    // you reach for on a text layer. 'None' stays first as the opt-out.
-    if (el.type === 'text' || el.type === 'button') {
-      animOptions.splice(1, 0,
-        { val: 'typing', label: 'Typing', badge: 'text' },
-        { val: 'rise', label: 'Rise', badge: 'text' }
-      );
-    }
+    // From the shared preset registry (render-runtime.js) — the timeline's menu
+    // reads the same list, so a new preset shows up in both at once.
+    const animOptions = getInAnimPresets(el);
 
     let filteredOptions = animOptions;
     let favMessageHtml = '';
@@ -2693,13 +2679,20 @@ function renderProps() {
           </div>
         </div>
         <div class="prop-row" style="margin-bottom:8px;">
-          <div class="checkbox-row" style="margin:0;">
-            <input type="checkbox" data-k="riseFade" id="prop-rise-fade" title="Also fade each unit in as it rises" ${el.riseFade ? 'checked' : ''}/>
-            <label for="prop-rise-fade" title="Also fade each unit in as it rises" style="cursor:pointer; font-size:11px; white-space:nowrap;">Fade</label>
+          <div style="display:flex; flex-direction:row; gap:16px; align-items:center; height:24px;">
+            <div class="checkbox-row" style="margin:0;">
+              <input type="checkbox" data-k="riseFade" id="prop-rise-fade" title="Also fade each unit in as it rises" ${el.riseFade ? 'checked' : ''}/>
+              <label for="prop-rise-fade" title="Also fade each unit in as it rises" style="cursor:pointer; font-size:11px; white-space:nowrap;">Fade</label>
+            </div>
+            ${el.type === 'button' ? `
+            <div class="checkbox-row" style="margin:0;">
+              <input type="checkbox" data-k="animFadeBg" id="prop-rise-fade-bg" title="Fade the button's background and border in with the text" ${(el.animFadeBg !== undefined ? el.animFadeBg : true) ? 'checked' : ''}/>
+              <label for="prop-rise-fade-bg" title="Fade the button's background and border in with the text" style="cursor:pointer; font-size:11px; white-space:nowrap;">Fade BG</label>
+            </div>` : ''}
           </div>
         </div>
       `);
-    } else if (el.animType === 'typing' || el.animType === 'fade-typing' || el.animType === 'word-fade') {
+    } else if (isTypingFamilyEntrance(el.animType)) {
       const fadeBg = el.animFadeBg !== undefined ? el.animFadeBg : (el.type === 'button' ? true : !!el.animateBg);
       f.push(`
         <div class="prop-row" style="margin-bottom:8px;">
@@ -2748,13 +2741,7 @@ function renderProps() {
       </div>
     </div>`);
 
-    const exitOptions = [
-      { val: 'fade-out', label: 'Fade Out' },
-      { val: 'slide', label: 'Slide' },
-      { val: 'swipe', label: 'Swipe' },
-      { val: 'zoom', label: 'Zoom' },
-      { val: 'blur', label: 'Blur' }
-    ];
+    const exitOptions = getOutAnimPresets();   // shared registry
     const exitVal = el.exitType || 'fade-out';
     let filteredExit = exitOptions;
     let exitFavMessageHtml = '';
@@ -2825,17 +2812,7 @@ function renderProps() {
 
     f.push(`<div id="effects-preview-area" class="animation-sub-panel" style="${showFx ? '' : 'display:none;'}">`);
     f.push(`<div class="prop-row" style="margin-bottom:6px;"><label class="anim-sub-head"><svg id="fi_18489086" width="12" height="12" viewBox="0 0 100 100" style="color: var(--accent-base); flex-shrink: 0;"><g fill="currentColor"><path d="m62.9545441 6.8181796v17.2727323h-60.4545455v17.2727203h95.0000014z"></path><path d="m37.0454559 75.9090881h60.4545441v-17.2727203h-95.0000014l34.5454573 34.5454559z"></path></g></svg>Animation FX</label></div>`);
-    const effectOptions = [
-      { val: 'none', label: 'None' },
-      { val: 'pulse', label: 'Pulse' },
-      { val: 'float', label: 'Float' },
-      { val: 'flash', label: 'Flash' },
-      { val: 'wiggle', label: 'Wiggle' },
-      { val: 'spin', label: 'Spin' },
-      { val: 'heartbeat', label: 'Heartbeat' },
-      { val: 'pan', label: 'Move' },
-      { val: 'zoom', label: 'Zoom' }
-    ];
+    const effectOptions = getFxPresets();       // shared registry
 
     let filteredEffects = effectOptions;
     let effFavMessageHtml = '';
@@ -3442,63 +3419,40 @@ function checkButtonFontSizeWarning(el) {
           const del = Number(mergedEl.animDelay || 0);
           maxDur = Math.max(maxDur, dur + del);
 
-          if ((mergedEl.type === 'text' || mergedEl.type === 'button') && (previewVal === 'typing' || previewVal === 'fade-typing' || previewVal === 'word-fade' || previewVal === 'rise')) {
+          if ((mergedEl.type === 'text' || mergedEl.type === 'button') && isSpanDrivenEntrance(previewVal)) {
             const target = node.querySelector('.editable') || node.querySelector('span');
             if (target) {
               target.dataset.origHtml = target.innerHTML;
               target.dataset.origStyle = target.getAttribute('style') || '';
-              const totalDur = mergedEl.animDuration || 1;
-              const baseDelay = mergedEl.animDelay || 0;
-
               const overrides = typeof dmDisplay === 'function' ? dmDisplay(mergedEl) : {};
               const displayText = overrides.text !== undefined ? overrides.text : (mergedEl.text || '');
 
-              if (previewVal === 'rise' && typeof buildRiseContentHTML === 'function') {
-                // Same builder the export uses — identical markup, timing, ease.
-                const escP = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-                target.innerHTML = buildRiseContentHTML({ ...mergedEl, text: displayText }, escP, false);
-                // Line mode: group by the VISUAL lines the words landed on.
-                const riseMarker = target.querySelector('[data-rise-lines]');
-                if (riseMarker && typeof setupRiseLines === 'function') setupRiseLines(riseMarker);
-              } else if (previewVal === 'typing' || previewVal === 'fade-typing') {
-                const chars = [...displayText];
-                const fadeLetters = mergedEl.animFadeLetters !== false;
-                const charDur = fadeLetters ? 0.3 : 0.01;
-                const nonNewlines = chars.filter(c => c !== '\n').length;
-                const charDelay = totalDur / Math.max(1, nonNewlines);
-                let spanIdx = 0;
-                target.innerHTML = chars.map((c) => {
-                   if (c === '\n') return '<br/>';
-                   const del = (Number(baseDelay) + spanIdx * charDelay).toFixed(3);
-                   spanIdx++;
-                   const escC = c === ' ' ? ' ' : c.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-                   return `<span style="opacity:0; animation: anim-fade-in ${charDur}s linear ${del}s both;">${escC}</span>`;
-                }).join('');
-              } else if (previewVal === 'word-fade') {
-                const words = displayText.split(/(\s+)/);
-                const nonSpas = words.filter(w => /\S/.test(w));
-                const wordDur = 0.3;
-                const wordDelay = totalDur / Math.max(1, nonSpas.length);
-                let wordIdx = 0;
-                target.innerHTML = words.map(w => {
-                  if (w === '\n') return '<br/>';
-                  if (/\s+/.test(w)) return w.replace(/\n/g, '<br/>');
-                  const del = (Number(baseDelay) + wordIdx * wordDelay).toFixed(3);
-                  wordIdx++;
-                  const escW = w.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-                  return `<span style="opacity:0; display:inline-block; animation: anim-fade-in ${wordDur}s linear ${del}s both;">${escW}</span>`;
-                }).join('');
+              // Span markup comes from the SAME shared builder as export and
+              // timeline playback, so every span-driven preset previews exactly
+              // as it ships (see buildTextEntranceHTML / the preset registry).
+              if (typeof buildTextEntranceHTML === 'function') {
+                const escP = (s) => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+                // delay 0: a hover preview plays immediately, exactly like the
+                // whole-element presets below (which also ignore animDelay).
+                const spanHTML = buildTextEntranceHTML(mergedEl, escP, previewVal, false, displayText, 0);
+                if (spanHTML !== null) {
+                  target.innerHTML = spanHTML;
+                  // Rise Line mode groups by the visual lines, measurable only
+                  // after layout.
+                  const riseMarker = target.querySelector('[data-rise-lines]');
+                  if (riseMarker && typeof setupRiseLines === 'function') setupRiseLines(riseMarker);
+                }
               }
 
               const fadeBg = mergedEl.animFadeBg !== undefined ? mergedEl.animFadeBg : (mergedEl.type === 'button' ? true : !!mergedEl.animateBg);
-              if (mergedEl.type === 'text' && mergedEl.hasBg && fadeBg && (previewVal === 'typing' || previewVal === 'fade-typing' || previewVal === 'word-fade')) {
+              if (mergedEl.type === 'text' && mergedEl.hasBg && fadeBg && isTypingFamilyEntrance(previewVal)) {
                 const lr = mergedEl.bgPadL !== undefined ? mergedEl.bgPadL : 8;
                 const tb = mergedEl.bgPadV !== undefined ? mergedEl.bgPadV : 4;
                 const cov = mergedEl.bgCoverage !== undefined ? mergedEl.bgCoverage : 100;
                 const opa = (mergedEl.bgOpacity !== undefined ? mergedEl.bgOpacity : 100) / 100;
                 const bgRgba = hexToRgba(mergedEl.bg || '#000000', opa);
                 let offset = Number(mergedEl.bgOffset) || 0;
-                if (offset === 0 && (previewVal === 'typing' || previewVal === 'fade-typing' || previewVal === 'word-fade')) {
+                if (offset === 0 && isTypingFamilyEntrance(previewVal)) {
                   offset = -0.1;
                 }
                 const bgDelay = Number(baseDelay) + offset;
@@ -3518,14 +3472,15 @@ function checkButtonFontSizeWarning(el) {
                 requestAnimationFrame(() => setupTextLineBgs(target));
               }
 
-              if (mergedEl.type === 'button' && fadeBg) {
-                const fillBg = node.querySelector('div[style*="position: absolute"], div[style*="position:absolute"]');
-                if (fillBg) {
-                  fillBg.style.animation = `anim-fade-in ${dur}s ease-out ${del}s both`;
-                }
-                const strokeSvg = node.querySelector('svg[style*="position: absolute"], svg[style*="position:absolute"]');
-                if (strokeSvg) {
-                  strokeSvg.style.animation = `anim-fade-in ${dur}s ease-out ${del}s both`;
+              // Button chrome joins the text entrance — same shared rule as
+              // export/playback, at delay 0 like the rest of the hover preview.
+              if (mergedEl.type === 'button' && typeof buttonChromeEntranceCSS === 'function') {
+                const chromeAnim = buttonChromeEntranceCSS(mergedEl, previewVal, 0);
+                if (chromeAnim) {
+                  const fillBg = node.querySelector('div[style*="position: absolute"], div[style*="position:absolute"]');
+                  if (fillBg) fillBg.style.animation = chromeAnim;
+                  const strokeSvg = node.querySelector('svg[style*="position: absolute"], svg[style*="position:absolute"]');
+                  if (strokeSvg) strokeSvg.style.animation = chromeAnim;
                 }
               }
             }
