@@ -663,6 +663,13 @@ document.getElementById('menu-help-documentation').addEventListener('click', ope
 
 const CHANGELOG_DATA = [
   {
+    version: 'v0.34.3',
+    date: 'July 2026 — Engine v2.19',
+    items: [
+      'FX Bars Stay Visible and Draggable on the Timeline: An element\'s FX bar is now drawn on top of its IN and OUT bars as a diagonal stripe pattern with a solid teal strip along its bottom edge, instead of an outline buried underneath them. Previously an FX bar covering the same stretch as IN or OUT was invisible, and you could only grab it in whatever gaps the other bars left. That bottom strip is now the FX drag handle, so an FX bar can be moved anywhere along its length even where IN or OUT sits on top of it — and the IN and OUT bars stay grabbable everywhere above the strip, resize handles included. The stripes drift slowly on the selected layer only, so the timeline stays calm when nothing is selected.'
+    ]
+  },
+  {
     version: 'v0.34.2',
     date: 'July 2026 — Engine v2.19',
     items: [

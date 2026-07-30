@@ -6196,7 +6196,10 @@ body.fullscreen-mode #sequencer-panel { display: none; }
 .seq-track.seq-selected { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-base) 35%, transparent); }
 /* Bars in the selected row read stronger. */
 .seq-track.seq-selected .seq-bar { filter: brightness(1.12); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25); }
-.seq-track.seq-selected .seq-bar-fx { filter: none; border-color: rgba(47, 158, 143, 1); box-shadow: none; }
+/* The FX bar is an invisible hit target — suppress the selected-row highlight
+   so it doesn't draw a stray white ring. Its veil carries the highlight. */
+.seq-track.seq-selected .seq-bar-fx { filter: none; box-shadow: none; }
+.seq-track.seq-selected .seq-fx-veil { border-color: rgba(47, 158, 143, 1); }
 /* Row index before the layer name — numbers the timeline's own display order
    (so it follows drag-reordering and the animated-only filter). Tabular digits
    + fixed width keep every name left-aligned. */
@@ -6291,14 +6294,70 @@ body.fullscreen-mode #sequencer-panel { display: none; }
 .seq-bar:active { cursor: grabbing; }
 .seq-bar.seq-bar-in  { background: color-mix(in srgb, var(--accent-base) 85%, transparent); }
 .seq-bar.seq-bar-out { background: rgba(224, 101, 58, 0.85); }
-/* FX bars often span the whole row and would bury the IN/OUT bars — render
-   them as an unlabelled outline sitting UNDER the solid bars. */
+/* FX bars often span the whole row. The bar element itself stays invisible and
+   sits UNDER the solid IN/OUT bars so those remain draggable where they
+   overlap; all FX visuals are painted by .seq-fx-veil on top instead. */
 .seq-bar.seq-bar-fx {
   background: transparent;
-  border: 1.5px solid rgba(47, 158, 143, 0.9);
+  border: none;
   z-index: 1;
 }
-.seq-bar.seq-bar-fx.seq-bar-infinite {
+/* Pointer-transparent overlay carrying the FX outline + stripes. Sits above
+   the solid bars (z-index 3) so FX stays readable when IN/OUT overlap it. */
+.seq-fx-veil {
+  position: absolute;
+  top: 5px;
+  height: 24px;
+  border: 1.5px solid rgba(47, 158, 143, 0.9);
+  border-radius: 4px;
+  box-sizing: border-box;
+  overflow: hidden;
+  z-index: 3;
+  pointer-events: none;
+  --seq-stripe: 12px; /* stripe pattern period, measured along the 135deg axis */
+}
+.seq-fx-veil::before {
+  content: '';
+  position: absolute;
+  /* Overhang so the diagonal stripes don't reveal a seam as they translate. */
+  top: -6px;
+  bottom: -6px;
+  left: -28px;
+  right: -28px;
+  background: repeating-linear-gradient(135deg,
+    rgba(47, 158, 143, 0.42) 0 calc(var(--seq-stripe) / 2.4),
+    transparent calc(var(--seq-stripe) / 2.4) var(--seq-stripe));
+}
+/* Pointer-active drag strip along the bottom of the FX span. Sits above the
+   IN/OUT bars, so FX is grabbable along its whole length even where they cover
+   it — and doubles as a solid "FX lane" marker that reads at a glance. */
+.seq-fx-grip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 7px;
+  background: rgba(47, 158, 143, 0.72);
+  border-top: 1px solid rgba(120, 226, 211, 0.55);
+  pointer-events: auto;
+  cursor: grab;
+}
+.seq-fx-grip:hover { background: rgba(65, 190, 172, 0.9); }
+.seq-fx-grip:active { cursor: grabbing; }
+.seq-track.seq-selected .seq-fx-grip { background: rgba(47, 158, 143, 0.92); }
+/* Stripes only crawl on the selected row — ambient motion on every FX bar at
+   once would make the timeline noisy. */
+.seq-track.seq-selected .seq-fx-veil::before {
+  animation: seq-fx-stripe 1.8s linear infinite;
+}
+@keyframes seq-fx-stripe {
+  /* One full period horizontally = period / cos(45deg). */
+  to { transform: translateX(calc(var(--seq-stripe) * 1.41421)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .seq-track.seq-selected .seq-fx-veil::before { animation: none; }
+}
+.seq-fx-veil-infinite {
   border-right: none;
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;

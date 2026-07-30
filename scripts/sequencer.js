@@ -461,6 +461,27 @@ function seqRenderBody() {
     </div>`;
   };
 
+  // The FX bar has to stay hit-testable BELOW the IN/OUT bars so those remain
+  // draggable where they overlap — but it also has to stay visible, and an FX
+  // outline sitting under a solid bar of identical geometry is completely
+  // buried. So the FX visuals (outline + stripes) are painted by this
+  // pointer-transparent veil layered on top of everything instead.
+  const fxVeilHtml = (el, b) => {
+    if (!b) return '';
+    const left = b.start * pxPerSec;
+    // Infinite FX is anchored to the track's right edge instead of given a
+    // width, so dragging its start only has to move `left`.
+    const geom = b.infinite
+      ? `left:${left}px; right:0;`
+      : `left:${left}px; width:${Math.max(6, b.dur * pxPerSec)}px;`;
+    // The grip is the one pointer-active part of the veil: a thin strip along
+    // the bottom of the FX span that stays above the IN/OUT bars, so FX can be
+    // dragged anywhere along its length even where those bars cover it.
+    return `<div class="seq-fx-veil ${b.infinite ? 'seq-fx-veil-infinite' : ''}"
+      data-el="${el.id}" data-veil="fx" style="${geom}"><span class="seq-fx-grip"
+      title="FX · ${seqPresetLabel('fx', el.effectType)} — drag to move"></span></div>`;
+  };
+
   let rows = '';
   els.forEach((el, rowIdx) => {
     const b = seqBars(el);
@@ -481,7 +502,7 @@ function seqRenderBody() {
       </div>
       <div class="seq-track ${selected ? 'seq-selected' : ''}" data-el="${el.id}" style="width:${trackW}px; --seq-grid-px:${gridPx}px;">
         ${overrunW > 0.5 ? `<div class="seq-overrun" style="width:${overrunW}px;"></div>` : ''}
-        ${barHtml(el, 'in', b.in)}${barHtml(el, 'out', b.out)}${barHtml(el, 'fx', b.fx)}
+        ${barHtml(el, 'in', b.in)}${barHtml(el, 'out', b.out)}${barHtml(el, 'fx', b.fx)}${fxVeilHtml(el, b.fx)}
       </div>`;
   });
 
@@ -560,6 +581,13 @@ function seqRenderBody() {
   });
   body.querySelectorAll('.seq-bar').forEach(bar => {
     bar.addEventListener('mousedown', (e) => seqBarMouseDown(e, bar, pxPerSec));
+  });
+  // Grabbing the FX grip drives the FX bar underneath it. The grip carries no
+  // handle class, so seqBarMouseDown resolves this to a plain 'move'.
+  body.querySelectorAll('.seq-fx-grip').forEach(grip => {
+    const elId = grip.parentElement.dataset.el;
+    const fxBar = body.querySelector(`.seq-bar[data-el="${elId}"][data-kind="fx"]`);
+    if (fxBar) grip.addEventListener('mousedown', (e) => seqBarMouseDown(e, fxBar, pxPerSec));
   });
 
   if (seqPlaying) seqEnsurePlayhead();
@@ -720,6 +748,15 @@ function seqBarMouseMove(e) {
     if (mbar) {
       mbar.style.left = (m.pendingStart * d.pxPerSec) + 'px';
       if (!m.infinite) mbar.style.width = Math.max(6, m.pendingDur * d.pxPerSec) + 'px';
+    }
+    // FX visuals live on a separate veil element — keep it glued to the bar.
+    // (Infinite veils are right-anchored, so only `left` needs to move.)
+    if (d.kind === 'fx') {
+      const veil = document.querySelector(`.seq-fx-veil[data-el="${m.elId}"]`);
+      if (veil) {
+        veil.style.left = (m.pendingStart * d.pxPerSec) + 'px';
+        if (!m.infinite) veil.style.width = Math.max(6, m.pendingDur * d.pxPerSec) + 'px';
+      }
     }
   });
   const anchor = gl.find(m => m.elId === d.elId) || gl[0];
