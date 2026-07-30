@@ -663,6 +663,14 @@ document.getElementById('menu-help-documentation').addEventListener('click', ope
 
 const CHANGELOG_DATA = [
   {
+    version: 'v0.34.5',
+    date: 'July 2026 — Engine v2.19',
+    items: [
+      'New Batch Operation Portal: A new standalone page (File menu → Batch Operation…) built for other teams to produce ad packs without learning the editor. It walks through three steps: pick a certified Adflow template (bundled with the app — nothing is fetched from the cloud, and regular project files are rejected so teams always start from a vetted base), add their data (download the template\'s data sheet as a pre-filled CSV, import it back, and review or edit rows in the same Data & Versions panel the editor uses — with live banner previews per version, frame stepping, and playback controls), then export everything with one click — every data version × every ticked banner size, streamed into a single ZIP with one folder per version. Importing a sheet whose column headers were renamed warns immediately instead of silently exporting default content. The editor and the Ad Preview Portal are unchanged.',
+      'A sample certified template ("Batch Demo") ships in the Startup folder so the portal works out of the box; replace it with real certified templates by saving them via File → Save ▸ Save template and dropping the .flow into Startup/.'
+    ]
+  },
+  {
     version: 'v0.34.4',
     date: 'July 2026 — Engine v2.19',
     items: [

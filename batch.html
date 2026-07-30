@@ -1,0 +1,2275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Batch Operation Portal - RMIT Adflow</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="data/Elements/favicon-32x32.png" />
+  
+  <!-- Premium Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- JSZip for unzipping .flow files -->
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  
+  <style>
+    :root {
+      --bg-app: #0b0f17;
+      --bg-sidebar: #111827;
+      --bg-card: #1f2937;
+      --bg-input: #374151;
+      --border-color: #2e3748;
+      
+      --text-bright: #f9fafb;
+      --text-main: #e5e7eb;
+      --text-muted: #9ca3af;
+      --text-label: #6b7280;
+      
+      --accent-base: #7c5cff;
+      --accent-hover: #6d4aff;
+      --accent-light: #a78bfa;
+      
+      --success-base: #10b981;
+      --warning-base: #f59e0b;
+      --danger-base: #ef4444;
+      
+      --sidebar-width: 320px;
+    }
+    
+    .theme-slate {
+      --bg-app: #18181b;
+      --bg-sidebar: #202024;
+      --bg-card: #27272a;
+      --bg-input: #3f3f46;
+      --border-color: #52525b;
+      --text-bright: #ffffff;
+      --text-main: #f4f4f5;
+      --text-muted: #a1a1aa;
+    }
+    
+    .theme-light {
+      --bg-app: #f3f4f6;
+      --bg-sidebar: #ffffff;
+      --bg-card: #ffffff;
+      --bg-input: #f3f4f6;
+      --border-color: #e5e7eb;
+      --text-bright: #111827;
+      --text-main: #374151;
+      --text-muted: #6b7280;
+      --accent-light: #6d4aff;
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-app);
+      color: var(--text-main);
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+      transition: background 0.3s ease;
+    }
+    
+    /* Sidebar Styles */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      flex-shrink: 0;
+      z-index: 10;
+      transition: background 0.3s ease, border-color 0.3s ease;
+    }
+    
+    .sidebar-header {
+      padding: 24px 20px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    
+    .sidebar-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-bright);
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .sidebar-subtitle {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+    }
+    
+    .sidebar-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    .control-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+      margin-bottom: 2px;
+    }
+    
+    select, input[type="text"] {
+      width: 100%;
+      padding: 8px 12px;
+      font-size: 13px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      color: var(--text-bright);
+      outline: none;
+      font-family: inherit;
+      transition: border-color 0.2s ease;
+    }
+    
+    select:focus, input[type="text"]:focus {
+      border-color: var(--accent-base);
+    }
+    
+    select:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      border-color: var(--border-color);
+    }
+    
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-main);
+      cursor: pointer;
+      user-select: none;
+      padding: 4px 0;
+    }
+    
+    .checkbox-item input[type="checkbox"] {
+      accent-color: var(--accent-base);
+      cursor: pointer;
+    }
+    
+    .size-check-list {
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 8px;
+      background: rgba(0, 0, 0, 0.1);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    
+    .list-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    
+    .btn-link {
+      font-size: 11px;
+      color: var(--accent-light);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    
+    .btn-link:hover {
+      text-decoration: underline;
+    }
+    
+    .swatches {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .swatch {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      border: 2px solid transparent;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+      transition: transform 0.1s ease;
+    }
+    
+    .swatch:hover {
+      transform: scale(1.1);
+    }
+    
+    .swatch.active {
+      border-color: var(--accent-base);
+    }
+    
+    .swatch-obsidian { background: #0b0f17; }
+    .swatch-slate { background: #27272a; }
+    .swatch-light { background: #f3f4f6; }
+    
+    .swatch-chess {
+      background-color: #f1f1f1;
+      background-image: linear-gradient(45deg, #e0e0e0 25%, transparent 25%),
+                        linear-gradient(-45deg, #e0e0e0 25%, transparent 25%),
+                        linear-gradient(45deg, transparent 75%, #e0e0e0 75%),
+                        linear-gradient(-45deg, transparent 75%, #e0e0e0 75%);
+      background-size: 8px 8px;
+      background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
+    }
+    
+    .playback-row {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .btn {
+      flex: 1;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-bright);
+      background: var(--bg-input);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      cursor: pointer;
+      outline: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+    
+    .btn:hover {
+      background: rgba(255,255,255,0.05);
+    }
+    
+    .btn.primary {
+      background: var(--accent-base);
+      border-color: var(--accent-base);
+    }
+    
+    .btn.primary:hover {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+    }
+    
+    /* Main Content Area */
+    .main-viewport {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+    }
+    
+    .main-header {
+      height: 64px;
+      border-bottom: 1px solid var(--border-color);
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    
+    .project-name-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-bright);
+    }
+    
+    .canvas-grid {
+      flex: 1;
+      overflow: auto;
+      padding: 24px;
+      position: relative;
+    }
+    
+    /* Card Styles */
+    .card {
+      position: absolute;
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      overflow: visible;
+      box-shadow: none;
+      display: flex;
+      flex-direction: column;
+      transition: left 0.4s cubic-bezier(0.16, 1, 0.3, 1), top 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    
+    .card-header {
+      padding: 0 0 10px 0;
+      border-bottom: none;
+      display: flex;
+      justify-content: flex-start;
+      align-items: center;
+      background: transparent;
+      height: 24px;
+    }
+    
+    .card-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-bright);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+    
+    .badge.info {
+      background: rgba(124, 92, 255, 0.15);
+      color: var(--accent-light);
+    }
+    
+    .badge.success {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--success-base);
+    }
+    
+    .badge.warning {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--warning-base);
+      cursor: pointer;
+    }
+    
+    .badge.danger {
+      background: rgba(239, 104, 104, 0.15);
+      color: var(--danger-base);
+    }
+    
+    .card-body {
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      min-height: auto;
+    }
+    
+    .card-body.checkered {
+      background-color: #f1f1f1;
+      background-image: linear-gradient(45deg, #e0e0e0 25%, transparent 25%),
+                        linear-gradient(-45deg, #e0e0e0 25%, transparent 25%),
+                        linear-gradient(45deg, transparent 75%, #e0e0e0 75%),
+                        linear-gradient(-45deg, transparent 75%, #e0e0e0 75%);
+      background-size: 16px 16px;
+      background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+    }
+    
+    .theme-obsidian .card-body.checkered, .theme-slate .card-body.checkered {
+      background-color: #161b22;
+      background-image: linear-gradient(45deg, #21262d 25%, transparent 25%),
+                        linear-gradient(-45deg, #21262d 25%, transparent 25%),
+                        linear-gradient(45deg, transparent 75%, #21262d 75%),
+                        linear-gradient(-45deg, transparent 75%, #21262d 75%);
+    }
+    
+    .iframe-wrapper {
+      position: relative;
+      box-shadow: none;
+      border: none;
+      background: transparent;
+    }
+    
+    iframe.preview-iframe {
+      border: none;
+      display: block;
+      overflow: hidden;
+    }
+    
+    .card-audit {
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 10px 16px;
+      background: var(--bg-card);
+      font-size: 11px;
+      display: none;
+      margin-top: 8px;
+    }
+    
+    .card-audit.visible {
+      display: block;
+    }
+    
+    .audit-item {
+      font-size: 11.5px;
+      display: flex;
+      gap: 6px;
+      align-items: flex-start;
+      margin-bottom: 4px;
+      line-height: 1.4;
+    }
+    
+    .audit-item:last-child {
+      margin-bottom: 0;
+    }
+    
+    .audit-bullet {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      margin-top: 5px;
+      flex-shrink: 0;
+    }
+    
+    .audit-bullet.warning { background: var(--warning-base); }
+    .audit-bullet.a11y { background: var(--accent-light); }
+    
+    /* Drag & Drop Overlay */
+    .drag-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(11, 15, 23, 0.9);
+      border: 4px dashed var(--accent-base);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      gap: 16px;
+    }
+    
+    .drag-overlay.active {
+      display: flex;
+    }
+    
+    .drag-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text-bright);
+    }
+    
+    /* Full Portal Loader */
+    .portal-loader {
+      position: fixed;
+      inset: 0;
+      background: #0b0f17;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      gap: 16px;
+      opacity: 1;
+      transition: opacity 0.5s ease;
+    }
+    
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid var(--accent-base);
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ==================================================================
+       Editor-component support (Data & Versions panel + Adflow dialogs).
+       The panel markup comes from data-merge.js / modals.js, which style
+       against the editor's CSS variables — alias them to this portal's
+       palette, then carry over the component rules they rely on.
+       ================================================================== */
+    :root {
+      --bg-panel: var(--bg-sidebar);
+      --bg-body: var(--bg-app);
+      --bg-btn: var(--bg-input);
+      --border-light: var(--border-color);
+      --text-accent: var(--accent-light);
+      --shadow-heavy: rgba(0, 0, 0, 0.6);
+      --table-zebra-1: rgba(255, 255, 255, 0.03);
+      --table-zebra-2: rgba(255, 255, 255, 0.055);
+    }
+
+    .modal-bg {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, .6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100000;
+    }
+    .modal {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-light);
+      border-radius: 10px;
+      width: 640px;
+      max-width: 90vw;
+      max-height: 86vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 60px var(--shadow-heavy);
+    }
+    .modal-head {
+      display: flex;
+      align-items: center;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border-light);
+    }
+    .modal-head h2 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-bright);
+      flex: 1;
+      margin: 0;
+    }
+    .modal-body {
+      flex: 1;
+      overflow: auto;
+      padding: 16px 18px;
+      color: var(--text-main);
+      font-size: 12.5px;
+    }
+    .modal-foot {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 12px 18px;
+    }
+    .modal-foot:empty { display: none; }
+    .modal input[type="text"], .modal input[type="number"], .modal textarea, .modal select {
+      background: var(--bg-input);
+      border: 1px solid var(--border-light);
+      color: var(--text-main);
+      border-radius: 5px;
+      font-size: 12px;
+      padding: 5px 8px;
+    }
+
+    /* Data & Versions sheet (ids/classes emitted by dmRenderPanel) */
+    #dm-panel .dm-row:nth-child(even) > td { background-color: var(--table-zebra-1); }
+    #dm-panel .dm-row > td:nth-child(2n+4) { background-color: var(--table-zebra-1); }
+    #dm-panel .dm-row:nth-child(even) > td:nth-child(2n+4) { background-color: var(--table-zebra-2); }
+    #dm-panel th {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background-color: var(--bg-panel);
+    }
+    #dm-panel .dm-col-th.dm-key-col .dm-col-name { font-weight: 700; }
+    #dm-panel .dm-row > td.dm-key-col input.dm-cell { font-weight: 700; }
+    #dm-panel .dm-col-th.dm-col-highlight {
+      background-color: color-mix(in srgb, var(--accent-base) 28%, var(--bg-panel)) !important;
+      box-shadow: inset 0 -2px 0 var(--text-accent);
+      transition: background-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    #dm-panel .dm-row > td.dm-col-highlight {
+      background-color: color-mix(in srgb, var(--accent-base) 14%, transparent) !important;
+      transition: background-color 0.15s ease;
+    }
+    #dm-panel .dm-row:nth-child(even) > td.dm-col-highlight {
+      background-color: color-mix(in srgb, var(--accent-base) 18%, transparent) !important;
+      transition: background-color 0.15s ease;
+    }
+
+    /* Custom select dropdowns rendered by dmRenderCustomSelect */
+    .custom-select-item:hover {
+      background: var(--accent-base) !important;
+      color: var(--text-bright) !important;
+    }
+    .custom-select-dropdown::-webkit-scrollbar { width: 4px; }
+    .custom-select-dropdown::-webkit-scrollbar-track { background: transparent; }
+    .custom-select-dropdown::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 2px; }
+    .custom-select-dropdown::-webkit-scrollbar-thumb:hover { background: var(--accent-base); }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-main);
+    }
+  </style>
+  
+  <!-- Empty mock elements to absorb editor script listeners -->
+  <div style="display:none;">
+    <div id="btn-ai-resize"></div>
+    <div id="btn-ai-resize-settings"></div>
+    <div id="menu-file-export"></div>
+    <div id="btn-export-top"></div>
+    <div id="menu-file-data"></div>
+    <div id="btn-open-data"></div>
+    <div id="btn-version-prev"></div>
+    <div id="btn-version-next"></div>
+    <div id="btn-data-lock"></div>
+    <div id="props"></div>
+  </div>
+</head>
+<body class="theme-obsidian">
+
+  <!-- PORTAL LOADING OVERLAY -->
+  <div class="portal-loader" id="portal-loader">
+    <div class="spinner"></div>
+    <h2 id="loader-title" style="font-family:'Outfit',sans-serif; color:#fff; font-size:18px;">Loading preview...</h2>
+    <p id="loader-subtitle" style="color:var(--text-muted); font-size:13px;">Downloading project package</p>
+  </div>
+
+  <!-- DRAG & DROP OVERLAY -->
+  <div class="drag-overlay" id="drag-overlay">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent-base)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    <div class="drag-title">Drop a certified .flow template here</div>
+    <p style="color:var(--text-muted);">This will load the project locally inside your browser</p>
+  </div>
+
+  <!-- SIDEBAR CONTROLS -->
+  <div class="sidebar">
+    <div class="sidebar-header" style="display:flex; flex-direction:column; align-items:flex-start; padding:24px 20px; border-bottom:1px solid var(--border-color);">
+      <img src="data/Elements/Adflow_logo.svg" alt="RMIT Adflow" style="height:26px; display:block;" />
+    </div>
+    
+    <div class="sidebar-content">
+
+      <!-- 1. CERTIFIED TEMPLATE -->
+      <div class="control-group">
+        <div class="control-label">1 · Certified Template</div>
+        <div style="display:flex; flex-direction:column; gap:8px; width:100%;">
+          <select id="select-template" style="width:100%; margin:0; height:26px; font-size:11.5px; padding:2px 8px;">
+            <option value="">Loading templates…</option>
+          </select>
+          <button class="btn primary" id="btn-load-template" style="width:100%;" disabled>Load Template</button>
+          <div style="font-size:10px; color:var(--text-muted); line-height:1.35;">
+            Templates ship with this app (offline — nothing is fetched from the cloud).
+            You can also drop a certified <b>.flow template file</b> anywhere on this page.
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. DATA SHEET -->
+      <div class="control-group">
+        <div class="control-label">2 · Data Sheet</div>
+        <div style="display:flex; flex-direction:column; gap:8px; width:100%;">
+          <button class="btn" id="btn-sheet-template" style="width:100%;" disabled title="Download a CSV with this template's columns to fill in">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>Download Sheet Template</span>
+          </button>
+          <button class="btn" id="btn-sheet-import" style="width:100%;" disabled title="Import a filled-in CSV — one ad version per row">Import Data Sheet…</button>
+          <button class="btn" id="btn-sheet-edit" style="width:100%;" disabled title="Open the Data &amp; Versions panel to review and edit rows">Edit Data &amp; Versions…</button>
+          <div id="sheet-status" style="font-size:10px; color:var(--text-muted); line-height:1.35;">Load a template first.</div>
+        </div>
+      </div>
+
+      <!-- 3. EXPORT -->
+      <div class="control-group">
+        <div class="control-label">3 · Export</div>
+        <div style="display:flex; flex-direction:column; gap:8px; width:100%;">
+          <button class="btn primary" id="btn-batch-export" style="width:100%;" disabled>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span id="batch-export-label">Export ZIP</span>
+          </button>
+          <div id="export-hint" style="font-size:10px; color:var(--text-muted); line-height:1.35;">
+            Exports every data version &times; every ticked banner size into one ZIP.
+          </div>
+        </div>
+      </div>
+
+      <!-- TIMELINE CONTROLS -->
+      <div class="control-group">
+        <div class="control-label">Playback Controls</div>
+        <div class="playback-row" style="display:flex; flex-direction:column; gap:8px;">
+          <div style="display:flex; gap:8px; width:100%;">
+            <button class="btn primary" id="btn-play" style="flex:1;" title="Play banner animations">Animated</button>
+            <button class="btn" id="btn-static" style="flex:1;" title="Freeze animations as static images">Static only</button>
+          </div>
+          <button class="btn" id="btn-replay" style="width:100%;" title="Restart timeline">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-top:-1px;"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            <span>Restart Timeline</span>
+          </button>
+          <div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">
+            <label class="checkbox-item" style="font-size:11.5px; color:var(--text-main); display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="chk-loop-ad" style="margin:0; cursor:pointer;">
+              <span>Loop timeline</span>
+            </label>
+            <div style="font-size:10px; color:var(--text-muted); line-height:1.3; font-style:italic;">
+              Preview override only; does not affect exported ad loop settings.
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- FRAME BY FRAME SWITCHER -->
+      <div class="control-group">
+        <div class="control-label">Frame Select</div>
+        <div style="display:flex; align-items:center; gap:4px; width:100%;">
+          <button type="button" class="btn" id="btn-prev-frame" style="flex:none !important; padding:0; height:26px; width:22px; min-width:22px; background:var(--bg-btn); border:1px solid var(--border-color); border-radius:4px; color:var(--text-muted); cursor:pointer; display:flex; align-items:center; justify-content:center;" onmouseover="this.style.color='var(--text-bright)'" onmouseout="this.style.color='var(--text-muted)'" title="Previous Frame">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <select id="select-frame" style="flex:1; margin:0; height:26px; font-size:11.5px; padding:2px 8px;">
+            <option value="play" selected>All frames</option>
+          </select>
+          <button type="button" class="btn" id="btn-next-frame" style="flex:none !important; padding:0; height:26px; width:22px; min-width:22px; background:var(--bg-btn); border:1px solid var(--border-color); border-radius:4px; color:var(--text-muted); cursor:pointer; display:flex; align-items:center; justify-content:center;" onmouseover="this.style.color='var(--text-bright)'" onmouseout="this.style.color='var(--text-muted)'" title="Next Frame">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+      </div>
+      
+      <!-- DATA VERSION -->
+      <div class="control-group" id="version-control-group" style="display:none;">
+        <div class="control-label">Data Version</div>
+        <div style="display:flex; align-items:center; gap:4px; width:100%;">
+          <button type="button" class="btn" id="btn-prev-version" style="flex:none !important; padding:0; height:26px; width:22px; min-width:22px; background:var(--bg-btn); border:1px solid var(--border-color); border-radius:4px; color:var(--text-muted); cursor:pointer; display:flex; align-items:center; justify-content:center;" onmouseover="this.style.color='var(--text-bright)'" onmouseout="this.style.color='var(--text-muted)'" title="Previous Version">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <select id="select-version" style="flex:1; margin:0; height:26px; font-size:11.5px; padding:2px 8px;"></select>
+          <button type="button" class="btn" id="btn-next-version" style="flex:none !important; padding:0; height:26px; width:22px; min-width:22px; background:var(--bg-btn); border:1px solid var(--border-color); border-radius:4px; color:var(--text-muted); cursor:pointer; display:flex; align-items:center; justify-content:center;" onmouseover="this.style.color='var(--text-bright)'" onmouseout="this.style.color='var(--text-muted)'" title="Next Version">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+      </div>
+      
+      <!-- CANVAS CHECKLIST -->
+      <div class="control-group">
+        <div class="control-label" style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+          <span>Banners Sizes</span>
+          <span id="ad-count" style="font-size:10px; font-weight:normal; text-transform:none; color:var(--text-muted);">0 sizes</span>
+        </div>
+        <div class="size-check-list" id="size-check-list"></div>
+        <div class="list-actions">
+          <button class="btn-link" id="btn-select-all">Select All</button>
+          <button class="btn-link" id="btn-select-none">Clear All</button>
+        </div>
+      </div>
+      
+
+      
+      <!-- PRESENTATION THEME -->
+      <div class="control-group">
+        <div class="control-label">Presentation Grid / BG</div>
+        <div class="swatches">
+          <div class="swatch swatch-obsidian active" data-theme="obsidian" title="Obsidian Theme"></div>
+          <div class="swatch swatch-slate" data-theme="slate" title="Slate Gray Theme"></div>
+          <div class="swatch swatch-light" data-theme="light" title="Light Theme"></div>
+          <div class="swatch swatch-chess" data-theme="chess" title="Checkered Canvas Pattern"></div>
+        </div>
+      </div>
+      
+    </div>
+  </div>
+
+  <!-- MAIN VIEWPORT -->
+  <div class="main-viewport">
+    <div class="main-header" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:nowrap; gap:12px; overflow:hidden;">
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:nowrap; overflow:hidden; flex-shrink:1;">
+        <div class="project-name-title" id="project-name" style="margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">No Project Loaded</div>
+        <span style="font-size:10px; font-weight:700; text-transform:uppercase; border:1px solid var(--accent-base); color:var(--accent-light); padding:2px 6px; border-radius:4px; white-space:nowrap; letter-spacing:0.04em;">Batch</span>
+        <div id="preview-share-meta" style="display:none;"></div>
+      </div>
+      <div style="font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 12px; flex-shrink:0;">
+        <button class="btn-link" id="btn-drag-trigger" style="font-size: 12px; white-space: nowrap; flex-shrink:0;">Open Template File...</button>
+      </div>
+    </div>
+    
+    <!-- GRID CONTAINER -->
+    <div class="canvas-grid" id="canvas-grid"></div>
+  </div>
+
+  <!-- ENGINE STUBS & LOGIC BEFORE LOADING ENGINES -->
+  <script>
+    // Stubs for Adflow editor variables/functions required by auto-arrange and export-pipeline
+    var state = {
+      canvases: [],
+      frames: [],
+      linkGroups: {},
+      assets: {},
+      loopAd: true,
+      activeFrameId: 0,
+      zoom: 1.0
+    };
+    
+    function getActiveCanvas() {
+      return state.canvases ? state.canvases[0] : null;
+    }
+    
+    function getCanvasBg(c, frameId) {
+      if (!c) return '#000';
+      if (frameId != null && c.bgByFrame && c.bgByFrame[frameId] !== undefined) {
+        return c.bgByFrame[frameId];
+      }
+      return c.bgColor || '#000';
+    }
+    
+    // isActiveMask() now provided by scripts/render-runtime.js
+
+    
+    // findMaskAbove() now provided by scripts/render-runtime.js
+
+    
+    function showCanvasNotification(msg, opts) {
+      console.log('Adflow Portal Notice:', msg, opts);
+      // Lightweight toast so panel/import feedback is visible on this page.
+      try {
+        const type = (opts && opts.type) || 'info';
+        const colors = { success: '#10b981', error: '#ef4444', warning: '#f59e0b', info: 'var(--accent-base)' };
+        const t = document.createElement('div');
+        t.textContent = msg;
+        t.style.cssText = `position:fixed; bottom:22px; left:50%; transform:translateX(-50%);
+          background:var(--bg-card); color:var(--text-bright); border:1px solid ${colors[type] || colors.info};
+          border-left:4px solid ${colors[type] || colors.info}; padding:9px 16px; border-radius:8px;
+          font-size:12px; z-index:1000001; box-shadow:0 10px 30px rgba(0,0,0,.45); max-width:70vw;`;
+        document.body.appendChild(t);
+        setTimeout(() => { t.style.transition = 'opacity .4s'; t.style.opacity = '0'; }, 2600);
+        setTimeout(() => t.remove(), 3100);
+      } catch (e) { /* toast is best-effort */ }
+    }
+
+    // The data panel and modals commit edits through these editor hooks. The
+    // batch portal has no undo stack; render() is provided later (it refreshes
+    // the version list and reloads the banner grid).
+    function pushHistory() {}
+    function renderProps() {}
+    
+
+    
+    function isLineHeightAuto(el) {
+      if (el.lineHeightAuto !== undefined) return !!el.lineHeightAuto;
+      return el.lineHeight === undefined;
+    }
+    
+    function getResolvedLineHeight(el) {
+      if (isLineHeightAuto(el)) return 'normal';
+      const val = el.lineHeight;
+      if (val === undefined || val === null || val === '') return '1.2';
+      const str = String(val);
+      if (str.includes('px') || str.includes('em') || str.includes('%')) return str;
+      const num = Number(val);
+      if (Number.isNaN(num)) return '1.2';
+      if (num <= 3.5) return String(num);
+      return num + 'px';
+    }
+    
+    // strokeOverlayHTML() now provided by scripts/render-runtime.js
+
+    
+    // getElementAnimationCSS() now provided by scripts/render-runtime.js
+
+    
+    // getInverseElementAnimationCSS() now provided by scripts/render-runtime.js
+
+    
+    // hexToRgba() now provided by scripts/render-runtime.js
+
+    // setupTextLineBgs() now provided by scripts/render-runtime.js
+
+    
+    // parseColorToRGB() now provided by scripts/render-runtime.js
+
+    
+    // getLuminance() now provided by scripts/render-runtime.js
+
+    
+    // getContrastRatio() now provided by scripts/render-runtime.js
+
+    
+    // baseLayerLabel() now provided by scripts/render-runtime.js
+
+    
+    function runAuditChecks(c) {
+      if (!c) return;
+      c._valA11y = [];
+      c._valBrand = [];
+      const settings = state.validationSettings || {};
+      
+      // Accessibility checks
+      c.elements.forEach(el => {
+        if (el.type === 'text') {
+          // Color contrast check
+          const textRGB = parseColorToRGB(el.color || '#ffffff');
+          const bgRGB = parseColorToRGB(el.hasBg ? (el.bg || '#000000') : (c.bgColor || '#0f172a'));
+          if (textRGB && bgRGB) {
+            const ratio = getContrastRatio(textRGB, bgRGB);
+            const size = el.fontSize || 14;
+            const required = size >= 18 ? 3.0 : 4.5;
+            if (ratio < required) {
+              c._valA11y.push({
+                message: `Low text contrast on '${el.customName || el.text.slice(0, 15)}' (${ratio.toFixed(1)}:1). WCAG AA requires ${required.toFixed(1)}:1.`
+              });
+            }
+          }
+          // Tiny size check
+          const size = el.fontSize || 14;
+          if (size < 6) {
+            c._valA11y.push({
+              message: `Text '${el.customName || el.text.slice(0, 15)}' is tiny (${size}px). May be illegible.`
+            });
+          }
+        } else if (el.type === 'button') {
+          const textRGB = parseColorToRGB(el.textColor || '#ffffff');
+          const bgRGB = parseColorToRGB(el.bg || '#7c5cff');
+          if (textRGB && bgRGB) {
+            const ratio = getContrastRatio(textRGB, bgRGB);
+            const required = 4.5;
+            if (ratio < required) {
+              c._valA11y.push({
+                message: `Button '${el.customName || el.text}' has low contrast (${ratio.toFixed(1)}:1). WCAG AA requires ${required.toFixed(1)}:1.`
+              });
+            }
+          }
+        }
+      });
+      
+      // Infinite looping check
+      c.elements.forEach(el => {
+        if (el.effectType && el.effectType !== 'none' && el.effOnce === false) {
+          c._valA11y.push({
+            message: `Layer '${baseLayerLabel(el)}' loops infinitely. Consider 'Perform once' to avoid user distraction.`
+          });
+        }
+      });
+    }
+  </script>
+  
+  <!-- LOAD WORKSPACE ENGINE SCRIPTS
+       ?v= is bumped with each release (same as index.html) so reviewers'
+       browsers never pair stale engine scripts with new inline portal code. -->
+  <script src="scripts/render-runtime.js?v=0.34.5"></script>
+  <script src="scripts/auto-arrange-config.js?v=0.34.5"></script>
+  <script src="scripts/auto-resize-engine.js?v=0.34.5"></script>
+  <!-- modals.js supplies openModal + showAdflowAlert/Confirm/Prompt, which the
+       Data & Versions panel (data-merge.js) opens on this page. -->
+  <script src="scripts/modals.js?v=0.34.5"></script>
+  <script src="scripts/data-merge.js?v=0.34.5"></script>
+  <script src="scripts/font-subset.js?v=0.34.5"></script>
+  <script src="scripts/export-pipeline.js?v=0.34.5"></script>
+
+  <!-- MAIN PREVIEW ENGINE PORTAL -->
+  <script>
+    // Elements references
+    const loader = document.getElementById('portal-loader');
+    const loaderTitle = document.getElementById('loader-title');
+    const loaderSubtitle = document.getElementById('loader-subtitle');
+    const dragOverlay = document.getElementById('drag-overlay');
+    const projectNameEl = document.getElementById('project-name');
+    const adCountEl = document.getElementById('ad-count');
+    const gridContainer = document.getElementById('canvas-grid');
+    const selectVersion = document.getElementById('select-version');
+    const selectFrame = document.getElementById('select-frame');
+    const sizeCheckList = document.getElementById('size-check-list');
+    const playBtn = document.getElementById('btn-play');
+    const staticBtn = document.getElementById('btn-static');
+    const replayBtn = document.getElementById('btn-replay');
+    const chkLoopAd = document.getElementById('chk-loop-ad');
+    const versionGroup = document.getElementById('version-control-group');
+    
+    // Cycle select helpers
+    const btnPrevFrame = document.getElementById('btn-prev-frame');
+    const btnNextFrame = document.getElementById('btn-next-frame');
+    const btnPrevVersion = document.getElementById('btn-prev-version');
+    const btnNextVersion = document.getElementById('btn-next-version');
+
+    function cycleSelect(selectEl, direction) {
+      const len = selectEl.options.length;
+      if (len <= 1) return;
+      let newIdx = selectEl.selectedIndex + direction;
+      if (newIdx < 0) newIdx = len - 1;
+      if (newIdx >= len) newIdx = 0;
+      selectEl.selectedIndex = newIdx;
+      selectEl.dispatchEvent(new Event('change'));
+    }
+
+    if (btnPrevFrame) btnPrevFrame.onclick = () => cycleSelect(selectFrame, -1);
+    if (btnNextFrame) btnNextFrame.onclick = () => cycleSelect(selectFrame, 1);
+    if (btnPrevVersion) btnPrevVersion.onclick = () => cycleSelect(selectVersion, -1);
+    if (btnNextVersion) btnNextVersion.onclick = () => cycleSelect(selectVersion, 1);
+    
+    let isPlaying = true;
+    let selectedCanvasIds = new Set();
+
+    // Repopulate options based on play state (shows or hides "All frames")
+    function repopulateFrameSelect() {
+      const currentVal = selectFrame.value;
+      selectFrame.innerHTML = '';
+      
+      const playable = (state.frames || []).filter(f => !f.skip);
+      
+      if (isPlaying) {
+        selectFrame.innerHTML += '<option value="play">All frames</option>';
+      }
+      
+      playable.forEach((f) => {
+        const i = state.frames.indexOf(f);
+        selectFrame.innerHTML += `<option value="${f.id}">Frame ${i + 1} (${f.duration}s)</option>`;
+      });
+      
+      // Restore previous selection if valid
+      if (currentVal && selectFrame.querySelector(`option[value="${currentVal}"]`)) {
+        selectFrame.value = currentVal;
+      } else {
+        if (isPlaying) {
+          selectFrame.value = 'play';
+        } else {
+          selectFrame.value = playable.length ? playable[0].id : '';
+        }
+      }
+    }
+
+    if (chkLoopAd) {
+      chkLoopAd.onchange = () => {
+        state.loopAd = chkLoopAd.checked;
+        reloadAllBanners();
+      };
+    }
+    
+    // Theme Management
+    document.querySelectorAll('.swatch').forEach(swatch => {
+      swatch.onclick = () => {
+        document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+        swatch.classList.add('active');
+        
+        const theme = swatch.dataset.theme;
+        document.body.className = '';
+        
+        if (theme === 'chess') {
+          document.body.classList.add('theme-obsidian');
+          document.querySelectorAll('.card-body').forEach(b => b.classList.add('checkered'));
+        } else {
+          document.body.classList.add('theme-' + theme);
+          document.querySelectorAll('.card-body').forEach(b => b.classList.remove('checkered'));
+        }
+      };
+    });
+    
+    // Play / Static only state control
+    function setPlayState(playing, triggerReload = true) {
+      isPlaying = playing;
+      
+      // Repopulate options based on play state (shows or hides "All frames")
+      repopulateFrameSelect();
+      
+      // Frame select stays enabled at all times (jump-and-play model).
+      selectFrame.disabled = false;
+      
+      if (isPlaying) {
+        playBtn.classList.add('primary');
+        staticBtn.classList.remove('primary');
+        
+        if (triggerReload) {
+          reloadAllBanners();
+        } else {
+          // Remove static overrides to let timer run
+          document.querySelectorAll('iframe').forEach(iframe => {
+            if (!iframe.contentDocument) return;
+            const doc = iframe.contentDocument || iframe.contentWindow.document;
+            const style = doc.getElementById('preview-state-override-style');
+            if (style) style.remove();
+            
+            // Resume animations
+            const animStyle = doc.getElementById('preview-playback-pause-style');
+            if (animStyle) animStyle.remove();
+            
+            // If a specific frame is selected, loop it
+            const cw = iframe.contentWindow;
+            const val = selectFrame.value;
+            if (val && val !== 'play' && cw && typeof cw.adflowPlayFrom === 'function' && cw.frames) {
+              const idx = cw.frames.findIndex(f => f.id === parseInt(val));
+              if (idx !== -1) cw.adflowPlayFrom(idx, true);
+            }
+          });
+        }
+      } else {
+        playBtn.classList.remove('primary');
+        staticBtn.classList.add('primary');
+        
+        // Pause animations & clear internal loops to prevent background timeline jumps
+        document.querySelectorAll('iframe').forEach(iframe => {
+          if (iframe.contentWindow) {
+            try {
+              const maxId = iframe.contentWindow.setTimeout(() => {}, 0);
+              for (let id = 0; id <= maxId; id++) {
+                iframe.contentWindow.clearTimeout(id);
+              }
+            } catch (err) {
+              console.warn('Failed to clear timeouts on pause:', err);
+            }
+          }
+          
+          const doc = iframe.contentDocument || iframe.contentWindow.document;
+          if (!doc) return;
+          let style = doc.getElementById('preview-playback-pause-style');
+          if (!style) {
+            style = doc.createElement('style');
+            style.id = 'preview-playback-pause-style';
+            style.textContent = `
+              #ad * {
+                animation-play-state: paused !important;
+              }
+            `;
+            doc.head.appendChild(style);
+          }
+        });
+        
+        // Freeze on the selected frame
+        const val = selectFrame.value;
+        if (val && val !== 'play') {
+          freezeFrame(parseInt(val));
+        }
+      }
+    }
+    
+    playBtn.onclick = () => setPlayState(true);
+
+    // Inject a static-freeze stylesheet into every banner so it shows `frameId`
+    // with all animations stopped. Used by the Static-only button.
+    function freezeFrame(frameId) {
+      document.querySelectorAll('iframe').forEach(iframe => {
+        const doc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
+        if (!doc) return;
+        let style = doc.getElementById('preview-state-override-style');
+        if (!style) {
+          style = doc.createElement('style');
+          style.id = 'preview-state-override-style';
+          doc.head.appendChild(style);
+        }
+        style.textContent = `
+          #ad .frame { display: none !important; animation: none !important; z-index: 1 !important; }
+          #ad #frame-${frameId} { display: block !important; animation: none !important; z-index: 2 !important; }
+          #ad * {
+            animation-duration: 0s !important;
+            animation-delay: 0s !important;
+            animation-play-state: paused !important;
+            transition-duration: 0s !important;
+            transition-delay: 0s !important;
+          }
+        `;
+        // Repaint ad background to match this frame
+        const card = iframe.closest('.card');
+        const canvasObj = card && state.canvases.find(c => c.id === card.dataset.canvasId);
+        if (canvasObj) {
+          const adEl = doc.getElementById('ad');
+          if (adEl) adEl.style.background = getCanvasBg(canvasObj, frameId);
+        }
+        if (iframe.contentWindow && iframe.contentWindow.frames && iframe.contentWindow.updatePersistentLayersVisibility) {
+          const idx = iframe.contentWindow.frames.findIndex(f => f.id === frameId);
+          if (idx !== -1) iframe.contentWindow.updatePersistentLayersVisibility(idx);
+        }
+      });
+    }
+
+    staticBtn.onclick = () => {
+      // Freeze every banner on the first playable frame for static inspection.
+      const playable = (state.frames || []).filter(f => !f.skip);
+      const firstFrameId = playable.length ? playable[0].id : null;
+      setPlayState(false, false);
+      if (firstFrameId !== null) {
+        freezeFrame(firstFrameId);
+        selectFrame.value = firstFrameId;
+      }
+    };
+
+    // Replay timelines
+    replayBtn.onclick = () => {
+      reloadAllBanners();
+    };
+
+    // Frame Selection — jump-and-play: picking a frame jumps every banner to it
+    // and plays forward (looping just that frame if playing); "All frames" restarts the full loop.
+    selectFrame.onchange = () => {
+      const val = selectFrame.value;
+      if (val === 'play') {
+        if (!isPlaying) {
+          setPlayState(true);
+        } else {
+          reloadAllBanners();
+        }
+        return;
+      }
+      const frameId = parseInt(val);
+      if (isPlaying) {
+        // Animated mode: play and loop just this frame
+        document.querySelectorAll('iframe').forEach(iframe => {
+          const cw = iframe.contentWindow;
+          const doc = iframe.contentDocument || (cw && cw.document);
+          if (doc) {
+            ['preview-state-override-style', 'preview-playback-pause-style'].forEach(id => {
+              const s = doc.getElementById(id);
+              if (s) s.remove();
+            });
+          }
+          if (cw && typeof cw.adflowPlayFrom === 'function' && cw.frames) {
+            const idx = cw.frames.findIndex(f => f.id === frameId);
+            if (idx !== -1) cw.adflowPlayFrom(idx, true);
+          }
+        });
+      } else {
+        // Static mode: freeze on this frame
+        freezeFrame(frameId);
+      }
+    };
+    
+    // Helper to construct state-specific stylesheets to inject before rendering
+    function getPreparedHtml(c, htmlContent) {
+      let extraStyle = '';
+      
+      // 1. Playback state
+      if (!isPlaying) {
+        const val = selectFrame.value;
+        if (val !== 'play') {
+          const frameId = parseInt(val);
+          extraStyle += `
+            <style id="preview-state-override-style">
+              #ad .frame { display: none !important; animation: none !important; z-index: 1 !important; }
+              #ad #frame-${frameId} { display: block !important; animation: none !important; z-index: 2 !important; }
+              #ad * {
+                animation-duration: 0s !important;
+                animation-delay: 0s !important;
+                animation-play-state: paused !important;
+                transition-duration: 0s !important;
+                transition-delay: 0s !important;
+              }
+            </style>
+          `;
+        } else {
+          extraStyle += `
+            <style id="preview-playback-pause-style">
+              #ad * {
+                animation-play-state: paused !important;
+              }
+            </style>
+          `;
+        }
+      }
+      
+      if (extraStyle) {
+        htmlContent = htmlContent.replace('</head>', extraStyle + '</head>');
+      }
+      
+      return htmlContent;
+    }
+    
+
+    
+    // Version switching
+    selectVersion.onchange = () => {
+      const val = selectVersion.value;
+      if (state.dataMerge) {
+        state.dataMerge.activeVersion = (val === 'default') ? null : parseInt(val);
+      }
+      reloadAllBanners();
+    };
+    
+    // Size check list actions
+    document.getElementById('btn-select-all').onclick = () => {
+      selectedCanvasIds = new Set(state.canvases.map(c => c.id));
+      document.querySelectorAll('#size-check-list input').forEach(input => input.checked = true);
+      updateCanvasGridVisibility();
+    };
+    
+    document.getElementById('btn-select-none').onclick = () => {
+      selectedCanvasIds.clear();
+      document.querySelectorAll('#size-check-list input').forEach(input => input.checked = false);
+      updateCanvasGridVisibility();
+    };
+    
+    // Scaled state for speed toggle
+    function getScaledState(speed) {
+      if (speed === 1) return state;
+      const cloned = JSON.parse(JSON.stringify(state));
+      if (cloned.frames) {
+        cloned.frames.forEach(f => {
+          f.duration = f.duration / speed;
+          f.transitionDuration = (f.transitionDuration !== undefined ? f.transitionDuration : 0.5) / speed;
+        });
+      }
+      if (cloned.canvases) {
+        cloned.canvases.forEach(c => {
+          c.elements.forEach(el => {
+            if (el.animDuration) el.animDuration = el.animDuration / speed;
+            if (el.animDelay) el.animDelay = el.animDelay / speed;
+            if (el.effectDuration) el.effectDuration = el.effectDuration / speed;
+          });
+        });
+      }
+      return cloned;
+    }
+
+    // Calculate compressed ZIP size for a canvas (matching export & app weight calculation)
+    async function calculateCanvasZipSize(c) {
+      if (typeof JSZip === 'undefined') return 0;
+      const zip = new JSZip();
+      
+      const speed = 1;
+      const originalState = window.state;
+      window.state = getScaledState(speed);
+      
+      const dm = state.dataMerge;
+      const activeVersionIdx = (dm && dm.enabled && dm.activeVersion != null) ? dm.activeVersion : null;
+      
+      try {
+        if (typeof dmRunExport === 'function') {
+          await dmRunExport(activeVersionIdx, async () => {
+            await addCanvasAssetsToZip(c, zip);
+            zip.file('index.html', generateExportHTML(c, zip, false, { previewControls: true }));
+          });
+        } else {
+          await addCanvasAssetsToZip(c, zip);
+          zip.file('index.html', generateExportHTML(c, zip, false, { previewControls: true }));
+        }
+      } catch (e) {
+        console.error('Failed to calculate canvas ZIP size:', e);
+      } finally {
+        window.state = originalState;
+      }
+      
+      const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+      return parseFloat((blob.size / 1024).toFixed(1));
+    }
+
+    // Update the size badge in the UI asynchronously
+    async function updateSizeBadge(c) {
+      const badge = document.getElementById('size-badge-' + c.id);
+      if (!badge) return;
+      
+      const kbSize = await calculateCanvasZipSize(c);
+      const sizeLimit = state.adSizeLimit || 150;
+      
+      badge.className = kbSize > sizeLimit ? 'badge danger' : 'badge success';
+      badge.textContent = `${kbSize} KB`;
+    }
+    
+    // Render canvases
+    function renderCanvases() {
+      gridContainer.innerHTML = '';
+      
+      state.canvases.forEach(c => {
+        runAuditChecks(c);
+        
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.dataset.canvasId = c.id;
+        
+        // Calculate file weight estimate (raw HTML)
+        const speed = 1;
+        const originalState = window.state;
+        window.state = getScaledState(speed);
+        
+        let htmlContent = '';
+        try {
+          htmlContent = generateExportHTML(c, null, false, { previewControls: true });
+        } catch (e) {
+          console.error(e);
+        } finally {
+          window.state = originalState;
+        }
+        
+        const kbSize = (new Blob([htmlContent]).size / 1024).toFixed(1);
+        const sizeLimit = state.adSizeLimit || 150;
+        const sizeClass = parseFloat(kbSize) > sizeLimit ? 'badge danger' : 'badge success';
+        
+        // Audit Warnings Badge
+        const totalWarnings = (c._valA11y ? c._valA11y.length : 0) + (c._valBrand ? c._valBrand.length : 0);
+        const warningBadge = totalWarnings > 0
+          ? `<span class="badge warning" onclick="toggleAuditLog('${c.id}')">${totalWarnings} Warning${totalWarnings > 1 ? 's' : ''}</span>`
+          : '';
+        
+        card.innerHTML = `
+          <div class="card-header">
+            <div class="card-title" style="display:flex; align-items:center; font-family:'JetBrains Mono', ui-monospace, monospace; font-size:11px; color:var(--text-muted); letter-spacing:0.04em;">
+              <span style="font-weight:600; color:var(--text-bright);">${c.width} &times; ${c.height}</span>
+              <span style="margin-left:8px; margin-right:8px; color:var(--text-muted);">&bull;</span>
+              <span class="${sizeClass}" id="size-badge-${c.id}" style="font-size:11px; font-weight:700; color:var(--accent-base); padding:0; background:transparent; text-transform:none;">${kbSize} KB</span>
+            </div>
+          </div>
+          
+          <div class="card-body">
+            <div class="iframe-wrapper" style="width:${c.width}px; height:${c.height}px;">
+              <iframe class="preview-iframe" id="iframe-${c.id}" style="width:${c.width}px; height:${c.height}px;" scrolling="no"></iframe>
+            </div>
+          </div>
+
+          <div class="card-footer" style="display:flex; justify-content:flex-start; margin-top:10px; gap:8px; align-items:center;">
+            <button class="banner-footer-btn" title="Restart this banner" onclick="restartBanner('${c.id}')" style="background:transparent; border:none; cursor:pointer; color:var(--text-muted); display:flex; align-items:center; justify-content:center; padding:2px; border-radius:3px; opacity:0.8; transition:color 0.1s;" onmouseover="this.style.color='#fff';" onmouseout="this.style.color='var(--text-muted)';">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            </button>
+            <button class="banner-footer-btn" title="Download HTML5" onclick="downloadSingleBanner('${c.id}')" style="background:transparent; border:none; cursor:pointer; color:var(--text-muted); display:flex; align-items:center; justify-content:center; padding:2px; border-radius:3px; opacity:0.8; transition:color 0.1s;" onmouseover="this.style.color='#fff';" onmouseout="this.style.color='var(--text-muted)';">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </button>
+            ${totalWarnings > 0 ? `<span class="badge warning" onclick="toggleAuditLog('${c.id}')" style="margin-left:4px; font-size:9px; padding:1px 4px; border-radius:3px; cursor:pointer;">${totalWarnings} Warning${totalWarnings > 1 ? 's' : ''}</span>` : ''}
+          </div>
+          
+          <div class="card-audit" id="audit-${c.id}">
+            <h4 style="font-size:12px; margin-bottom:8px; font-weight:600; color:var(--text-bright);">Audit Logs</h4>
+            <div class="audit-list">
+              ${c._valA11y ? c._valA11y.map(x => `
+                <div class="audit-item">
+                  <span class="audit-bullet a11y"></span>
+                  <span>${x.message}</span>
+                </div>
+              `).join('') : ''}
+              ${c._valBrand ? c._valBrand.map(x => `
+                <div class="audit-item">
+                  <span class="audit-bullet warning"></span>
+                  <span>${x.message}</span>
+                </div>
+              `).join('') : ''}
+            </div>
+          </div>
+        `;
+        
+        gridContainer.appendChild(card);
+        
+        // Load content into iframe using srcdoc with prepared dynamic styles
+        const iframe = card.querySelector('iframe');
+        iframe.onload = () => {
+          if (!isPlaying) {
+            const val = selectFrame.value;
+            if (val !== 'play') {
+              const frameId = parseInt(val);
+              if (iframe.contentWindow && iframe.contentWindow.frames && iframe.contentWindow.updatePersistentLayersVisibility) {
+                const idx = iframe.contentWindow.frames.findIndex(f => f.id === frameId);
+                if (idx !== -1) {
+                  iframe.contentWindow.updatePersistentLayersVisibility(idx);
+                }
+              }
+            }
+          } else {
+            const val = selectFrame.value;
+            if (val !== 'play') {
+              const frameId = parseInt(val);
+              const cw = iframe.contentWindow;
+              if (cw && typeof cw.adflowPlayFrom === 'function' && cw.frames) {
+                const idx = cw.frames.findIndex(f => f.id === frameId);
+                if (idx !== -1) cw.adflowPlayFrom(idx, true);
+              }
+            }
+          }
+        };
+        iframe.srcdoc = getPreparedHtml(c, htmlContent);
+        
+        // Asynchronously update size badge with the accurate compressed ZIP size
+        updateSizeBadge(c);
+      });
+      
+      updateCanvasGridVisibility();
+      setTimeout(layoutCards, 50);
+    }
+    
+    function toggleAuditLog(id) {
+      const element = document.getElementById('audit-' + id);
+      if (element) {
+        element.classList.toggle('visible');
+        layoutCards();
+      }
+    }
+    
+    // Reload (restart) a single banner: rebuilds its iframe from scratch so the
+    // timeline and all animations start fresh from frame 1. Used by the per-size
+    // restart icon and by reloadAllBanners().
+    function reloadBanner(c) {
+      const iframe = document.getElementById('iframe-' + c.id);
+      if (!iframe) return;
+      const speed = 1;
+      const originalState = window.state;
+      window.state = getScaledState(speed);
+
+      let htmlContent = '';
+      try {
+        htmlContent = generateExportHTML(c, null, false, { previewControls: true });
+      } catch(e) {
+        console.error(e);
+      } finally {
+        window.state = originalState;
+      }
+
+      // Clear timeouts of the old iframe window before replacing it to prevent ghost execution
+      if (iframe.contentWindow) {
+        try {
+          const maxId = iframe.contentWindow.setTimeout(() => {}, 0);
+          for (let id = 0; id <= maxId; id++) {
+            iframe.contentWindow.clearTimeout(id);
+          }
+        } catch (err) {
+          console.warn('Failed to clear timeouts on reload:', err);
+        }
+      }
+
+      // Re-create the iframe to completely discard the old document context and loops
+      const parent = iframe.parentElement;
+      const newIframe = document.createElement('iframe');
+      newIframe.className = 'preview-iframe';
+      newIframe.id = 'iframe-' + c.id;
+      newIframe.style.width = c.width + 'px';
+      newIframe.style.height = c.height + 'px';
+      newIframe.setAttribute('scrolling', 'no');
+
+      parent.replaceChild(newIframe, iframe);
+
+      // Sync persistent layers once loaded
+      newIframe.onload = () => {
+        if (!isPlaying) {
+          const val = selectFrame.value;
+          if (val !== 'play') {
+            const frameId = parseInt(val);
+            if (newIframe.contentWindow && newIframe.contentWindow.frames && newIframe.contentWindow.updatePersistentLayersVisibility) {
+              const idx = newIframe.contentWindow.frames.findIndex(f => f.id === frameId);
+              if (idx !== -1) {
+                newIframe.contentWindow.updatePersistentLayersVisibility(idx);
+              }
+            }
+          }
+        } else {
+          const val = selectFrame.value;
+          if (val !== 'play') {
+            const frameId = parseInt(val);
+            const cw = newIframe.contentWindow;
+            if (cw && typeof cw.adflowPlayFrom === 'function' && cw.frames) {
+              const idx = cw.frames.findIndex(f => f.id === frameId);
+              if (idx !== -1) cw.adflowPlayFrom(idx, true);
+            }
+          }
+        }
+      };
+
+      newIframe.srcdoc = getPreparedHtml(c, htmlContent);
+      
+      // Update size badge with the accurate compressed ZIP size
+      updateSizeBadge(c);
+    }
+
+    // Reload all canvases
+    function reloadAllBanners() {
+      state.canvases.forEach(reloadBanner);
+
+      // Reset play state controls without triggering infinite recursion
+      setPlayState(true, false);
+    }
+
+    // Restart a single banner's timeline (per-size restart icon).
+    window.restartBanner = (id) => {
+      const c = state.canvases.find(x => x.id === id);
+      if (c) reloadBanner(c);
+    };
+
+    window.downloadSingleBanner = async (id) => {
+      const c = state.canvases.find(x => x.id === id);
+      if (!c) return;
+      if (typeof JSZip === 'undefined') {
+        alert('JSZip is not loaded.');
+        return;
+      }
+      const zip = new JSZip();
+      const projName = state.projectName || 'Ad';
+      const safeName = projName.replace(/[^a-zA-Z0-9_-]/g, '_');
+      
+      const speed = 1;
+      const originalState = window.state;
+      window.state = getScaledState(speed);
+      
+      const dm = state.dataMerge;
+      const activeVersionIdx = (dm && dm.enabled && dm.activeVersion != null) ? dm.activeVersion : null;
+      
+      try {
+        if (typeof dmRunExport === 'function') {
+          await dmRunExport(activeVersionIdx, async () => {
+            await addCanvasAssetsToZip(c, zip);
+            zip.file('index.html', generateExportHTML(c, zip));
+          });
+        } else {
+          await addCanvasAssetsToZip(c, zip);
+          zip.file('index.html', generateExportHTML(c, zip));
+        }
+      } catch (e) {
+        console.error('Failed to export single banner:', e);
+        alert('Failed to export single banner.');
+        return;
+      } finally {
+        window.state = originalState;
+      }
+      
+      const content = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(content);
+      a.download = `${safeName}_${c.width}x${c.height}.zip`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    };
+    
+    // Update visibility based on checklists selection
+    function updateCanvasGridVisibility() {
+      state.canvases.forEach(c => {
+        const card = document.querySelector(`.card[data-canvas-id="${c.id}"]`);
+        if (card) {
+          card.style.display = selectedCanvasIds.has(c.id) ? 'flex' : 'none';
+        }
+      });
+      layoutCards();
+    }
+    
+    function packRectangles(rectangles, viewportWidth, gap) {
+      const placed = [];
+      
+      for (const rect of rectangles) {
+        const w = rect.width;
+        const h = rect.height;
+        
+        const candidateX = [0];
+        const candidateY = [0];
+        for (const p of placed) {
+          candidateX.push(p.x + p.width + gap);
+          candidateY.push(p.y + p.height + gap);
+        }
+        
+        const validX = candidateX.filter(x => x + w <= viewportWidth);
+        if (validX.length === 0) {
+          validX.push(0);
+        }
+        
+        let bestX = 0;
+        let bestY = Infinity;
+        
+        for (const x of validX) {
+          for (const y of candidateY) {
+            let overlaps = false;
+            for (const p of placed) {
+              if (x < p.x + p.width + gap && x + w + gap > p.x &&
+                  y < p.y + p.height + gap && y + h + gap > p.y) {
+                overlaps = true;
+                break;
+              }
+            }
+            
+            if (!overlaps) {
+              if (y + h < bestY || (y + h === bestY && x < bestX)) {
+                bestY = y + h;
+                bestX = x;
+              }
+            }
+          }
+        }
+        
+        if (bestY === Infinity) {
+          let maxY = 0;
+          for (const p of placed) {
+            maxY = Math.max(maxY, p.y + p.height + gap);
+          }
+          bestX = 0;
+          bestY = maxY;
+        } else {
+          bestY = bestY - h;
+        }
+        
+        placed.push({
+          id: rect.id,
+          x: bestX,
+          y: bestY,
+          width: w,
+          height: h
+        });
+      }
+      
+      return placed;
+    }
+    
+    function layoutCards() {
+      const cards = Array.from(gridContainer.children).filter(card => card.classList.contains('card'));
+      const visibleCards = cards.filter(card => card.style.display !== 'none');
+      
+      let spacer = document.getElementById('canvas-grid-spacer');
+      if (!spacer) {
+        spacer = document.createElement('div');
+        spacer.id = 'canvas-grid-spacer';
+        spacer.style.cssText = 'position: absolute; left: 0; top: 0; pointer-events: none;';
+        gridContainer.appendChild(spacer);
+      }
+      
+      if (visibleCards.length === 0) {
+        spacer.style.width = '0px';
+        spacer.style.height = '0px';
+        return;
+      }
+      
+      const padding = 32;
+      const gap = 40;
+      const viewportWidth = Math.max(300, gridContainer.clientWidth - 2 * padding);
+      
+      const rectangles = visibleCards.map(card => {
+        return {
+          id: card.dataset.canvasId,
+          card: card,
+          width: card.offsetWidth || 280,
+          height: card.offsetHeight || 300
+        };
+      });
+      
+      const packed = packRectangles(rectangles, viewportWidth, gap);
+      
+      let maxBottom = 0;
+      let maxRight = 0;
+      packed.forEach(p => {
+        const item = rectangles.find(r => r.id === p.id);
+        if (item) {
+          item.card.style.left = (p.x + padding) + 'px';
+          item.card.style.top = (p.y + padding) + 'px';
+          maxBottom = Math.max(maxBottom, p.y + p.height + padding);
+          maxRight = Math.max(maxRight, p.x + p.width + padding);
+        }
+      });
+      
+      spacer.style.width = maxRight + 'px';
+      spacer.style.height = maxBottom + 'px';
+    }
+    
+    // Rebuild the Data Version dropdown from state.dataMerge, keeping the
+    // current selection when it still exists. Runs on template load and after
+    // every data-sheet import / panel edit.
+    function repopulateVersionSelect() {
+      const prev = selectVersion.value;
+      selectVersion.innerHTML = '';
+      if (state.dataMerge && state.dataMerge.rows && state.dataMerge.rows.length > 0) {
+        versionGroup.style.display = 'flex';
+        selectVersion.innerHTML += '<option value="default">Template Default</option>';
+        const keyCol = state.dataMerge.versionNameKey ||
+          (state.dataMerge.keyColumn && state.dataMerge.columns.includes(state.dataMerge.keyColumn)
+            ? state.dataMerge.keyColumn : state.dataMerge.columns[0]);
+        state.dataMerge.rows.forEach((row, i) => {
+          const label = row[keyCol] || `Version ${i + 1}`;
+          selectVersion.innerHTML += `<option value="${i}">${i + 1}. ${label}</option>`;
+        });
+        // Keep the previous pick if it still exists; otherwise mirror the
+        // active version so the dropdown and the rendered banners agree.
+        const active = state.dataMerge.activeVersion;
+        const want = (prev && selectVersion.querySelector(`option[value="${prev}"]`)) ? prev
+          : (active != null && selectVersion.querySelector(`option[value="${active}"]`)) ? String(active)
+          : 'default';
+        selectVersion.value = want;
+      } else {
+        versionGroup.style.display = 'none';
+      }
+    }
+
+    // Editor hook: data-merge.js calls render() after imports, version
+    // switches and panel cell edits. On this page that means "refresh the
+    // version list + status text, then re-render the banner grid" (debounced —
+    // panel edits can fire in quick bursts).
+    let _batchRenderTimer = null;
+    function render(force) {
+      if (!templateLoaded) return;
+      repopulateVersionSelect();
+      refreshBatchDataUI();
+      clearTimeout(_batchRenderTimer);
+      _batchRenderTimer = setTimeout(() => reloadAllBanners(), 250);
+    }
+
+    // Populate controls based on loaded state
+    function populateControls() {
+      // 1. Project Title
+      projectNameEl.textContent = state.projectName || 'Adflow Ad Pack';
+      adCountEl.textContent = `${state.canvases.length} size${state.canvases.length > 1 ? 's' : ''}`;
+      
+      const downloadAllBtn = document.getElementById('btn-download-all');
+      if (downloadAllBtn) {
+        downloadAllBtn.style.display = (state.canvases && state.canvases.length > 0) ? 'inline-flex' : 'none';
+      }
+      
+      // Batch portal: data-sheet buttons only make sense once a template with
+      // data slots is loaded.
+      refreshBatchDataUI();
+
+      // 2. Timeline Selector
+      repopulateFrameSelect();
+      if (chkLoopAd) {
+        chkLoopAd.checked = !!state.loopAd;
+      }
+      
+      // 3. Data Version Switcher
+      repopulateVersionSelect();
+
+      // 4. Checklist Checklist Sizes
+      sizeCheckList.innerHTML = '';
+      selectedCanvasIds = new Set(state.canvases.map(c => c.id));
+      state.canvases.forEach(c => {
+        const id = `chk-${c.id}`;
+        sizeCheckList.innerHTML += `
+          <label class="checkbox-item">
+            <input type="checkbox" id="${id}" checked onchange="toggleSizeSelection('${c.id}', this.checked)">
+            <span>${c.name} (${c.width} &times; ${c.height})</span>
+          </label>
+        `;
+      });
+    }
+    
+    window.toggleSizeSelection = (id, checked) => {
+      if (checked) selectedCanvasIds.add(id);
+      else selectedCanvasIds.delete(id);
+      updateCanvasGridVisibility();
+    };
+    
+    // Process raw file buffer
+    async function processProjectFile(buffer) {
+      loader.style.opacity = '1';
+      loader.style.display = 'flex';
+      loaderTitle.textContent = 'Processing file...';
+      loaderSubtitle.textContent = 'Reading zip archives';
+      
+      try {
+        const zip = await JSZip.loadAsync(buffer);
+        const projFile = zip.file('project.json');
+        if (!projFile) throw new Error('Invalid project file (missing project.json)');
+        
+        const jsonStr = await projFile.async('string');
+        const loadedState = JSON.parse(jsonStr);
+        
+        // Certification gate: this portal only accepts Adflow TEMPLATES (saved
+        // via "Save template" in the editor, marked isTemplate). Regular .flow
+        // project files are rejected so teams always start from a vetted base.
+        let certified = loadedState.isTemplate === true;
+        if (!certified) {
+          const metaFile = zip.file('meta.json');
+          if (metaFile) {
+            try { certified = JSON.parse(await metaFile.async('string')).isTemplate === true; }
+            catch (e) { /* fall through to the rejection below */ }
+          }
+        }
+        if (!certified) {
+          throw new Error('Not a certified Adflow template. Ask the Adflow team for a .flow TEMPLATE file (saved via "Save template"), or pick one from the Certified Templates list.');
+        }
+
+        loaderSubtitle.textContent = 'Extracting assets';
+        const newAssets = {};
+        if (loadedState.assets) {
+          const entries = Object.entries(loadedState.assets);
+          const total = entries.length;
+          let count = 0;
+          for (const [assetId, path] of entries) {
+            count++;
+            loaderSubtitle.textContent = `Extracting asset ${count} of ${total}`;
+            if (path.startsWith('images/')) {
+              const imgFile = zip.file(path);
+              if (imgFile) {
+                const base64 = await imgFile.async('base64');
+                const ext = path.split('.').pop();
+                const mime = ext === 'jpg' ? 'jpeg' : (ext === 'svg' ? 'svg+xml' : ext);
+                newAssets[assetId] = `data:image/${mime};base64,${base64}`;
+              }
+            } else {
+              newAssets[assetId] = path;
+            }
+          }
+        }
+        loadedState.assets = newAssets;
+        
+        // Save state globally
+        window.state = loadedState;
+        templateLoaded = true; // certification passed above
+
+        loaderSubtitle.textContent = 'Rendering canvases';
+        populateControls();
+        renderCanvases();
+        
+        // Fade loader
+        loader.style.opacity = '0';
+        setTimeout(() => loader.style.display = 'none', 500);
+      } catch (err) {
+        console.error(err);
+        loaderTitle.textContent = err.message.includes('expired or has been deleted') ? 'Link Inactive' : 'Import Failed';
+        loaderSubtitle.textContent = err.message || err;
+        loader.querySelector('.spinner').style.display = 'none';
+      }
+    }
+    
+    // Drag & Drop event handling
+    window.addEventListener('dragenter', (e) => {
+      e.preventDefault();
+      dragOverlay.classList.add('active');
+    });
+    
+    dragOverlay.addEventListener('dragover', (e) => {
+      e.preventDefault();
+    });
+    
+    dragOverlay.addEventListener('dragleave', (e) => {
+      if (e.relatedTarget === null || e.relatedTarget.nodeName === 'HTML') {
+        dragOverlay.classList.remove('active');
+      }
+    });
+    
+    function clearUrlQuery() {
+      if (window.location.search) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+
+    dragOverlay.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dragOverlay.classList.remove('active');
+      clearUrlQuery();
+      
+      const file = e.dataTransfer.files[0];
+      if (file && (file.name.endsWith('.flow') || file.name.endsWith('.zip'))) {
+        const reader = new FileReader();
+        reader.onload = (evt) => processProjectFile(evt.target.result);
+        reader.readAsArrayBuffer(file);
+      }
+    });
+    
+    // Load local file selector trigger
+    const fileSelector = document.createElement('input');
+    fileSelector.type = 'file';
+    fileSelector.accept = '.flow,.zip';
+    fileSelector.onchange = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        clearUrlQuery();
+        const reader = new FileReader();
+        reader.onload = (evt) => processProjectFile(evt.target.result);
+        reader.readAsArrayBuffer(file);
+      }
+    };
+    document.getElementById('btn-drag-trigger').onclick = () => fileSelector.click();
+    
+    // Download All Banners package
+    const downloadAllBtn = document.getElementById('btn-download-all');
+    if (downloadAllBtn) {
+      downloadAllBtn.onclick = async () => {
+        if (!state.canvases || state.canvases.length === 0) return;
+        if (typeof JSZip === 'undefined') {
+          alert('JSZip is not loaded.');
+          return;
+        }
+        
+        const span = downloadAllBtn.querySelector('span');
+        const originalText = span.textContent;
+        span.textContent = 'Zipping...';
+        downloadAllBtn.disabled = true;
+        
+        try {
+          const zip = new JSZip();
+          const projName = state.projectName || 'Ads';
+          const safePrefix = projName.replace(/[^a-zA-Z0-9_-]/g, '_');
+          
+          const speed = 1;
+          const originalState = window.state;
+          window.state = getScaledState(speed);
+          
+          const dm = state.dataMerge;
+          const activeVersionIdx = (dm && dm.enabled && dm.activeVersion != null) ? dm.activeVersion : null;
+          
+          if (typeof dmRunExport === 'function') {
+            await dmRunExport(activeVersionIdx, async () => {
+              for (const c of state.canvases) {
+                const adZip = new JSZip();
+                await addCanvasAssetsToZip(c, adZip);
+                adZip.file('index.html', generateExportHTML(c, adZip));
+                const adContent = await adZip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+                zip.file(`${safePrefix}_${c.width}x${c.height}.zip`, adContent);
+              }
+            });
+          } else {
+            for (const c of state.canvases) {
+              const adZip = new JSZip();
+              await addCanvasAssetsToZip(c, adZip);
+              adZip.file('index.html', generateExportHTML(c, adZip));
+              const adContent = await adZip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+              zip.file(`${safePrefix}_${c.width}x${c.height}.zip`, adContent);
+            }
+          }
+          
+          window.state = originalState;
+          
+          const content = await zip.generateAsync({ type: 'blob' });
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(content);
+          a.download = `${safePrefix}_HTML5_Ads.zip`;
+          a.click();
+          URL.revokeObjectURL(a.href);
+        } catch (err) {
+          console.error('Download all failed:', err);
+          alert('Failed to pack banners.');
+        } finally {
+          span.textContent = originalText;
+          downloadAllBtn.disabled = false;
+        }
+      };
+    }
+    
+    // ------------------------------------------------------------------
+    // Batch portal: certified templates, data sheet, one-click export
+    // ------------------------------------------------------------------
+    const selectTemplate = document.getElementById('select-template');
+    const btnLoadTemplate = document.getElementById('btn-load-template');
+    const btnSheetTemplate = document.getElementById('btn-sheet-template');
+    const btnSheetImport = document.getElementById('btn-sheet-import');
+    const btnSheetEdit = document.getElementById('btn-sheet-edit');
+    const btnBatchExport = document.getElementById('btn-batch-export');
+    const sheetStatus = document.getElementById('sheet-status');
+    const exportLabel = document.getElementById('batch-export-label');
+
+    let templateLoaded = false;
+
+    // Enable/disable the batch controls to match what's loaded. Called by
+    // populateControls after every (re)load and after data edits.
+    window.refreshBatchDataUI = function () {
+      const dm = state.dataMerge;
+      const hasSlots = !!(dm && ((dm.columns && dm.columns.length) || (dm.mappings && Object.keys(dm.mappings).length)));
+      const rowCount = (dm && dm.rows) ? dm.rows.length : 0;
+
+      if (btnSheetTemplate) btnSheetTemplate.disabled = !templateLoaded || !hasSlots;
+      if (btnSheetImport) btnSheetImport.disabled = !templateLoaded;
+      if (btnSheetEdit) btnSheetEdit.disabled = !templateLoaded;
+      if (btnBatchExport) btnBatchExport.disabled = !templateLoaded;
+
+      if (sheetStatus) {
+        if (!templateLoaded) sheetStatus.textContent = 'Load a template first.';
+        else if (!hasSlots) sheetStatus.textContent = 'This template has no data slots — you can still export it as-is.';
+        else if (!rowCount) sheetStatus.textContent = 'No data rows yet. Download the sheet template, fill it in, then import it.';
+        else {
+          const selected = dm.rows.filter(r => r._selected !== false).length;
+          sheetStatus.textContent = `${rowCount} version${rowCount === 1 ? '' : 's'} loaded (${selected} ticked for export).`;
+        }
+      }
+      if (exportLabel) {
+        const exportable = rowCount ? (dm.rows.filter(r => r._selected !== false).length || rowCount) : 0;
+        exportLabel.textContent = exportable > 0
+          ? `Export ${exportable} Version${exportable === 1 ? '' : 's'} (ZIP)`
+          : 'Export ZIP';
+      }
+      const hint = document.getElementById('export-hint');
+      if (hint) {
+        hint.textContent = rowCount > 0
+          ? 'Exports every ticked data version × every ticked banner size into one ZIP.'
+          : 'No data sheet: exports one ZIP with every ticked banner size as shown.';
+      }
+    };
+
+    // --- Certified template registry (bundled with the app; offline) -------
+    async function loadTemplateRegistry() {
+      let entries = [];
+      try {
+        const res = await fetch(`Startup/registry.json?t=${Date.now()}`);
+        if (res.ok) entries = await res.json();
+      } catch (e) { console.warn('Could not read template registry:', e); }
+      if (!selectTemplate) return entries;
+      selectTemplate.innerHTML = '';
+      if (!entries.length) {
+        selectTemplate.innerHTML = '<option value="">No certified templates bundled</option>';
+        selectTemplate.disabled = true;
+        if (btnLoadTemplate) btnLoadTemplate.disabled = true;
+      } else {
+        entries.forEach(t => {
+          const opt = document.createElement('option');
+          opt.value = t.fileName;
+          opt.textContent = t.projectName || t.fileName;
+          selectTemplate.appendChild(opt);
+        });
+        selectTemplate.disabled = false;
+        if (btnLoadTemplate) btnLoadTemplate.disabled = false;
+      }
+      return entries;
+    }
+
+    if (btnLoadTemplate) btnLoadTemplate.onclick = async () => {
+      const fileName = selectTemplate && selectTemplate.value;
+      if (!fileName) return;
+      loader.style.opacity = '1';
+      loader.style.display = 'flex';
+      loader.querySelector('.spinner').style.display = 'block';
+      loaderTitle.textContent = 'Loading template...';
+      loaderSubtitle.textContent = fileName;
+      try {
+        const res = await fetch(`Startup/${encodeURIComponent(fileName)}?t=${Date.now()}`);
+        if (!res.ok) throw new Error(`Template file not found (HTTP ${res.status})`);
+        const blob = await res.blob();
+        await processProjectFile(blob); // sets templateLoaded on success
+      } catch (e) {
+        console.error(e);
+        loaderTitle.textContent = 'Template Load Failed';
+        loaderSubtitle.textContent = e.message || String(e);
+        loader.querySelector('.spinner').style.display = 'none';
+      }
+    };
+
+    // --- Data sheet actions -------------------------------------------------
+    if (btnSheetTemplate) btnSheetTemplate.onclick = () => {
+      const dm = state.dataMerge;
+      if (!dm || !dm.columns || !dm.columns.length) return;
+      // The template's own sheet IS the template: correct headers, and any
+      // rows it ships with double as worked examples.
+      const blob = new Blob([dmToCSV()], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = (state.projectName || 'Adflow').replace(/[^a-zA-Z0-9_-]/g, '_') + '-data-sheet.csv';
+      a.click();
+      URL.revokeObjectURL(a.href);
+      showCanvasNotification('Sheet template downloaded — fill it in and import it back.', { type: 'success' });
+    };
+
+    if (btnSheetImport) btnSheetImport.onclick = () => {
+      // dmImportCSV silently drops slot mappings whose column disappeared. If a
+      // team renames headers in their sheet, exports would quietly fall back to
+      // the template's default text — surface that instead of letting it pass.
+      const mappingsBefore = state.dataMerge ? Object.keys(state.dataMerge.mappings || {}).length : 0;
+      dmImportFile(() => {
+        const dm = state.dataMerge;
+        const mappingsAfter = Object.keys(dm.mappings || {}).length;
+        if (mappingsBefore > 0 && mappingsAfter < mappingsBefore) {
+          showAdflowAlert(
+            `The imported sheet's column names don't match this template — ${mappingsBefore - mappingsAfter} of ${mappingsBefore} data slot(s) lost their column. ` +
+            'Those slots will export with the template’s default content. Re-download the sheet template and keep its header row unchanged.',
+            'Column names changed'
+          );
+        } else {
+          showCanvasNotification(`Imported ${dm.rows.length} data version(s)`, { type: 'success' });
+        }
+      });
+    };
+
+    if (btnSheetEdit) btnSheetEdit.onclick = () => openDataPanel();
+
+    // --- One-click export ----------------------------------------------------
+    if (btnBatchExport) btnBatchExport.onclick = async () => {
+      const targets = state.canvases.filter(c => selectedCanvasIds.has(c.id));
+      if (!targets.length) { showAdflowAlert('Tick at least one banner size first.'); return; }
+      const dm = state.dataMerge;
+      if (dm && dm.enabled && dm.rows && dm.rows.length) {
+        // Full batch: every ticked version x every ticked size, streamed to disk.
+        await dmExportAllVersionsStreaming(targets);
+      } else {
+        // No data sheet: single ZIP containing one ad ZIP per ticked size.
+        btnBatchExport.disabled = true;
+        const prevLabel = exportLabel.textContent;
+        exportLabel.textContent = 'Zipping…';
+        try {
+          const zip = new JSZip();
+          const safePrefix = (state.projectName || 'Ads').replace(/[^a-zA-Z0-9_-]/g, '_');
+          for (const c of targets) {
+            const adZip = new JSZip();
+            await addCanvasAssetsToZip(c, adZip);
+            adZip.file('index.html', generateExportHTML(c, adZip));
+            const adContent = await adZip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+            zip.file(`${safePrefix}_${c.width}x${c.height}.zip`, adContent);
+          }
+          const content = await zip.generateAsync({ type: 'blob' });
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(content);
+          a.download = `${safePrefix}_HTML5_Ads.zip`;
+          a.click();
+          URL.revokeObjectURL(a.href);
+        } catch (err) {
+          console.error('Batch export failed:', err);
+          showAdflowAlert('Failed to pack banners: ' + (err.message || err));
+        } finally {
+          exportLabel.textContent = prevLabel;
+          btnBatchExport.disabled = false;
+        }
+      }
+    };
+
+    // Boot: populate the certified-template list; no cloud paths on this page.
+    async function bootPortal() {
+      const entries = await loadTemplateRegistry();
+      loaderTitle.textContent = 'Adflow Batch Operation';
+      loaderSubtitle.innerHTML = (entries.length
+        ? 'Pick a certified template in the sidebar to begin.'
+        : 'No certified templates are bundled with this deployment.<br/>Drop a certified .flow template file anywhere on this page.')
+        + '<br/><br/><button class="btn primary" onclick="document.getElementById(\'portal-loader\').style.display=\'none\'" style="display:inline-flex;">Got it</button>';
+      loader.querySelector('.spinner').style.display = 'none';
+    }
+
+    // Canvas grid panning logic
+    let isPanning = false;
+    let startX, startY;
+    let scrollLeftStart, scrollTopStart;
+    let isSpaceDown = false;
+    
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' && !isSpaceDown) {
+        if (document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT' && document.activeElement.tagName !== 'TEXTAREA') {
+          isSpaceDown = true;
+          gridContainer.style.cursor = 'grab';
+          e.preventDefault();
+        }
+      }
+    });
+    
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'Space') {
+        isSpaceDown = false;
+        gridContainer.style.cursor = 'default';
+      }
+    });
+    
+    gridContainer.addEventListener('mousedown', (e) => {
+      const isLeftClickOnBackground = e.button === 0 && (e.target === gridContainer || e.target.classList.contains('card-header') || e.target.classList.contains('card-body') || e.target.closest('.card-header') || e.target.closest('.card-body'));
+      const isMiddleClick = e.button === 1;
+      const isSpacePan = isSpaceDown && e.button === 0;
+      
+      if (e.target.closest('button') || e.target.closest('select') || e.target.closest('input') || e.target.closest('a')) {
+        return;
+      }
+      
+      if (isLeftClickOnBackground || isMiddleClick || isSpacePan) {
+        isPanning = true;
+        gridContainer.style.cursor = 'grabbing';
+        startX = e.clientX;
+        startY = e.clientY;
+        scrollLeftStart = gridContainer.scrollLeft;
+        scrollTopStart = gridContainer.scrollTop;
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    });
+    
+    window.addEventListener('mousemove', (e) => {
+      if (!isPanning) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      gridContainer.scrollLeft = scrollLeftStart - dx;
+      gridContainer.scrollTop = scrollTopStart - dy;
+    });
+    
+    window.addEventListener('mouseup', () => {
+      if (isPanning) {
+        isPanning = false;
+        gridContainer.style.cursor = isSpaceDown ? 'grab' : 'default';
+      }
+    });
+    
+    window.addEventListener('resize', layoutCards);
+    window.onload = bootPortal;
+  </script>
+</body>
+</html>
