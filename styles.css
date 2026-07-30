@@ -6281,14 +6281,14 @@ body.fullscreen-mode #sequencer-panel { display: none; }
   border-radius: 4px;
   display: flex;
   align-items: center;
-  padding: 0 6px;
+  padding: 0 8px;
   font-size: 9px;
   font-weight: 600;
   color: #fff;
   white-space: nowrap;
   overflow: hidden;
   cursor: grab;
-  z-index: 2;
+  z-index: 3;
   box-sizing: border-box;
 }
 .seq-bar:active { cursor: grabbing; }
@@ -6302,19 +6302,23 @@ body.fullscreen-mode #sequencer-panel { display: none; }
   border: none;
   z-index: 1;
 }
-/* Pointer-transparent overlay carrying the FX outline + stripes. Sits above
-   the solid bars (z-index 3) so FX stays readable when IN/OUT overlap it. */
+/* Pointer-interactive overlay carrying the FX outline + stripes. */
 .seq-fx-veil {
   position: absolute;
   top: 5px;
   height: 24px;
-  border: 1.5px solid rgba(47, 158, 143, 0.9);
+  border: 2px solid #2f9e8f;
+  background: rgba(47, 158, 143, 0.32);
   border-radius: 4px;
   box-sizing: border-box;
   overflow: hidden;
   z-index: 3;
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: pointer;
   --seq-stripe: 12px; /* stripe pattern period, measured along the 135deg axis */
+}
+.seq-fx-veil:active {
+  cursor: grabbing;
 }
 .seq-fx-veil::before {
   content: '';
@@ -6325,24 +6329,9 @@ body.fullscreen-mode #sequencer-panel { display: none; }
   left: -28px;
   right: -28px;
   background: repeating-linear-gradient(135deg,
-    rgba(255, 255, 255, 0.22) 0 calc(var(--seq-stripe) / 2.4),
+    rgba(255, 255, 255, 0.35) 0 calc(var(--seq-stripe) / 2.4),
     transparent calc(var(--seq-stripe) / 2.4) var(--seq-stripe));
 }
-/* Pointer-active drag strip along the bottom of the FX span. Sits above the
-   IN/OUT bars so FX is grabbable along its whole length even where they cover
-   it. Kept visually transparent so the stripes run the bar's full height; it
-   only reveals itself on hover. */
-.seq-fx-grip {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 7px;
-  pointer-events: auto;
-  cursor: grab;
-}
-.seq-fx-grip:hover { background: rgba(255, 255, 255, 0.18); }
-.seq-fx-grip:active { cursor: grabbing; }
 
 /* --- FX isolation ("edit mode") ------------------------------------------- */
 /* Clicking an already-selected layer's FX bar isolates it: IN/OUT recede and
@@ -6354,19 +6343,19 @@ body.fullscreen-mode #sequencer-panel { display: none; }
   pointer-events: none;
 }
 .seq-track.seq-fx-edit .seq-fx-veil {
+  z-index: 4;
   pointer-events: auto;
   cursor: grab;
-  border-color: rgba(120, 226, 211, 1);
-  box-shadow: 0 0 0 1px rgba(120, 226, 211, 0.45), 0 0 10px rgba(47, 158, 143, 0.5);
+  border-color: #2f9e8f;
+  background: rgba(47, 158, 143, 0.5);
+  box-shadow: none;
 }
 .seq-track.seq-fx-edit .seq-fx-veil:active { cursor: grabbing; }
 .seq-track.seq-fx-edit .seq-fx-veil::before {
   background: repeating-linear-gradient(135deg,
-    rgba(255, 255, 255, 0.36) 0 calc(var(--seq-stripe) / 2.4),
+    rgba(255, 255, 255, 0.45) 0 calc(var(--seq-stripe) / 2.4),
     transparent calc(var(--seq-stripe) / 2.4) var(--seq-stripe));
 }
-/* The whole veil is the grab target once isolated — no strip needed. */
-.seq-track.seq-fx-edit .seq-fx-grip { display: none; }
 /* Resize handles only exist while isolated, so they can't be buried by IN/OUT. */
 .seq-fx-veil .seq-handle {
   position: absolute;
@@ -6376,8 +6365,8 @@ body.fullscreen-mode #sequencer-panel { display: none; }
   pointer-events: auto;
   cursor: ew-resize;
 }
-.seq-fx-veil .seq-handle-l { left: 0; border-left: 2px solid rgba(120, 226, 211, 0.85); }
-.seq-fx-veil .seq-handle-r { right: 0; border-right: 2px solid rgba(120, 226, 211, 0.85); }
+.seq-fx-veil .seq-handle-l { left: 0; border-left: 2.5px solid #2f9e8f; }
+.seq-fx-veil .seq-handle-r { right: 0; border-right: 2.5px solid #2f9e8f; }
 /* Stripes only crawl on the selected row — ambient motion on every FX bar at
    once would make the timeline noisy. */
 .seq-track.seq-selected .seq-fx-veil::before {

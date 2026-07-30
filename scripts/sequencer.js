@@ -499,7 +499,6 @@ function seqRenderBody() {
       title="${editing ? `FX · ${fxLabel} — drag to move, drag edges to resize. Esc to exit.` : `FX · ${fxLabel} — drag to move, click to isolate for editing.`}">
       ${editing ? '<span class="seq-handle seq-handle-l"></span>' : ''}
       ${editing && !b.infinite ? '<span class="seq-handle seq-handle-r"></span>' : ''}
-      <span class="seq-fx-grip" title="FX · ${fxLabel} — drag to move, click to isolate for editing."></span>
     </div>`;
   };
 
@@ -696,7 +695,33 @@ function seqBarMouseDown(e, bar, pxPerSec) {
   e.preventDefault();
   e.stopPropagation();
   const elId = bar.dataset.el;
-  const kind = bar.dataset.kind;
+  const origKind = bar.dataset.kind;
+  let kind = origKind;
+
+  // When clicking an FX bar that is NOT in isolation mode, check if the click
+  // falls inside an overlapping IN or OUT bar on the same track. Stash overlapBar
+  // so dragging promotes to the IN/OUT bar while single clicks remain FX clicks (to isolate).
+  let overlapBar = null;
+  if (origKind === 'fx' && seqFxEditId !== elId) {
+    const track = document.querySelector(`.seq-track[data-el="${elId}"]`);
+    if (track) {
+      const inBar = track.querySelector('.seq-bar-in');
+      const outBar = track.querySelector('.seq-bar-out');
+      if (inBar) {
+        const rect = inBar.getBoundingClientRect();
+        if (e.clientX >= rect.left && e.clientX <= rect.right) {
+          overlapBar = { bar: inBar, kind: 'in' };
+        }
+      }
+      if (!overlapBar && outBar) {
+        const rect = outBar.getBoundingClientRect();
+        if (e.clientX >= rect.left && e.clientX <= rect.right) {
+          overlapBar = { bar: outBar, kind: 'out' };
+        }
+      }
+    }
+  }
+
   const c = getActiveCanvas();
   const el = c && c.elements.find(x => x.id === elId);
   if (!el) return;
@@ -735,7 +760,7 @@ function seqBarMouseDown(e, bar, pxPerSec) {
   }
 
   seqDrag = {
-    elId, kind, mode, pxPerSec,
+    elId, kind, origKind, overlapBar, mode, pxPerSec,
     startX: e.clientX,
     origStart: b.start,
     origDur: b.dur,
@@ -757,6 +782,29 @@ function seqBarMouseMove(e) {
   if (!seqDrag) return;
   const d = seqDrag;
   d.maxPx = Math.max(d.maxPx, Math.abs(e.clientX - d.startX));
+  if (d.maxPx < 4) return;
+
+  // Handle non-isolated FX bar drag attempt:
+  if (d.origKind === 'fx' && seqFxEditId !== d.elId) {
+    if (d.overlapBar && d.kind === 'fx') {
+      // Promote drag to the overlapping IN or OUT bar!
+      d.kind = d.overlapBar.kind;
+      const c = getActiveCanvas();
+      const el = c && c.elements.find(x => x.id === d.elId);
+      const mb = el && seqBars(el)[d.kind];
+      if (mb) {
+        d.origStart = mb.start;
+        d.origDur = mb.dur;
+        d.infinite = !!mb.infinite;
+        d.pendingStart = mb.start;
+        d.pendingDur = mb.dur;
+      } else {
+        return;
+      }
+    } else if (!d.overlapBar) {
+      return;
+    }
+  }
   // Ignore sub-threshold jitter entirely so a slightly-shaky click neither
   // moves the bar nor suppresses the popover.
   if (d.maxPx < 4) return;
