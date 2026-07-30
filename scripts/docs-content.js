@@ -663,6 +663,30 @@ document.getElementById('menu-help-documentation').addEventListener('click', ope
 
 const CHANGELOG_DATA = [
   {
+    version: 'v0.33.1',
+    date: 'July 2026 — Engine v2.19',
+    items: [
+      'Timeline Play Now Matches Your Text Animation Settings: Pressing Play on the timeline (or tapping Space) plays Typing and Rise exactly as configured — Rise\'s Letters / Words / Lines split and its Fade option, and Typing\'s Fade-letters setting — instead of the simplified whole-element fade it used before. Timeline playback, the hover previews, the full preview, and exports now all build these animations from the same code, so they can\'t drift apart.'
+    ]
+  },
+  {
+    version: 'v0.33.0',
+    date: 'July 2026 — Engine v2.19',
+    items: [
+      'Hover to Preview a Version: Hovering a row in the Version dropdown now renders that version on the canvas straight away, so you can flick through versions to find the one you want. Leaving the dropdown, clicking away, or pressing Escape discards the preview and restores the version you were on — nothing is changed unless you actually click a row.',
+      'Stronger Rise Fade: The Rise animation\'s Fade option is far more visible. It previously shared the rise\'s fast easing curve, which pushed the opacity to nearly solid almost immediately; the fade now runs on its own even track across the whole reveal.',
+      'Longer Animation Preset Dropdowns: The IN / OUT / FX and frame-transition preset lists are taller, so all presets fit without scrolling (they had begun to scroll now that text layers get extra presets).'
+    ]
+  },
+  {
+    version: 'v0.32.0',
+    date: 'July 2026 — Engine v2.19',
+    items: [
+      'Fade Toggle for the Rise Animation: Rise gained a "Fade" checkbox — turn it on and each letter, word, or line fades in as it rises for a softer reveal. Off by default, so the crisp mask-only reveal (and any Rise you\'ve already set up) is unchanged. Works in letters, words, and lines modes across previews and exports, and syncs across linked canvases.',
+      'Text Presets Listed First for Text Layers: When a text or button layer is selected, the text-only presets (Typing, Rise) now sit at the top of the IN animation list — right after "None" — in both the Animation panel and the timeline\'s preset menu.'
+    ]
+  },
+  {
     version: 'v0.31.2',
     date: 'July 2026 — Engine v2.19',
     items: [

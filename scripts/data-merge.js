@@ -401,8 +401,58 @@ function dmToggleLock() {
   render();
 }
 
+// ---------------------------------------------------------------------------
+// Version hover preview: hovering a row in a version dropdown renders that
+// version on the canvas, and leaving the dropdown without selecting restores
+// whatever was active before. Nothing is committed and no history entry is
+// pushed unless the user actually clicks a row.
+//
+// dmVersionHoverActive suppresses the switcher's own re-render while hovering:
+// render() rebuilds the switcher markup, which would destroy the open dropdown
+// (and the row under the cursor) mid-hover.
+// ---------------------------------------------------------------------------
+let dmVersionHoverActive = false;
+let dmVersionHoverOrig = null;   // activeVersion to restore; null = nothing pending
+
+function dmPreviewVersion(val) {
+  const dm = state.dataMerge;
+  if (!dm) return;
+  if (dmVersionHoverOrig === null) dmVersionHoverOrig = { v: dm.activeVersion };
+  const next = (val === '' || val == null) ? null : Number(val);
+  if (dm.activeVersion === next) return;
+  dm.activeVersion = next;
+  dmVersionHoverActive = true;
+  render(true);
+}
+
+function dmEndVersionPreview(commit) {
+  const dm = state.dataMerge;
+  dmVersionHoverActive = false;
+  if (!dm || dmVersionHoverOrig === null) { dmVersionHoverOrig = null; return; }
+  const orig = dmVersionHoverOrig.v;
+  dmVersionHoverOrig = null;
+  if (commit) return;                       // the click handler commits properly
+  if (dm.activeVersion !== orig) {
+    dm.activeVersion = orig;                // discard the preview
+    render(true);
+  }
+  renderVersionSwitcher();                  // rebuild now that hovering is over
+}
+
+// Closing a version dropdown by clicking away or pressing Escape also discards
+// the preview. Row clicks stopPropagation, so a real selection never lands here.
+if (!window.dmVersionHoverGlobalBound) {
+  window.dmVersionHoverGlobalBound = true;
+  document.addEventListener('click', () => { if (dmVersionHoverOrig !== null) dmEndVersionPreview(false); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && dmVersionHoverOrig !== null) dmEndVersionPreview(false);
+  });
+}
+
 function dmRenderCustomSelect(container, options, activeVal, onSelect) {
   if (!container) return;
+  // Mid-hover: leave the open dropdown intact (see dmVersionHoverActive).
+  if (dmVersionHoverActive && container.querySelector('.custom-select-dropdown')) return;
   const currentOpt = options.find(o => o.val === activeVal) || options[0] || { label: '— none —', val: '' };
   
   container.innerHTML = `
@@ -428,14 +478,24 @@ function dmRenderCustomSelect(container, options, activeVal, onSelect) {
     document.querySelectorAll('.custom-select-dropdown').forEach(d => {
       if (d !== dropdown) d.style.display = 'none';
     });
-    dropdown.style.display = isOpen ? 'none' : 'block';
+    if (isOpen) {
+      dropdown.style.display = 'none';
+      dmEndVersionPreview(false);   // closed via the trigger — discard
+    } else {
+      dropdown.style.display = 'block';
+    }
   };
 
+  // Leaving the dropdown discards the preview; a click on a row commits it.
+  dropdown.addEventListener('mouseleave', () => dmEndVersionPreview(false));
+
   dropdown.querySelectorAll('.custom-select-item').forEach(item => {
+    item.addEventListener('mouseenter', () => dmPreviewVersion(item.dataset.value));
     item.onclick = (e) => {
       e.stopPropagation();
       dropdown.style.display = 'none';
       const val = item.dataset.value;
+      dmEndVersionPreview(true);    // keep the previewed state; onSelect commits
       onSelect(val);
     };
   });

@@ -672,7 +672,7 @@ function customSelect(key, options, currentVal, title, isFrameTrans = false, fra
         </span>
         <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="margin-left: 4px; opacity: 0.7; pointer-events: none; flex-shrink: 0;"><polyline points="6 9 12 15 18 9"></polyline></svg>
       </button>
-      <div class="custom-select-dropdown" style="display: none; position: absolute; top: 26px; left: 0; right: 0; background: var(--bg-panel); border: 1px solid var(--border-light); border-radius: 6px; z-index: 10000; box-shadow: 0 8px 24px var(--shadow-medium); max-height: 200px; overflow-y: auto; padding: 4px 0;">
+      <div class="custom-select-dropdown" style="display: none; position: absolute; top: 26px; left: 0; right: 0; background: var(--bg-panel); border: 1px solid var(--border-light); border-radius: 6px; z-index: 10000; box-shadow: 0 8px 24px var(--shadow-medium); max-height: ${isMainPreset ? '380px' : '200px'}; overflow-y: auto; padding: 4px 0;">
         ${dropdownItems}
       </div>
     </div>
@@ -2488,9 +2488,13 @@ function renderProps() {
       { val: 'split', label: 'Split' },
       { val: 'blur', label: 'Blur' }
     ];
+    // Text-only presets lead the list for text/buttons — they're the ones
+    // you reach for on a text layer. 'None' stays first as the opt-out.
     if (el.type === 'text' || el.type === 'button') {
-      animOptions.push({ val: 'typing', label: 'Typing', badge: 'text' });
-      animOptions.push({ val: 'rise', label: 'Rise', badge: 'text' });
+      animOptions.splice(1, 0,
+        { val: 'typing', label: 'Typing', badge: 'text' },
+        { val: 'rise', label: 'Rise', badge: 'text' }
+      );
     }
 
     let filteredOptions = animOptions;
@@ -2685,7 +2689,13 @@ function renderProps() {
               { val: 'letter', label: 'Letters' },
               { val: 'word', label: 'Words' },
               { val: 'line', label: 'Lines' }
-            ], el.riseSplit || 'word', 'What emerges as one unit — letters, words, or lines (lines split on your line breaks)')}
+            ], el.riseSplit || 'word', 'What emerges as one unit — letters, words, or visual lines')}
+          </div>
+        </div>
+        <div class="prop-row" style="margin-bottom:8px;">
+          <div class="checkbox-row" style="margin:0;">
+            <input type="checkbox" data-k="riseFade" id="prop-rise-fade" title="Also fade each unit in as it rises" ${el.riseFade ? 'checked' : ''}/>
+            <label for="prop-rise-fade" title="Also fade each unit in as it rises" style="cursor:pointer; font-size:11px; white-space:nowrap;">Fade</label>
           </div>
         </div>
       `);
@@ -3418,7 +3428,8 @@ function checkButtonFontSizeWarning(el) {
             animBounce: el.animBounce,
             animDirection: el.animDirection,
             animDistance: el.animDistance,
-            riseSplit: el.riseSplit
+            riseSplit: el.riseSplit,
+            riseFade: el.riseFade
           };
           let previewVal = val;
           if (previewVal === 'swipe') {

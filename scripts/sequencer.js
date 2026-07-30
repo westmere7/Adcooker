@@ -37,6 +37,7 @@ let seqShowAll = localStorage.getItem(SEQ_LS_SHOWALL) === '1';
 let seqLastSignature = null;
 let seqPlaying = false;
 let seqPlayNodes = [];             // nodes touched by playback, for cleanup
+let seqPlayTextTargets = [];       // text nodes whose innerHTML playback replaced
 let seqPlayTimer = null;
 let seqPopoverEl = null;
 let seqDrag = null;
@@ -461,7 +462,7 @@ function seqRenderBody() {
   };
 
   let rows = '';
-  els.forEach(el => {
+  els.forEach((el, rowIdx) => {
     const b = seqBars(el);
     const selected = state.layerSelection && state.layerSelection.includes(el.id);
     const inOn = animInEnabled(el);
@@ -472,6 +473,7 @@ function seqRenderBody() {
     const outChipDisabled = !inOn;
     rows += `
       <div class="seq-row-label ${selected ? 'seq-selected' : ''}" data-el="${el.id}" draggable="true">
+        <span class="seq-row-num">${rowIdx + 1}</span>
         <span class="seq-row-name"><span class="seq-row-name-inner">${seqEsc(seqLayerName(el))}</span></span>
         <button class="seq-chip seq-chip-in ${inOn ? 'on' : ''}" data-el="${el.id}" data-chip="in" title="IN: ${inOn ? seqPresetLabel('in', el.animType) : 'None'} — click to change">IN</button>
         <button class="seq-chip seq-chip-out ${outOn && inOn ? 'on' : ''} ${outChipDisabled ? 'seq-chip-disabled' : ''}" data-el="${el.id}" data-chip="out" title="${outChipDisabled ? 'OUT requires IN to be enabled' : `OUT: ${outOn ? seqPresetLabel('out', el.exitType || 'fade-out') : 'None'} — click to change`}">OUT</button>
@@ -814,9 +816,12 @@ function seqPresetOptions(el, kind) {
       { val: 'split', label: 'Split' },
       { val: 'blur', label: 'Blur' }
     ];
+    // Text-only presets lead the list for text/buttons (mirrors the panel).
     if (el.type === 'text' || el.type === 'button') {
-      opts.push({ val: 'typing', label: 'Typing', badge: 'text' });
-      opts.push({ val: 'rise', label: 'Rise', badge: 'text' });
+      opts.splice(1, 0,
+        { val: 'typing', label: 'Typing', badge: 'text' },
+        { val: 'rise', label: 'Rise', badge: 'text' }
+      );
     }
     return opts;
   }
@@ -1012,10 +1017,28 @@ function seqStartPlayback() {
     const a = getElementAnimationCSS(el, false, frameCtx);
     let anims = [...(a.entryAnimList || []), ...(a.exitAnimList || []), ...(a.effAnimList || [])];
 
-    // Typing-family and Rise text entrances are span-driven in export;
-    // in-canvas play approximates them with a fade of the same duration/delay.
-    if ((el.type === 'text' || el.type === 'button') && ['typing', 'fade-typing', 'word-fade', 'rise'].includes(animType)) {
-      anims.unshift(`anim-fade-in ${el.animDuration || 1}s ease-out ${el.animDelay || 0}s both`);
+    // Typing-family and Rise entrances are span-driven: build the SAME markup
+    // the export uses (shared buildTextEntranceHTML) on the live text node so
+    // playback honours every panel setting — Rise's letters/words/lines split
+    // and its fade, typing's Fade-letters, etc. The original HTML is stashed and
+    // restored by seqStopPlayback.
+    if ((el.type === 'text' || el.type === 'button') &&
+        ['typing', 'fade-typing', 'word-fade', 'rise'].includes(animType) &&
+        typeof buildTextEntranceHTML === 'function') {
+      const target = node.querySelector('.editable') || node.querySelector('span');
+      if (target) {
+        const overrides = (typeof dmDisplay === 'function') ? dmDisplay(el) : {};
+        const displayText = overrides.text !== undefined ? overrides.text : (el.text || '');
+        const escS = (s) => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+        const html = buildTextEntranceHTML(el, escS, animType, false, displayText);
+        if (html !== null) {
+          seqPlayTextTargets.push({ node: target, html: target.innerHTML });
+          target.innerHTML = html;
+          // Rise Line mode groups by the visual lines only measurable post-layout.
+          const riseMarker = target.querySelector('[data-rise-lines]');
+          if (riseMarker && typeof setupRiseLines === 'function') setupRiseLines(riseMarker);
+        }
+      }
     }
 
     // Mask group: translate the mask's IN/OUT/FX onto this image node, exactly
@@ -1143,6 +1166,9 @@ function seqStopPlayback() {
     SEQ_PLAY_VARS.forEach(v => node.style.removeProperty(v));
   });
   seqPlayNodes = [];
+  // Put the span-driven text entrances back to their plain markup.
+  seqPlayTextTargets.forEach(t => { t.node.innerHTML = t.html; });
+  seqPlayTextTargets = [];
   const styleTag = document.getElementById('sequencer-play-styles');
   if (styleTag) styleTag.remove();
   if (seqPlaying) document.body.classList.remove('previewing-animation-hover');

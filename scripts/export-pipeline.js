@@ -106,6 +106,19 @@ function buildRiseContentHTML(el, esc, isImageExport) {
   const totalDur = el.animDuration || 1;
   const baseDelay = Number(el.animDelay || 0);
   const EASE = 'cubic-bezier(0.19, 1, 0.22, 1)';
+  // Opt-in fade (el.riseFade): softens the reveal by fading each unit in as it
+  // rises. Off by default so the mask reveal stays crisp — and so existing
+  // Rise elements are unchanged.
+  //
+  // The fade is a SEPARATE composed animation, not blended into anim-rise: the
+  // rise uses an expo-out curve that reaches ~80% progress in its first fifth,
+  // which would snap opacity to nearly-opaque instantly (an imperceptible
+  // fade). Running opacity on its own LINEAR track over the full unit duration
+  // keeps the fade visible for the whole reveal.
+  const fade = !!el.riseFade;
+  const riseAnimCss = (dur, del) =>
+    `anim-rise ${dur}s ${EASE} ${del}s both` +
+    (fade ? `, anim-fade-in ${dur}s linear ${del}s both` : '');
 
   // The mask: overflow-hidden box the unit emerges through. The small bottom
   // padding (+ negative margin so layout is unchanged) protects descenders
@@ -126,7 +139,7 @@ function buildRiseContentHTML(el, esc, isImageExport) {
       if (!/\S/.test(line)) return esc(line);
       return line.split(/(\s+)/).map(tok => /\S/.test(tok) ? still(esc(tok)) : tok).join('');
     }).join('<br/>');
-    return `<span data-rise-lines="1" data-rise-dur="${totalDur}" data-rise-delay="${baseDelay}">${inner}</span>`;
+    return `<span data-rise-lines="1" data-rise-dur="${totalDur}" data-rise-delay="${baseDelay}" data-rise-fade="${fade ? 1 : 0}">${inner}</span>`;
   }
 
   // Letter / word modes: unit count is known statically, so the stagger is
@@ -143,7 +156,7 @@ function buildRiseContentHTML(el, esc, isImageExport) {
   const mask = (content) => {
     const del = (baseDelay + i * step).toFixed(3); i++;
     return `<span style="${MASK_STYLE}">` +
-      `<span style="display:inline-block;transform:translateY(115%);animation:anim-rise ${unitDur}s ${EASE} ${del}s both;">${content}</span></span>`;
+      `<span style="display:inline-block;transform:translateY(115%);animation:${riseAnimCss(unitDur, del)};">${content}</span></span>`;
   };
 
   return lines.map(line => {
@@ -154,6 +167,55 @@ function buildRiseContentHTML(el, esc, isImageExport) {
       return `<span style="display:inline-block;white-space:nowrap;">${[...tok].map(ch => mask(esc(ch))).join('')}</span>`;
     }).join('');
   }).join('<br/>');
+}
+
+// Span markup for the text entrance presets that animate per character / word /
+// line (typing, fade-typing, word-fade, rise). Single source of truth shared by
+// the export's text branch, its button branch, and the editor's timeline
+// playback — so a preset behaves identically everywhere. Returns null for
+// presets that animate the element as a whole (the caller keeps its own
+// content). `textOverride` lets callers pass dynamic-data resolved text.
+function buildTextEntranceHTML(el, esc, animType, isImageExport, textOverride) {
+  const text = textOverride !== undefined ? textOverride : (el.text || '');
+  if (animType === 'rise') {
+    return buildRiseContentHTML(textOverride !== undefined ? { ...el, text } : el, esc, isImageExport);
+  }
+  if (animType === 'typing' || animType === 'fade-typing') {
+    const chars = [...text];
+    const totalDur = el.animDuration || 1;
+    const fadeLetters = el.animFadeLetters !== false;
+    const charDur = fadeLetters ? 0.3 : 0.01;
+    const baseDelay = el.animDelay || 0;
+    const nonNewlines = chars.filter(c => c !== '\n').length;
+    const charDelay = totalDur / Math.max(1, nonNewlines);
+    let spanIdx = 0;
+    return chars.map((c) => {
+      if (c === '\n') return '<br/>';
+      const del = (Number(baseDelay) + spanIdx * charDelay).toFixed(3);
+      spanIdx++;
+      const charContent = c === ' ' ? ' ' : esc(c);
+      const animStyle = isImageExport ? '' : `opacity:0; animation: anim-fade-in ${charDur}s linear ${del}s both;`;
+      return `<span style="${animStyle}">${charContent}</span>`;
+    }).join('');
+  }
+  if (animType === 'word-fade') {
+    const words = text.split(/(\s+)/);
+    const nonSpas = words.filter(w => /\S/.test(w));
+    const totalDur = el.animDuration || 1;
+    const wordDur = 0.3;
+    const baseDelay = el.animDelay || 0;
+    const wordDelay = totalDur / Math.max(1, nonSpas.length);
+    let wordIdx = 0;
+    return words.map(w => {
+      if (w === '\n') return '<br/>';
+      if (/\s+/.test(w)) return w.replace(/\n/g, '<br/>');
+      const del = (Number(baseDelay) + wordIdx * wordDelay).toFixed(3);
+      wordIdx++;
+      const animStyle = isImageExport ? '' : `opacity:0; display:inline-block; animation: anim-fade-in ${wordDur}s linear ${del}s both;`;
+      return `<span style="${animStyle}">${esc(w)}</span>`;
+    }).join('');
+  }
+  return null;
 }
 
 function generateMaskClipPathKeyframes(mask, image, presetOverride) {
@@ -1710,45 +1772,8 @@ function _generateExportHTMLRaw(targetCanvas, zipRef, isImageExport = false, opt
       const lsStyle = el.letterSpacing ? `letter-spacing:${el.letterSpacing}px;` : '';
       let content = esc(el.text).replace(/\n/g, '<br/>');
 
-      if (animType === 'typing' || animType === 'fade-typing') {
-        const chars = [...(el.text || '')];
-        const totalDur = el.animDuration || 1;
-        const fadeLetters = el.animFadeLetters !== false;
-        const charDur = fadeLetters ? 0.3 : 0.01;
-        const baseDelay = el.animDelay || 0;
-        const nonNewlines = chars.filter(c => c !== '\n').length;
-        const charDelay = totalDur / Math.max(1, nonNewlines);
-
-        let spanIdx = 0;
-        content = chars.map((c) => {
-          if (c === '\n') return '<br/>';
-          const del = (Number(baseDelay) + spanIdx * charDelay).toFixed(3);
-          spanIdx++;
-          const charContent = c === ' ' ? ' ' : esc(c);
-          const animStyle = isImageExport ? '' : `opacity:0; animation: anim-fade-in ${charDur}s linear ${del}s both;`;
-          return `<span style="${animStyle}">${charContent}</span>`;
-        }).join('');
-      } else if (animType === 'word-fade') {
-        const words = (el.text || '').split(/(\s+)/);
-        const nonSpas = words.filter(w => /\S/.test(w));
-        const totalDur = el.animDuration || 1;
-        const wordDur = 0.3;
-        const baseDelay = el.animDelay || 0;
-        const wordDelay = totalDur / Math.max(1, nonSpas.length);
-
-        let wordIdx = 0;
-        content = words.map(w => {
-          if (w === '\n') return '<br/>';
-          if (/\s+/.test(w)) return w.replace(/\n/g, '<br/>');
-          const del = (Number(baseDelay) + wordIdx * wordDelay).toFixed(3);
-          wordIdx++;
-          const wordContent = esc(w);
-          const animStyle = isImageExport ? '' : `opacity:0; display:inline-block; animation: anim-fade-in ${wordDur}s linear ${del}s both;`;
-          return `<span style="${animStyle}">${wordContent}</span>`;
-        }).join('');
-      } else if (animType === 'rise') {
-        content = buildRiseContentHTML(el, esc, isImageExport);
-      }
+      const entranceHTML = buildTextEntranceHTML(el, esc, animType, isImageExport);
+      if (entranceHTML !== null) content = entranceHTML;
       const vAlignMap = { top: 'flex-start', middle: 'center', bottom: 'flex-end' };
       const hAlignMap = { left: 'flex-start', center: 'center', right: 'flex-end' };
       const jc = vAlignMap[el.verticalAlign || 'top'];
@@ -1834,45 +1859,8 @@ function _generateExportHTMLRaw(targetCanvas, zipRef, isImageExport = false, opt
       const paddingLR = el.paddingLR !== undefined ? el.paddingLR : 16;
       
       let btnContent = esc(el.text).replace(/\n/g, '<br/>');
-      if (animType === 'typing' || animType === 'fade-typing') {
-        const chars = [...(el.text || '')];
-        const totalDur = el.animDuration || 1;
-        const fadeLetters = el.animFadeLetters !== false;
-        const charDur = fadeLetters ? 0.3 : 0.01;
-        const baseDelay = el.animDelay || 0;
-        const nonNewlines = chars.filter(c => c !== '\n').length;
-        const charDelay = totalDur / Math.max(1, nonNewlines);
-
-        let spanIdx = 0;
-        btnContent = chars.map((c) => {
-          if (c === '\n') return '<br/>';
-          const del = (Number(baseDelay) + spanIdx * charDelay).toFixed(3);
-          spanIdx++;
-          const charContent = c === ' ' ? ' ' : esc(c);
-          const animStyle = isImageExport ? '' : `opacity:0; animation: anim-fade-in ${charDur}s linear ${del}s both;`;
-          return `<span style="${animStyle}">${charContent}</span>`;
-        }).join('');
-      } else if (animType === 'word-fade') {
-        const words = (el.text || '').split(/(\s+)/);
-        const nonSpas = words.filter(w => /\S/.test(w));
-        const totalDur = el.animDuration || 1;
-        const wordDur = 0.3;
-        const baseDelay = el.animDelay || 0;
-        const wordDelay = totalDur / Math.max(1, nonSpas.length);
-
-        let wordIdx = 0;
-        btnContent = words.map(w => {
-          if (w === '\n') return '<br/>';
-          if (/\s+/.test(w)) return w.replace(/\n/g, '<br/>');
-          const del = (Number(baseDelay) + wordIdx * wordDelay).toFixed(3);
-          wordIdx++;
-          const wordContent = esc(w);
-          const animStyle = isImageExport ? '' : `opacity:0; display:inline-block; animation: anim-fade-in ${wordDur}s linear ${del}s both;`;
-          return `<span style="${animStyle}">${wordContent}</span>`;
-        }).join('');
-      } else if (animType === 'rise') {
-        btnContent = buildRiseContentHTML(el, esc, isImageExport);
-      }
+      const btnEntranceHTML = buildTextEntranceHTML(el, esc, animType, isImageExport);
+      if (btnEntranceHTML !== null) btnContent = btnEntranceHTML;
 
       let staggerStyle = '';
       if (!isImageExport && animType === 'zoom' && el.animStaggerText) {

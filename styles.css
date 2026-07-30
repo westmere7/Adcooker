@@ -335,6 +335,8 @@ body.theme-rmit-navy {
       from { transform: translateY(115%); }
       to { transform: translateY(0); }
     }
+    /* The optional fade (riseFade) composes anim-fade-in on its own linear
+       track alongside anim-rise — see buildRiseContentHTML. */
 
     @keyframes anim-slide-up {
       from { opacity: 0; translate: 0 20px; }
@@ -6195,6 +6197,20 @@ body.fullscreen-mode #sequencer-panel { display: none; }
 /* Bars in the selected row read stronger. */
 .seq-track.seq-selected .seq-bar { filter: brightness(1.12); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25); }
 .seq-track.seq-selected .seq-bar-fx { filter: none; border-color: rgba(47, 158, 143, 1); box-shadow: none; }
+/* Row index before the layer name — numbers the timeline's own display order
+   (so it follows drag-reordering and the animated-only filter). Tabular digits
+   + fixed width keep every name left-aligned. */
+.seq-row-num {
+  flex: 0 0 auto;
+  min-width: 11px;
+  text-align: right;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  opacity: .8;
+  user-select: none;
+}
+.seq-row-label.seq-selected .seq-row-num { color: var(--accent-base); opacity: 1; }
 .seq-row-name {
   flex: 1;
   min-width: 0;

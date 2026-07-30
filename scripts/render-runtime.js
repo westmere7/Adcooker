@@ -90,6 +90,9 @@ function setupRiseLines(wrapper) {
   wrapper.dataset.riseInited = '1';
   var totalDur = parseFloat(wrapper.getAttribute('data-rise-dur')) || 1;
   var baseDelay = parseFloat(wrapper.getAttribute('data-rise-delay')) || 0;
+  // Opacity rides its own LINEAR track (see buildRiseContentHTML) — sharing the
+  // rise's expo-out curve would make the fade imperceptible.
+  var fade = wrapper.getAttribute('data-rise-fade') === '1';
   // Group masks (document order = reading order) into visual lines by offsetTop.
   var lines = [];
   var lineTop = null;
@@ -104,7 +107,10 @@ function setupRiseLines(wrapper) {
     var del = (baseDelay + li * step).toFixed(3);
     for (var mi = 0; mi < lines[li].length; mi++) {
       var inner = lines[li][mi].firstChild;
-      if (inner && inner.style) inner.style.animation = 'anim-rise ' + unitDur + 's cubic-bezier(0.19, 1, 0.22, 1) ' + del + 's both';
+      if (inner && inner.style) {
+        inner.style.animation = 'anim-rise ' + unitDur + 's cubic-bezier(0.19, 1, 0.22, 1) ' + del + 's both' +
+          (fade ? ', anim-fade-in ' + unitDur + 's linear ' + del + 's both' : '');
+      }
     }
   }
 }
