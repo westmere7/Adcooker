@@ -41,6 +41,10 @@ let seqPlayTextTargets = [];       // text nodes whose innerHTML playback replac
 let seqPlayTimer = null;
 let seqPopoverEl = null;
 let seqDrag = null;
+// Element id whose FX bar is isolated for editing, or null. Isolation dims the
+// IN/OUT bars and makes the whole FX bar draggable/resizable — the timeline
+// equivalent of isolating one element inside a group on the canvas.
+let seqFxEditId = null;
 // Playback playhead (visual only, non-interactive).
 let seqPlayStartMs = 0;
 let seqPlayMaxEnd = 0;
@@ -155,6 +159,15 @@ function seqSignature() {
 
 // Select an element the same way the layers panel does, so renderProps binds
 // updateProp + the preview fns to it before the sequencer commits anything.
+// Leaves FX isolation. Returns true if it was actually on, so callers can tell
+// whether they consumed the interaction (e.g. Escape).
+function seqExitFxEdit() {
+  if (!seqFxEditId) return false;
+  seqFxEditId = null;
+  renderSequencer(true);
+  return true;
+}
+
 function seqSelectElement(id) {
   if (state.layerSelection && state.layerSelection.length === 1 && state.layerSelection[0] === id
       && state.selectedElementId === id) return;
@@ -474,18 +487,35 @@ function seqRenderBody() {
     const geom = b.infinite
       ? `left:${left}px; right:0;`
       : `left:${left}px; width:${Math.max(6, b.dur * pxPerSec)}px;`;
-    // The grip is the one pointer-active part of the veil: a thin strip along
-    // the bottom of the FX span that stays above the IN/OUT bars, so FX can be
-    // dragged anywhere along its length even where those bars cover it.
+    // Normally the grip — a thin strip along the bottom of the FX span, above
+    // the IN/OUT bars — is the veil's only pointer-active part, so FX can be
+    // moved anywhere along its length even where those bars cover it. Clicking
+    // it isolates the FX bar, at which point the whole veil becomes active and
+    // gets resize handles (the dimmed IN/OUT bars can't intercept them).
+    const editing = seqFxEditId === el.id;
+    const fxLabel = seqPresetLabel('fx', el.effectType);
     return `<div class="seq-fx-veil ${b.infinite ? 'seq-fx-veil-infinite' : ''}"
-      data-el="${el.id}" data-veil="fx" style="${geom}"><span class="seq-fx-grip"
-      title="FX · ${seqPresetLabel('fx', el.effectType)} — drag to move"></span></div>`;
+      data-el="${el.id}" data-veil="fx" style="${geom}"
+      title="${editing ? `FX · ${fxLabel} — drag to move, drag edges to resize. Esc to exit.` : `FX · ${fxLabel} — drag to move, click to isolate for editing.`}">
+      ${editing ? '<span class="seq-handle seq-handle-l"></span>' : ''}
+      ${editing && !b.infinite ? '<span class="seq-handle seq-handle-r"></span>' : ''}
+      <span class="seq-fx-grip" title="FX · ${fxLabel} — drag to move, click to isolate for editing."></span>
+    </div>`;
   };
+
+  // FX isolation only survives while its own layer is the sole selection —
+  // selecting anything else (or a multi-select, or a frame/canvas switch) drops
+  // it, so the state can't outlive what it was isolating.
+  if (seqFxEditId && !(state.layerSelection && state.layerSelection.length === 1
+      && state.layerSelection[0] === seqFxEditId && els.some(e => e.id === seqFxEditId))) {
+    seqFxEditId = null;
+  }
 
   let rows = '';
   els.forEach((el, rowIdx) => {
     const b = seqBars(el);
     const selected = state.layerSelection && state.layerSelection.includes(el.id);
+    const fxEditing = seqFxEditId === el.id;
     const inOn = animInEnabled(el);
     const outOn = !!el.exitEnabled;
     // FX counts as "on" only when a real effect is chosen — enabled-but-None
@@ -500,7 +530,7 @@ function seqRenderBody() {
         <button class="seq-chip seq-chip-out ${outOn && inOn ? 'on' : ''} ${outChipDisabled ? 'seq-chip-disabled' : ''}" data-el="${el.id}" data-chip="out" title="${outChipDisabled ? 'OUT requires IN to be enabled' : `OUT: ${outOn ? seqPresetLabel('out', el.exitType || 'fade-out') : 'None'} — click to change`}">OUT</button>
         <button class="seq-chip seq-chip-fx ${fxOn ? 'on' : ''}" data-el="${el.id}" data-chip="fx" title="FX: ${fxOn ? seqPresetLabel('fx', el.effectType) : 'None'} — click to change">FX</button>
       </div>
-      <div class="seq-track ${selected ? 'seq-selected' : ''}" data-el="${el.id}" style="width:${trackW}px; --seq-grid-px:${gridPx}px;">
+      <div class="seq-track ${selected ? 'seq-selected' : ''} ${fxEditing ? 'seq-fx-edit' : ''}" data-el="${el.id}" style="width:${trackW}px; --seq-grid-px:${gridPx}px;">
         ${overrunW > 0.5 ? `<div class="seq-overrun" style="width:${overrunW}px;"></div>` : ''}
         ${barHtml(el, 'in', b.in)}${barHtml(el, 'out', b.out)}${barHtml(el, 'fx', b.fx)}${fxVeilHtml(el, b.fx)}
       </div>`;
@@ -582,12 +612,14 @@ function seqRenderBody() {
   body.querySelectorAll('.seq-bar').forEach(bar => {
     bar.addEventListener('mousedown', (e) => seqBarMouseDown(e, bar, pxPerSec));
   });
-  // Grabbing the FX grip drives the FX bar underneath it. The grip carries no
-  // handle class, so seqBarMouseDown resolves this to a plain 'move'.
-  body.querySelectorAll('.seq-fx-grip').forEach(grip => {
-    const elId = grip.parentElement.dataset.el;
-    const fxBar = body.querySelector(`.seq-bar[data-el="${elId}"][data-kind="fx"]`);
-    if (fxBar) grip.addEventListener('mousedown', (e) => seqBarMouseDown(e, fxBar, pxPerSec));
+  // Grabbing the veil drives the FX bar underneath it. One listener covers both
+  // modes: normally only the grip child is pointer-active and its events bubble
+  // up through the (pointer-transparent) veil; once isolated the whole veil is
+  // active. seqBarMouseDown reads the mode off e.target, so the grip and veil
+  // body resolve to 'move' while the handles resolve to 'l'/'r'.
+  body.querySelectorAll('.seq-fx-veil').forEach(veil => {
+    const fxBar = body.querySelector(`.seq-bar[data-el="${veil.dataset.el}"][data-kind="fx"]`);
+    if (fxBar) veil.addEventListener('mousedown', (e) => seqBarMouseDown(e, fxBar, pxPerSec));
   });
 
   if (seqPlaying) seqEnsurePlayhead();
@@ -674,6 +706,13 @@ function seqBarMouseDown(e, bar, pxPerSec) {
   // kind together (relative delta, like a canvas group move). Otherwise the
   // grab collapses selection to just this element.
   const inMulti = state.layerSelection && state.layerSelection.length > 1 && state.layerSelection.includes(elId);
+  // Whether this layer was ALREADY the sole selection before this grab decides
+  // whether a click on its FX bar isolates it (checked before we select).
+  const wasSelected = !inMulti && state.layerSelection
+    && state.layerSelection.length === 1 && state.layerSelection[0] === elId;
+  // Grabbing any bar on a different row abandons an active isolation. (This
+  // path stops propagation, so the document-level dismissal never sees it.)
+  if (seqFxEditId && seqFxEditId !== elId) seqFxEditId = null;
   if (!inMulti) seqSelectElement(elId);
 
   const b = seqBars(el)[kind];
@@ -704,6 +743,7 @@ function seqBarMouseDown(e, bar, pxPerSec) {
     pendingStart: b.start,
     pendingDur: b.dur,
     group,
+    wasSelected,
     // Pixel travel decides drag vs click — a short drag that snaps back to
     // the original value must NOT count as a click (no popover).
     maxPx: 0,
@@ -785,9 +825,14 @@ function seqBarMouseUp() {
   const el = c && c.elements.find(x => x.id === d.elId);
   if (!el) return;
   if (d.maxPx < 4) {
-    // Plain click on a bar: bars are drag-only — presets are changed via the
-    // row's IN/OUT/FX chips. (Selecting the element already happened on
-    // mousedown.)
+    // Plain click. On an FX bar whose layer was already selected, isolate that
+    // FX bar for editing — the timeline's version of stepping into a group.
+    // Every other bar is drag-only: presets change via the row's chips.
+    // (Selecting the element already happened on mousedown.)
+    if (d.kind === 'fx' && d.wasSelected && seqFxEditId !== d.elId) {
+      seqFxEditId = d.elId;
+      renderSequencer(true);
+    }
     return;
   }
   const gl = d.group || [{ elId: d.elId, origStart: d.origStart, origDur: d.origDur, infinite: d.infinite, pendingStart: d.pendingStart, pendingDur: d.pendingDur }];
@@ -932,9 +977,20 @@ function seqOpenPresetPopover(el, kind, anchorRect) {
 
 document.addEventListener('mousedown', (e) => {
   if (seqPopoverEl && !e.target.closest('.seq-popover')) seqCloseNPopover();
+  // Pressing anywhere that isn't the isolated FX bar leaves isolation, same as
+  // clicking off an isolated group. Bar/veil grabs stop propagation before they
+  // reach here, so this only sees presses outside every bar. Chips, row labels
+  // and the preset popover are exempt: they stay usable while isolated, and
+  // re-rendering on their mousedown would destroy them before their own click
+  // could fire.
+  if (seqFxEditId && !e.target.closest('.seq-chip, .seq-row-label, .seq-popover')) {
+    seqExitFxEdit();
+  }
 });
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && seqPopoverEl) seqCloseNPopover();
+  if (e.key !== 'Escape') return;
+  if (seqPopoverEl) seqCloseNPopover();
+  else seqExitFxEdit();
 });
 
 // ---------------------------------------------------------------------------

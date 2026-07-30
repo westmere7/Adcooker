@@ -6325,26 +6325,59 @@ body.fullscreen-mode #sequencer-panel { display: none; }
   left: -28px;
   right: -28px;
   background: repeating-linear-gradient(135deg,
-    rgba(47, 158, 143, 0.42) 0 calc(var(--seq-stripe) / 2.4),
+    rgba(255, 255, 255, 0.22) 0 calc(var(--seq-stripe) / 2.4),
     transparent calc(var(--seq-stripe) / 2.4) var(--seq-stripe));
 }
 /* Pointer-active drag strip along the bottom of the FX span. Sits above the
-   IN/OUT bars, so FX is grabbable along its whole length even where they cover
-   it — and doubles as a solid "FX lane" marker that reads at a glance. */
+   IN/OUT bars so FX is grabbable along its whole length even where they cover
+   it. Kept visually transparent so the stripes run the bar's full height; it
+   only reveals itself on hover. */
 .seq-fx-grip {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
   height: 7px;
-  background: rgba(47, 158, 143, 0.72);
-  border-top: 1px solid rgba(120, 226, 211, 0.55);
   pointer-events: auto;
   cursor: grab;
 }
-.seq-fx-grip:hover { background: rgba(65, 190, 172, 0.9); }
+.seq-fx-grip:hover { background: rgba(255, 255, 255, 0.18); }
 .seq-fx-grip:active { cursor: grabbing; }
-.seq-track.seq-selected .seq-fx-grip { background: rgba(47, 158, 143, 0.92); }
+
+/* --- FX isolation ("edit mode") ------------------------------------------- */
+/* Clicking an already-selected layer's FX bar isolates it: IN/OUT recede and
+   the whole FX bar becomes draggable and resizable. */
+.seq-track.seq-fx-edit .seq-bar-in,
+.seq-track.seq-fx-edit .seq-bar-out {
+  opacity: 0.2;
+  filter: saturate(0.4);
+  pointer-events: none;
+}
+.seq-track.seq-fx-edit .seq-fx-veil {
+  pointer-events: auto;
+  cursor: grab;
+  border-color: rgba(120, 226, 211, 1);
+  box-shadow: 0 0 0 1px rgba(120, 226, 211, 0.45), 0 0 10px rgba(47, 158, 143, 0.5);
+}
+.seq-track.seq-fx-edit .seq-fx-veil:active { cursor: grabbing; }
+.seq-track.seq-fx-edit .seq-fx-veil::before {
+  background: repeating-linear-gradient(135deg,
+    rgba(255, 255, 255, 0.36) 0 calc(var(--seq-stripe) / 2.4),
+    transparent calc(var(--seq-stripe) / 2.4) var(--seq-stripe));
+}
+/* The whole veil is the grab target once isolated — no strip needed. */
+.seq-track.seq-fx-edit .seq-fx-grip { display: none; }
+/* Resize handles only exist while isolated, so they can't be buried by IN/OUT. */
+.seq-fx-veil .seq-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 7px;
+  pointer-events: auto;
+  cursor: ew-resize;
+}
+.seq-fx-veil .seq-handle-l { left: 0; border-left: 2px solid rgba(120, 226, 211, 0.85); }
+.seq-fx-veil .seq-handle-r { right: 0; border-right: 2px solid rgba(120, 226, 211, 0.85); }
 /* Stripes only crawl on the selected row — ambient motion on every FX bar at
    once would make the timeline noisy. */
 .seq-track.seq-selected .seq-fx-veil::before {

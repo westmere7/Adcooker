@@ -666,7 +666,8 @@ const CHANGELOG_DATA = [
     version: 'v0.34.3',
     date: 'July 2026 — Engine v2.19',
     items: [
-      'FX Bars Stay Visible and Draggable on the Timeline: An element\'s FX bar is now drawn on top of its IN and OUT bars as a diagonal stripe pattern with a solid teal strip along its bottom edge, instead of an outline buried underneath them. Previously an FX bar covering the same stretch as IN or OUT was invisible, and you could only grab it in whatever gaps the other bars left. That bottom strip is now the FX drag handle, so an FX bar can be moved anywhere along its length even where IN or OUT sits on top of it — and the IN and OUT bars stay grabbable everywhere above the strip, resize handles included. The stripes drift slowly on the selected layer only, so the timeline stays calm when nothing is selected.'
+      'FX Bars Stay Visible on the Timeline: An element\'s FX bar is now drawn on top of its IN and OUT bars as white diagonal stripes across its full height, instead of an outline buried underneath them. Previously an FX bar covering the same stretch as IN or OUT was invisible, so you couldn\'t tell an effect was there. The stripes drift slowly on the selected layer only, so the timeline stays calm when nothing is selected.',
+      'Isolate an FX Bar to Edit It: A thin strip along the bottom of the FX bar sits above the IN and OUT bars, so you can drag an FX bar to move it anywhere along its length even where those bars cover it. Clicking that strip on a layer that\'s already selected isolates the FX bar for editing — the IN and OUT bars fade back and stop responding, and the whole FX bar becomes draggable and gains resize handles, so you can retime an effect that was previously unreachable underneath them. Press Escape or click away to leave. The IN/OUT bars stay fully grabbable whenever an FX bar isn\'t isolated, resize handles included, and the row\'s IN/OUT/FX chips keep working while one is.'
     ]
   },
   {
