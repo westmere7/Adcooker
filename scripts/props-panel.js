@@ -92,7 +92,11 @@ function stopAllAnimationPreviews() {
 // every preview as soon as the pointer hovers anything outside the 3 sub-panels.
 document.addEventListener('mouseover', (e) => {
   const t = e.target;
-  if (t && t.closest && t.closest('#in-transition-preview-area, #out-transition-preview-area, #effects-preview-area, #frame-transition-preview-area, #sequencer-panel')) return;
+  // .seq-popover is included because the timeline's preset menu is appended to
+  // document.body (to escape the panel's clipping), so it is NOT inside
+  // #sequencer-panel — without it, this guard would stop the hover preview that
+  // the popover item's own mouseenter just started.
+  if (t && t.closest && t.closest('#in-transition-preview-area, #out-transition-preview-area, #effects-preview-area, #frame-transition-preview-area, #sequencer-panel, .seq-popover')) return;
   stopAllAnimationPreviews();
 });
 document.addEventListener('mouseleave', () => stopAllAnimationPreviews());

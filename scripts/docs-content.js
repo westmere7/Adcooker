@@ -663,6 +663,13 @@ document.getElementById('menu-help-documentation').addEventListener('click', ope
 
 const CHANGELOG_DATA = [
   {
+    version: 'v0.31.2',
+    date: 'July 2026 — Engine v2.19',
+    items: [
+      'Fixed Timeline Preset Hover Previews: Hovering a preset in the timeline\'s IN/OUT/FX menu now plays its preview on the canvas, matching the Animation panel. An internal safeguard that stops previews when the pointer leaves the animation controls was also catching the timeline\'s preset menu, cancelling each preview the moment it began.'
+    ]
+  },
+  {
     version: 'v0.31.1',
     date: 'July 2026 — Engine v2.19',
     items: [

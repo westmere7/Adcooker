@@ -1,6 +1,9 @@
 RMIT Adflow - Version & Changelog History
 
-v0.31.1 (Current) - July 2026 — Engine v2.19
+v0.31.2 (Current) - July 2026 — Engine v2.19
+- Fixed Timeline Preset Hover Previews: Hovering a preset in the timeline's IN/OUT/FX menu now plays its preview on the canvas, matching the Animation panel. An internal safeguard that stops previews when the pointer leaves the animation controls was also catching the timeline's preset menu, cancelling each preview the moment it began.
+
+v0.31.1 - July 2026 — Engine v2.19
 - Rise "Lines" Mode Follows Visual Lines: Line mode now animates the lines you actually SEE — the wrapped layout is measured at runtime, so a headline that wraps to 2, 3, or 4 lines rises line by line, and the grouping adapts automatically when the text re-wraps (resize, auto-size, edits). Previously it only split on explicit line breaks, so auto-wrapped text rose as one block.
 - "Text" Badge on Text-Only Presets: The Typing and Rise presets now show a small rounded "text" badge in the IN animation dropdown (and the timeline's preset menu), marking them as text/button-only animations.
 
