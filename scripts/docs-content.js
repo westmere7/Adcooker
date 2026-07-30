@@ -663,6 +663,13 @@ document.getElementById('menu-help-documentation').addEventListener('click', ope
 
 const CHANGELOG_DATA = [
   {
+    version: 'v0.34.4',
+    date: 'July 2026 — Engine v2.19',
+    items: [
+      'Fixed Cloud Saves Appearing to Do Nothing: Saving over an existing cloud project wrote correctly, but reopening it could hand back the PREVIOUS save instead — so any change made in that session looked like it had never been saved. "Save as (Cloud)" seemed to work only because a new project gets a new file, with nothing stale cached against it. The cause was caching: project files were stored with a one-hour cache lifetime, and because an in-place save reuses the same file path, reads kept being served the older copy. Project files are now stored no-cache and every read bypasses the cache, so a save is always what you get back. This also applies to Revert to Cloud Version, to duplicating a space (which could otherwise copy a stale version of every project), and to refreshing a share link\'s snapshot. Nothing was ever lost — projects saved before this fix contain the correct data and will open correctly now.'
+    ]
+  },
+  {
     version: 'v0.34.3',
     date: 'July 2026 — Engine v2.19',
     items: [
