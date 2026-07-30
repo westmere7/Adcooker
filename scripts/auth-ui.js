@@ -175,11 +175,13 @@ const spacesState = (() => {
       i++;
       onProgress && onProgress(`Copying project ${i} of ${(srcProjects || []).length}…`);
       try {
-        const { data: blob, error: dlErr } = await sb.storage.from('projects').download(p.storage_path);
-        if (dlErr || !blob) continue;
+        // Fresh read: a cached blob here would silently copy a stale version
+        // of the project into the new space.
+        const blob = await downloadProjectBlobFresh(p.storage_path);
+        if (!blob) continue;
         const newId = (crypto.randomUUID && crypto.randomUUID()) || uid('proj_');
         const newPath = `spaces/${newSpace.id}/${newId}.flow`;
-        const { error: upErr } = await sb.storage.from('projects').upload(newPath, blob, { upsert: true, contentType: 'application/octet-stream' });
+        const { error: upErr } = await sb.storage.from('projects').upload(newPath, blob, PROJECT_BLOB_UPLOAD_OPTS);
         if (upErr) continue;
         await sb.from('projects').insert({
           user_id: u.id,
@@ -574,6 +576,31 @@ async function openCloudProjectsModal() {
 const _UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const _isUuid = (s) => typeof s === 'string' && _UUID_RE.test(s);
 
+// Supabase Storage stores an object with `Cache-Control: max-age=3600` unless
+// told otherwise, and its CDN then serves that copy for the same URL for up to
+// an hour. An in-place save reuses the project's storage path, so reopening the
+// project could hand back the PREVIOUS save's bytes — the save looked like it
+// had silently done nothing, while "Save as (Cloud)" appeared to work only
+// because a new project id means a brand-new path with nothing cached against
+// it. Write every project blob no-cache:
+const PROJECT_BLOB_UPLOAD_OPTS = Object.freeze({
+  upsert: true,
+  contentType: 'application/octet-stream',
+  cacheControl: '0'
+});
+
+// ...and read through a one-off signed URL with a cache-buster, so blobs that
+// were written BEFORE the fix above (and therefore still carry max-age=3600)
+// are also read correctly rather than staying stale until they expire.
+async function downloadProjectBlobFresh(storagePath) {
+  const { data: signed, error: signErr } = await sb.storage
+    .from('projects').createSignedUrl(storagePath, 60);
+  if (signErr) throw signErr;
+  const resp = await fetch(`${signed.signedUrl}&_=${Date.now()}`, { cache: 'no-store' });
+  if (!resp.ok) throw new Error(`Download failed (HTTP ${resp.status})`);
+  return await resp.blob();
+}
+
 async function pushCurrentProjectToCloud(opts = {}) {
   const u = authState.currentUser();
   if (!u) throw new Error('Not signed in.');
@@ -661,7 +688,7 @@ async function pushCurrentProjectToCloud(opts = {}) {
   // Storage path uses state.projectId (a real UUID guaranteed above), so the
   // path is stable across pushes of the same project.
   const path = spaceId ? `spaces/${spaceId}/${state.projectId}.flow` : `${u.id}/${state.projectId}.flow`;
-  const { error: upErr } = await sb.storage.from('projects').upload(path, blob, { upsert: true, contentType: 'application/octet-stream' });
+  const { error: upErr } = await sb.storage.from('projects').upload(path, blob, PROJECT_BLOB_UPLOAD_OPTS);
   if (upErr) { setCloudSaveStatus('error'); throw upErr; }
   // Upsert by id — the same UUID is used as both the row id and the storage
   // filename, so updates land on the same record on every push.
@@ -696,7 +723,7 @@ async function pushCurrentProjectToCloud(opts = {}) {
   // must never fail the project save itself.
   if (state.previewSharePath && state.previewExpiry && state.previewExpiry > Date.now()) {
     try {
-      await sb.storage.from('projects').upload(state.previewSharePath, blob, { upsert: true, contentType: 'application/octet-stream' });
+      await sb.storage.from('projects').upload(state.previewSharePath, blob, PROJECT_BLOB_UPLOAD_OPTS);
     } catch (e) {
       console.warn('Share preview sync failed (project save succeeded):', e);
     }
@@ -711,8 +738,7 @@ async function pullCloudProject(row, opts = {}) {
     : null;
   if (progress) progress.setProgress(5, 'Downloading project from cloud...');
   try {
-    const { data, error } = await sb.storage.from('projects').download(row.storage_path);
-    if (error) throw error;
+    const data = await downloadProjectBlobFresh(row.storage_path);
     await loadProjectFromBlob(data, null, progress);
     state.projectId = row.id;
     // Align the active space with the project's home so subsequent pushes stay in the same context.

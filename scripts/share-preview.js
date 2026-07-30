@@ -177,7 +177,9 @@ async function openSharePreviewModal() {
           const { blob } = await buildFlowBlob();
 
           if (textEl) textEl.textContent = 'Uploading snapshot...';
-          const { error: upErr } = await sb.storage.from('projects').upload(path, blob, { upsert: true, contentType: 'application/octet-stream' });
+          // PROJECT_BLOB_UPLOAD_OPTS (auth-ui.js) — no-cache, so re-sharing an
+          // updated snapshot at the same path isn't served stale by the CDN.
+          const { error: upErr } = await sb.storage.from('projects').upload(path, blob, PROJECT_BLOB_UPLOAD_OPTS);
           if (upErr) throw upErr;
 
           // Generate signed URL for the snapshot
