@@ -462,7 +462,7 @@ function seqRenderBody() {
     const labels = { in: 'IN', out: 'OUT', fx: 'FX' };
     const presets = {
       in: seqPresetLabel('in', el.animType),
-      out: seqPresetLabel('out', el.exitType || 'fade-out'),
+      out: seqPresetLabel('out', (typeof resolveExitType === 'function') ? resolveExitType(el) : (el.exitType || 'fade-out')),
       fx: seqPresetLabel('fx', el.effectType)
     };
     const resizable = !(kind === 'fx' && b.infinite);
@@ -656,6 +656,14 @@ function seqLayerName(el) {
   return count > 1 ? `${base} ${count}` : base;
 }
 
+// Display label for a stored preset value.
+//
+// The family collapses below are deliberate — several stored values map to one
+// label (swipe-left/right/up/down all read "Swipe", and the whole typing family
+// reads "Typing"). Everything else is looked up in the SHARED registry rather
+// than a local map: this function used to duplicate the preset labels by hand, so
+// any newly added preset showed its raw slug here ("word-pop") until someone
+// remembered to update a second list.
 function seqPresetLabel(kind, val) {
   const v = val || 'none';
   if (kind === 'in') {
@@ -663,12 +671,15 @@ function seqPresetLabel(kind, val) {
     if (v === 'slide' || v.startsWith('slide-')) return 'Slide';
     if (v === 'zoom' || v === 'zoom-in' || v === 'pop-in') return 'Zoom';
     if (isTypingFamilyEntrance(v)) return 'Typing';
-    return { 'none': 'None', 'fade-in': 'Fade In', 'split': 'Split', 'blur': 'Blur', 'rise': 'Rise' }[v] || v;
   }
-  if (kind === 'out') {
-    return { 'fade-out': 'Fade Out', 'slide': 'Slide', 'swipe': 'Swipe', 'zoom': 'Zoom', 'blur': 'Blur' }[v] || v;
-  }
-  return { 'none': 'None', 'pulse': 'Pulse', 'float': 'Float', 'flash': 'Flash', 'wiggle': 'Wiggle', 'spin': 'Spin', 'heartbeat': 'Heartbeat', 'pan': 'Move', 'zoom': 'Zoom' }[v] || v;
+  const list = kind === 'in'
+    ? (typeof ANIM_IN_PRESETS !== 'undefined' ? ANIM_IN_PRESETS : [])
+    : kind === 'out'
+      ? (typeof ANIM_OUT_PRESETS !== 'undefined' ? ANIM_OUT_PRESETS : [])
+      : (typeof ANIM_FX_PRESETS !== 'undefined' ? ANIM_FX_PRESETS : []);
+  const hit = list.find(p => p.val === v);
+  if (hit) return hit.label;
+  return v === 'none' ? 'None' : v;   // OUT has no 'none' entry of its own
 }
 
 // ---------------------------------------------------------------------------
@@ -940,7 +951,7 @@ function seqComputeBarPairs(kind, el, m) {
 function seqPresetOptions(el, kind) {
   if (kind === 'in') return getInAnimPresets(el);
   // OUT has no 'none' preset — turning the category off is its own entry.
-  if (kind === 'out') return [{ val: '__off', label: 'None' }, ...getOutAnimPresets()];
+  if (kind === 'out') return [{ val: '__off', label: 'None' }, ...getOutAnimPresets(el)];
   return getFxPresets();
 }
 
@@ -1110,7 +1121,8 @@ function seqStartPlayback() {
         const overrides = (typeof dmDisplay === 'function') ? dmDisplay(el) : {};
         const displayText = overrides.text !== undefined ? overrides.text : (el.text || '');
         const escS = (s) => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-        const html = buildTextEntranceHTML(el, escS, animType, false, displayText);
+        // frameCtx marks an in-frame element, which is also what gates its exit.
+        const html = buildTextEntranceHTML(el, escS, animType, false, displayText, undefined, { includeExit: !!frameCtx });
         if (html !== null) {
           seqPlayTextTargets.push({ node: target, html: target.innerHTML, style: target.getAttribute('style') || '' });
           target.innerHTML = html;

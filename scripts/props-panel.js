@@ -1152,7 +1152,7 @@ function wireCustomSelects(el, updateProp) {
         }
       } else {
         if (el) {
-          if (key === 'animDirection' || key === 'riseSplit') {
+          if (key === 'animDirection' || key === 'riseSplit' || key === 'riseDirection' || key === 'typingUnit') {
             if (startElementAnimPreviewFn) startElementAnimPreviewFn(el.animType || 'none');
           } else if (key === 'panDir') {
             hoverEffectPreviewActive = true;
@@ -1179,7 +1179,7 @@ function wireCustomSelects(el, updateProp) {
       if (isFrame) {
         stopFrameTransitionPreview();
       } else {
-        if (key === 'animDirection' || key === 'animType' || key === 'riseSplit') {
+        if (key === 'animDirection' || key === 'animType' || key === 'riseSplit' || key === 'riseDirection' || key === 'typingUnit') {
           if (stopElementAnimPreviewFn) stopElementAnimPreviewFn();
         } else if (key === 'panDir') {
           hoverEffectPreviewActive = false;
@@ -1258,7 +1258,7 @@ function wireCustomSelects(el, updateProp) {
           }
           pushHistory();
           renderProps();
-          if (key === 'animDirection' || key === 'riseSplit') {
+          if (key === 'animDirection' || key === 'riseSplit' || key === 'riseDirection' || key === 'typingUnit') {
             if (startElementAnimPreviewFn) startElementAnimPreviewFn(el.animType || 'none');
           } else if (key === 'animType') {
             if (startElementAnimPreviewFn) startElementAnimPreviewFn(el.animType || 'none');
@@ -1307,9 +1307,17 @@ function wireCustomSelects(el, updateProp) {
           const origExitType = el.exitType;
           const origExitDirection = el.exitDirection;
           const origRiseSplit = el.riseSplit;
+          const origRiseDirection = el.riseDirection;
+          const origTypingUnit = el.typingUnit;
 
           if (key === 'riseSplit') {
             el.riseSplit = val;
+            if (startElementAnimPreviewFn) startElementAnimPreviewFn(el.animType || 'none');
+          } else if (key === 'riseDirection') {
+            el.riseDirection = val;
+            if (startElementAnimPreviewFn) startElementAnimPreviewFn(el.animType || 'none');
+          } else if (key === 'typingUnit') {
+            el.typingUnit = val;
             if (startElementAnimPreviewFn) startElementAnimPreviewFn(el.animType || 'none');
           } else if (key === 'animDirection') {
             if ((el.animType || '').startsWith('swipe-')) {
@@ -1342,7 +1350,9 @@ function wireCustomSelects(el, updateProp) {
             el.exitType = origExitType;
             el.exitDirection = origExitDirection;
             if (origRiseSplit === undefined) delete el.riseSplit; else el.riseSplit = origRiseSplit;
-            if (key === 'animDirection' || key === 'riseSplit') {
+            if (origRiseDirection === undefined) delete el.riseDirection; else el.riseDirection = origRiseDirection;
+            if (origTypingUnit === undefined) delete el.typingUnit; else el.typingUnit = origTypingUnit;
+            if (key === 'animDirection' || key === 'riseSplit' || key === 'riseDirection' || key === 'typingUnit') {
               if (startElementAnimPreviewFn) startElementAnimPreviewFn(el.animType || 'none');
             } else if (key === 'panDir') {
               hoverEffectPreviewActive = true;
@@ -2669,20 +2679,31 @@ function renderProps() {
     } else if (el.animType === 'rise') {
       f.push(`
         <div class="prop-row" style="margin-bottom:8px;">
-          <div style="display:flex; flex-direction:column; gap:4px;">
-            <label>Rise by</label>
-            ${customSelect('riseSplit', [
-              { val: 'letter', label: 'Letters' },
-              { val: 'word', label: 'Words' },
-              { val: 'line', label: 'Lines' }
-            ], el.riseSplit || 'word', 'What emerges as one unit — letters, words, or visual lines')}
+          <div style="display:flex; gap:6px;">
+            <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:4px;">
+              <label>Reveal by</label>
+              ${customSelect('riseSplit', [
+                { val: 'letter', label: 'Letters' },
+                { val: 'word', label: 'Words' },
+                { val: 'line', label: 'Lines' }
+              ], el.riseSplit || 'word', 'What emerges as one unit — letters, words, or visual lines')}
+            </div>
+            <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:4px;">
+              <label>From</label>
+              ${customSelect('riseDirection', [
+                { val: 'up', label: 'Below' },
+                { val: 'down', label: 'Above' },
+                { val: 'left', label: 'Left' },
+                { val: 'right', label: 'Right' }
+              ], el.riseDirection || 'up', 'Which edge of the mask each unit travels out from — Below rises up, Left/Right wipe in sideways')}
+            </div>
           </div>
         </div>
         <div class="prop-row" style="margin-bottom:8px;">
           <div style="display:flex; flex-direction:row; gap:16px; align-items:center; height:24px;">
             <div class="checkbox-row" style="margin:0;">
-              <input type="checkbox" data-k="riseFade" id="prop-rise-fade" title="Also fade each unit in as it rises" ${el.riseFade ? 'checked' : ''}/>
-              <label for="prop-rise-fade" title="Also fade each unit in as it rises" style="cursor:pointer; font-size:11px; white-space:nowrap;">Fade</label>
+              <input type="checkbox" data-k="riseFade" id="prop-rise-fade" title="Also fade each unit in as it is revealed" ${el.riseFade ? 'checked' : ''}/>
+              <label for="prop-rise-fade" title="Also fade each unit in as it is revealed" style="cursor:pointer; font-size:11px; white-space:nowrap;">Fade</label>
             </div>
             ${el.type === 'button' ? `
             <div class="checkbox-row" style="margin:0;">
@@ -2694,12 +2715,22 @@ function renderProps() {
       `);
     } else if (isTypingFamilyEntrance(el.animType)) {
       const fadeBg = el.animFadeBg !== undefined ? el.animFadeBg : (el.type === 'button' ? true : !!el.animateBg);
+      const typingUnit = (el.animType === 'word-fade' || el.typingUnit === 'word') ? 'word' : 'letter';
       f.push(`
+        <div class="prop-row" style="margin-bottom:8px;">
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label>Type by</label>
+            ${customSelect('typingUnit', [
+              { val: 'letter', label: 'Letters' },
+              { val: 'word', label: 'Words' }
+            ], typingUnit, 'What arrives as one unit — one character at a time, or a whole word at a time')}
+          </div>
+        </div>
         <div class="prop-row" style="margin-bottom:8px;">
           <div style="display:flex; flex-direction:row; gap:16px; align-items:center; height:24px;">
             <div class="checkbox-row" style="margin:0;">
-              <input type="checkbox" data-k="animFadeLetters" id="prop-anim-fade-letters" title="Fade in characters one by one" ${el.animFadeLetters !== false ? 'checked' : ''}/>
-              <label for="prop-anim-fade-letters" title="Fade in characters one by one" style="cursor:pointer; font-size:11px; white-space:nowrap;">Fade letters</label>
+              <input type="checkbox" data-k="animFadeLetters" id="prop-anim-fade-letters" title="${typingUnit === 'word' ? 'Fade each word in instead of snapping it in' : 'Fade each character in instead of snapping it in'}" ${el.animFadeLetters !== false ? 'checked' : ''}/>
+              <label for="prop-anim-fade-letters" title="${typingUnit === 'word' ? 'Fade each word in instead of snapping it in' : 'Fade each character in instead of snapping it in'}" style="cursor:pointer; font-size:11px; white-space:nowrap;">Fade</label>
             </div>
             <div class="checkbox-row" style="margin:0; ${el.type === 'text' && !el.hasBg ? 'opacity:0.5; pointer-events:none;' : ''}">
               <input type="checkbox" data-k="animFadeBg" id="prop-anim-fade-bg" title="Fade/Animate background block/container during transition" ${fadeBg ? 'checked' : ''} ${el.type === 'text' && !el.hasBg ? 'disabled' : ''}/>
@@ -2741,8 +2772,11 @@ function renderProps() {
       </div>
     </div>`);
 
-    const exitOptions = getOutAnimPresets();   // shared registry
-    const exitVal = el.exitType || 'fade-out';
+    const exitOptions = getOutAnimPresets(el);   // shared registry (filters text-only + gates Unreveal)
+    // Resolved, not raw: if the stored exit is no longer valid for this element
+    // (e.g. Unreveal left behind after the entrance changed away from Reveal) the
+    // dropdown must show what will actually run, not a value it no longer offers.
+    const exitVal = (typeof resolveExitType === 'function') ? resolveExitType(el) : (el.exitType || 'fade-out');
     let filteredExit = exitOptions;
     let exitFavMessageHtml = '';
     if (state.filterFavorites) {
@@ -2759,7 +2793,12 @@ function renderProps() {
       ${exitFavMessageHtml}
     </div>`);
 
-    const showFade = exitVal !== 'fade-out'; // Fade Out is inherently a fade
+    // Fade Out is inherently a fade. Slide and Zoom also always fade, so they get
+    // no toggle either: without it Slide only nudges the element by exitDistance
+    // (20px by default) and Zoom only scales it to 0.8, both at full opacity — the
+    // element never actually leaves, which makes "no fade" a dead option for them.
+    // See getSlideOutKeyframes / getZoomOutKeyframes, which now always fade.
+    const showFade = exitVal !== 'fade-out' && exitVal !== 'slide' && exitVal !== 'zoom';
     const showDir = exitVal === 'slide' || exitVal === 'swipe';
     const showDist = exitVal === 'slide';
 
@@ -3406,6 +3445,8 @@ function checkButtonFontSizeWarning(el) {
             animDirection: el.animDirection,
             animDistance: el.animDistance,
             riseSplit: el.riseSplit,
+            riseDirection: el.riseDirection,
+            typingUnit: el.typingUnit,
             riseFade: el.riseFade
           };
           let previewVal = val;
@@ -3953,6 +3994,21 @@ function checkButtonFontSizeWarning(el) {
     const innerImg = imgDom.querySelector('img');
     if (innerImg) innerImg.style.animation = '';
   };
+  // Put back the markup a span-driven exit preview replaced (Untype / Unreveal
+  // rebuild the text into per-unit spans). This must run when the preview STOPS
+  // and also whenever a different preset is previewed — otherwise the injected
+  // spans keep animating underneath the next preset, which reads as the exit
+  // being stuck on whichever span-driven one was hovered first.
+  const restoreSpanExitMarkup = (node) => {
+    const target = node && (node.querySelector('.editable') || node.querySelector('span'));
+    if (!target || target.dataset.exitOrigHtml === undefined) return;
+    target.innerHTML = target.dataset.exitOrigHtml;
+    if (target.dataset.exitOrigStyle) target.setAttribute('style', target.dataset.exitOrigStyle);
+    else target.removeAttribute('style');
+    delete target.dataset.exitOrigHtml;
+    delete target.dataset.exitOrigStyle;
+  };
+
   const resetExitPreviewNodes = () => {
     document.body.classList.remove('previewing-animation-hover');
     getPreviewDomNodes(el, 'outAnim').forEach(node => {
@@ -3960,6 +4016,7 @@ function checkButtonFontSizeWarning(el) {
       node.style.animation = '';
       node.style.transformOrigin = '';
       clearMaskExitMirror(node);
+      restoreSpanExitMarkup(node);
     });
   };
   const startExitPreviewLoop = (exitVal) => {
@@ -3976,13 +4033,55 @@ function checkButtonFontSizeWarning(el) {
     const runLoop = () => {
       if (activeExitVal !== exitVal) return;
       const domNodes = getPreviewDomNodes(el, 'outAnim');
-      domNodes.forEach(node => { if (node) { node.style.animation = ''; node.style.transformOrigin = ''; clearMaskExitMirror(node); void node.offsetHeight; } });
+      // Full reset before each pass — including any span markup a previous
+      // span-driven preview injected, so switching presets starts from pristine
+      // text. The span branch below re-stashes and re-injects if it needs to.
+      domNodes.forEach(node => { if (node) { node.style.animation = ''; node.style.transformOrigin = ''; clearMaskExitMirror(node); restoreSpanExitMarkup(node); void node.offsetHeight; } });
       domNodes.forEach(node => {
         if (!node) return;
         const nodeEl = state.canvases.flatMap(c => c.elements).find(e => e.id === node.dataset.id) || el;
         const merged = { ...nodeEl, exitType: el.exitType, exitFade: el.exitFade, exitDirection: el.exitDirection, exitDistance: el.exitDistance, exitDuration: el.exitDuration };
         const fadeOn = merged.exitFade !== false;
         const dir = merged.exitDirection || (exitVal === 'swipe' ? 'left' : 'down');
+
+        // Span-driven exits (Untype / Unreveal) live on the per-unit spans, not on
+        // the element wrapper — so there's no wrapper animation to set and this
+        // loop used to do nothing for them. Rebuild the markup with the exit
+        // included, the same way the ENTRANCE previews rebuild it, so the hover
+        // preview shows exactly what ships.
+        if ((nodeEl.type === 'text' || nodeEl.type === 'button') &&
+            typeof isSpanDrivenExit === 'function' && isSpanDrivenExit(exitVal) &&
+            typeof buildTextEntranceHTML === 'function') {
+          const target = node.querySelector('.editable') || node.querySelector('span');
+          if (target) {
+            if (target.dataset.exitOrigHtml === undefined) {
+              target.dataset.exitOrigHtml = target.innerHTML;
+              target.dataset.exitOrigStyle = target.getAttribute('style') || '';
+            }
+            const overrides = typeof dmDisplay === 'function' ? dmDisplay(nodeEl) : {};
+            const displayText = overrides.text !== undefined ? overrides.text : (nodeEl.text || '');
+            // The entrance is collapsed to instant so the line is simply present,
+            // then the exit runs after the same 0.35s lead the whole-element
+            // previews use — the point is to show the EXIT, not replay the entry.
+            const previewEl = {
+              ...merged,
+              animType: nodeEl.animType,
+              animDelay: 0, animDuration: 0.01,
+              exitType: exitVal, exitStart: 0.35, exitDuration: MOTION
+            };
+            const escP = (s) => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+            const html = buildTextEntranceHTML(previewEl, escP, previewEl.animType || 'typing',
+              false, displayText, 0, { includeExit: true });
+            if (html !== null) {
+              target.innerHTML = html;
+              // Reveal Line mode groups by visual lines, measurable only post-layout.
+              const riseMarker = target.querySelector('[data-rise-lines]');
+              if (riseMarker && typeof setupRiseLines === 'function') setupRiseLines(riseMarker);
+            }
+          }
+          return;   // the spans own it; the wrapper stays clear
+        }
+
         let name = '';
         if (exitVal === 'fade-out') name = 'anim-fade-out';
         else if (exitVal === 'blur') name = 'anim-blur-out' + (fadeOn ? '' : '-nofade');

@@ -330,13 +330,55 @@ body.theme-rmit-navy {
       to { opacity: 1; }
     }
 
-    /* 'Rise' text entrance — unit slides up from under its overflow mask. */
+    /* 'Rise' text entrance — unit travels out from under its overflow mask.
+       One keyframe per direction; 'up' keeps the original name so projects saved
+       before directions existed are unchanged. Mirrored in the export bundle's
+       inline <style> (export-pipeline.js) — keep both in step. */
     @keyframes anim-rise {
       from { transform: translateY(115%); }
       to { transform: translateY(0); }
     }
+    @keyframes anim-rise-down {
+      from { transform: translateY(-115%); }
+      to { transform: translateY(0); }
+    }
+    @keyframes anim-rise-left {
+      from { transform: translateX(-115%); }
+      to { transform: translateX(0); }
+    }
+    @keyframes anim-rise-right {
+      from { transform: translateX(115%); }
+      to { transform: translateX(0); }
+    }
     /* The optional fade (riseFade) composes anim-fade-in on its own linear
        track alongside anim-rise — see buildRiseContentHTML. */
+
+    /* 'Word Pop' — per-word scale + fade, driven with an overshoot ease in the
+       animation shorthand so scale passes 1 and settles back. */
+    @keyframes anim-word-pop {
+      from { opacity: 0; transform: scale(0.72); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    /* 'Unreveal' — the inverse of Reveal: each unit travels back behind its mask,
+       returning the way it came in. Mirrored in the export bundle's inline
+       <style> (export-pipeline.js) — keep both in step. */
+    @keyframes anim-unreveal-up {
+      from { transform: translateY(0); }
+      to { transform: translateY(115%); }
+    }
+    @keyframes anim-unreveal-down {
+      from { transform: translateY(0); }
+      to { transform: translateY(-115%); }
+    }
+    @keyframes anim-unreveal-left {
+      from { transform: translateX(0); }
+      to { transform: translateX(-115%); }
+    }
+    @keyframes anim-unreveal-right {
+      from { transform: translateX(0); }
+      to { transform: translateX(115%); }
+    }
 
     @keyframes anim-slide-up {
       from { opacity: 0; translate: 0 20px; }

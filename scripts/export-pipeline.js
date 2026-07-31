@@ -97,7 +97,7 @@ function buildMaskClipPath(mask, image) {
 // inside an overflow-hidden mask and slides up from below it — Y-only motion,
 // eased — staggered across el.animDuration. In letter mode the chars of each
 // word are grouped in a nowrap span so text still wraps at word boundaries.
-function buildRiseContentHTML(el, esc, isImageExport) {
+function buildRiseContentHTML(el, esc, isImageExport, opts) {
   const text = el.text || '';
   const lines = text.split('\n');
   if (isImageExport) return lines.map(l => esc(l)).join('<br/>');
@@ -116,14 +116,22 @@ function buildRiseContentHTML(el, esc, isImageExport) {
   // fade). Running opacity on its own LINEAR track over the full unit duration
   // keeps the fade visible for the whole reveal.
   const fade = !!el.riseFade;
+  // Direction: which edge of the mask the unit travels out from. 'up' resolves to
+  // the original anim-rise + translateY(115%), so Rise elements saved before
+  // directions existed are byte-identical. Lateral directions swap the axis; the
+  // mask is sized to its own content on both axes, so ±115% hides the unit fully
+  // either way.
+  const dirSpec = (typeof riseDirSpec === 'function')
+    ? riseDirSpec(el)
+    : { anim: 'anim-rise', from: 'translateY(115%)' };
   const riseAnimCss = (dur, del) =>
-    `anim-rise ${dur}s ${EASE} ${del}s both` +
+    `${dirSpec.anim} ${dur}s ${EASE} ${del}s both` +
     (fade ? `, anim-fade-in ${dur}s linear ${del}s both` : '');
 
   // The mask: overflow-hidden box the unit emerges through. The small bottom
   // padding (+ negative margin so layout is unchanged) protects descenders
-  // from being clipped at rest on tight line-heights; translateY(115%) keeps
-  // the unit fully hidden through that padding before it rises.
+  // from being clipped at rest on tight line-heights; the parked transform keeps
+  // the unit fully hidden through that padding before it moves.
   const MASK_STYLE = 'display:inline-block;overflow:hidden;vertical-align:bottom;padding-bottom:0.08em;margin-bottom:-0.08em;';
 
   if (split === 'line') {
@@ -134,12 +142,15 @@ function buildRiseContentHTML(el, esc, isImageExport) {
     // grouping tracks the text as it re-wraps to more or fewer lines.
     const still = (content) =>
       `<span class="rise-mask" style="${MASK_STYLE}">` +
-      `<span style="display:inline-block;transform:translateY(115%);">${content}</span></span>`;
+      `<span style="display:inline-block;transform:${dirSpec.from};">${content}</span></span>`;
     const inner = lines.map(line => {
       if (!/\S/.test(line)) return esc(line);
       return line.split(/(\s+)/).map(tok => /\S/.test(tok) ? still(esc(tok)) : tok).join('');
     }).join('<br/>');
-    return `<span data-rise-lines="1" data-rise-dur="${totalDur}" data-rise-delay="${baseDelay}" data-rise-fade="${fade ? 1 : 0}">${inner}</span>`;
+    // data-rise-anim carries the keyframe name because setupRiseLines is
+    // serialized into exports and can't reach RISE_DIR_ANIMS.
+    const exitAttrs = riseLineExitAttrs(el, opts, dirSpec);
+    return `<span data-rise-lines="1" data-rise-dur="${totalDur}" data-rise-delay="${baseDelay}" data-rise-fade="${fade ? 1 : 0}" data-rise-anim="${dirSpec.anim}"${exitAttrs}>${inner}</span>`;
   }
 
   // Letter / word modes: unit count is known statically, so the stagger is
@@ -154,9 +165,11 @@ function buildRiseContentHTML(el, esc, isImageExport) {
 
   let i = 0;
   const mask = (content) => {
+    const idx = i;
     const del = (baseDelay + i * step).toFixed(3); i++;
+    const exitCss = spanExitAnimCss(el, opts, idx, unitCount);
     return `<span style="${MASK_STYLE}">` +
-      `<span style="display:inline-block;transform:translateY(115%);animation:${riseAnimCss(unitDur, del)};">${content}</span></span>`;
+      `<span style="display:inline-block;transform:${dirSpec.from};animation:${riseAnimCss(unitDur, del)}${exitCss};">${content}</span></span>`;
   };
 
   return lines.map(line => {
@@ -257,44 +270,130 @@ function buildElementKeyframesCSS(el, opts = {}) {
 // `delayOverride` (seconds) replaces the element's own animDelay — hover
 // previews pass 0 so the motion starts instantly instead of making the user
 // wait out a configured delay, matching how every other preset previews.
-function buildTextEntranceHTML(el, esc, animType, isImageExport, textOverride, delayOverride) {
+// Per-unit EXIT animation for a span-driven exit (Untype / Unreveal), or '' when
+// the element has no span-driven exit or the caller didn't opt in.
+//
+// includeExit is opt-IN because the hover previews and the preset menus call this
+// builder to show an ENTRANCE in isolation — they must not also play the exit.
+// The export's per-frame renderer and the timeline's playback both pass it.
+//
+// Timing mirrors the wrapper exits: start = animDelay + exitStart, spread across
+// exitDuration. Untype runs in REVERSE unit order (the last word/letter goes
+// first, which is what "untyping" looks like); Unreveal runs forward, so the wave
+// that revealed the line continues in the same direction as it tucks away.
+function spanExitAnimCss(el, opts, unitIdx, unitCount) {
+  if (!opts || !opts.includeExit) return '';
+  if (typeof isSpanDrivenExit !== 'function' || typeof animOutEnabled !== 'function') return '';
+  const exitType = (typeof resolveExitType === 'function') ? resolveExitType(el) : (el.exitType || 'fade-out');
+  if (!animOutEnabled(el) || !isSpanDrivenExit(exitType)) return '';
+
+  const inDelay = (typeof animInEnabled === 'function' && animInEnabled(el)) ? Number(el.animDelay || 0) : 0;
+  const start = inDelay + (el.exitStart !== undefined ? Number(el.exitStart) : 1.5);
+  const total = el.exitDuration !== undefined ? Number(el.exitDuration) : 0.6;
+  const n = Math.max(1, unitCount);
+  const step = total / n;
+  const fadeOn = el.exitFade !== false;
+
+  if (exitType === 'untype') {
+    const del = (start + (n - 1 - unitIdx) * step).toFixed(3);
+    const dur = fadeOn ? 0.3 : 0.01;   // off = each unit simply blinks out
+    return `, anim-fade-out ${dur}s linear ${del}s forwards`;
+  }
+  // unreveal — travels back behind the mask the Reveal entrance built, the way it
+  // came in (isExitAvailable guarantees the entrance IS Reveal, so a mask exists).
+  const spec = (typeof riseDirSpec === 'function') ? riseDirSpec(el) : { anim: 'anim-rise' };
+  const back = spec.anim === 'anim-rise' ? 'anim-unreveal-up' : spec.anim.replace('anim-rise-', 'anim-unreveal-');
+  const del = (start + unitIdx * step).toFixed(3);
+  const dur = Math.max(0.2, Math.round(total * 0.55 * 100) / 100);
+  return `, ${back} ${dur}s cubic-bezier(0.55, 0, 0.55, 0.2) ${del}s forwards` +
+    (fadeOn ? `, anim-fade-out ${dur}s linear ${del}s forwards` : '');
+}
+
+// Reveal LINE mode can't bake per-unit exit delays, because the lines only exist
+// after layout — setupRiseLines discovers them and stages the reveal per line. So
+// the exit travels to it as data attributes and it stages the exit the same way.
+// Returns '' when there's no span-driven exit to apply.
+function riseLineExitAttrs(el, opts, dirSpec) {
+  if (!opts || !opts.includeExit) return '';
+  if (typeof isSpanDrivenExit !== 'function' || typeof animOutEnabled !== 'function') return '';
+  const exitType = (typeof resolveExitType === 'function') ? resolveExitType(el) : (el.exitType || 'fade-out');
+  if (!animOutEnabled(el) || exitType !== 'unreveal') return '';
+  const inDelay = (typeof animInEnabled === 'function' && animInEnabled(el)) ? Number(el.animDelay || 0) : 0;
+  const start = inDelay + (el.exitStart !== undefined ? Number(el.exitStart) : 1.5);
+  const total = el.exitDuration !== undefined ? Number(el.exitDuration) : 0.6;
+  const back = dirSpec.anim === 'anim-rise'
+    ? 'anim-unreveal-up'
+    : dirSpec.anim.replace('anim-rise-', 'anim-unreveal-');
+  return ` data-unrev-anim="${back}" data-unrev-start="${start}" data-unrev-dur="${total}"` +
+    ` data-unrev-fade="${el.exitFade !== false ? 1 : 0}"`;
+}
+
+function buildTextEntranceHTML(el, esc, animType, isImageExport, textOverride, delayOverride, opts) {
   const src = (delayOverride !== undefined) ? { ...el, animDelay: delayOverride } : el;
   const text = textOverride !== undefined ? textOverride : (src.text || '');
   if (animType === 'rise') {
-    return buildRiseContentHTML(textOverride !== undefined ? { ...src, text } : src, esc, isImageExport);
+    return buildRiseContentHTML(textOverride !== undefined ? { ...src, text } : src, esc, isImageExport, opts);
   }
-  if (animType === 'typing' || animType === 'fade-typing') {
-    const chars = [...text];
+  // Typing advances by LETTER or by WORD (el.typingUnit). The legacy 'word-fade'
+  // preset was exactly this with the unit forced to word, so it resolves through
+  // the same path — old projects render unchanged, and there's one implementation
+  // to maintain instead of two that could drift.
+  if (animType === 'typing' || animType === 'fade-typing' || animType === 'word-fade') {
+    const unit = (typeof typingUnitOf === 'function')
+      ? typingUnitOf(src, animType)
+      : (animType === 'word-fade' ? 'word' : (src.typingUnit === 'word' ? 'word' : 'letter'));
     const totalDur = src.animDuration || 1;
-    const fadeLetters = src.animFadeLetters !== false;
-    const charDur = fadeLetters ? 0.3 : 0.01;
+    // "Fade letters" off gives a hard typewriter: each unit snaps in.
+    const fadeUnits = src.animFadeLetters !== false;
+    const unitDur = fadeUnits ? 0.3 : 0.01;
     const baseDelay = src.animDelay || 0;
-    const nonNewlines = chars.filter(c => c !== '\n').length;
-    const charDelay = totalDur / Math.max(1, nonNewlines);
-    let spanIdx = 0;
-    return chars.map((c) => {
-      if (c === '\n') return '<br/>';
-      const del = (Number(baseDelay) + spanIdx * charDelay).toFixed(3);
-      spanIdx++;
-      const charContent = c === ' ' ? ' ' : esc(c);
-      const animStyle = isImageExport ? '' : `opacity:0; animation: anim-fade-in ${charDur}s linear ${del}s both;`;
-      return `<span style="${animStyle}">${charContent}</span>`;
+
+    // Tokens: characters, or words with their whitespace kept as separators so
+    // the text still wraps naturally. Newlines stay hard breaks either way.
+    const tokens = unit === 'word' ? text.split(/(\s+)/) : [...text];
+    const isUnit = (t) => unit === 'word' ? /\S/.test(t) : t !== '\n';
+    const count = tokens.filter(isUnit).length;
+    // Stagger normalised to animDuration, so different data-merge rows finish on time.
+    const step = totalDur / Math.max(1, count);
+    let idx = 0;
+    return tokens.map((t) => {
+      if (t === '\n') return '<br/>';
+      if (!isUnit(t)) return unit === 'word' ? t.replace(/\n/g, '<br/>') : t;
+      const del = (Number(baseDelay) + idx * step).toFixed(3);
+      idx++;
+      const content = (unit === 'letter' && t === ' ') ? ' ' : esc(t);
+      // Words need inline-block so they animate as one box; letters must stay
+      // inline or they'd break kerning and wrapping mid-word.
+      const box = unit === 'word' ? 'display:inline-block; ' : '';
+      const exitCss = spanExitAnimCss(src, opts, idx - 1, count);
+      const animStyle = isImageExport ? '' : `opacity:0; ${box}animation: anim-fade-in ${unitDur}s linear ${del}s both${exitCss};`;
+      return `<span style="${animStyle}">${content}</span>`;
     }).join('');
   }
-  if (animType === 'word-fade') {
+  // Word Pop — each word scales up from 0.72 with an overshoot curve, so it
+  // reads as a sequence of discrete beats rather than a smooth reveal.
+  if (animType === 'word-pop') {
     const words = text.split(/(\s+)/);
     const nonSpas = words.filter(w => /\S/.test(w));
     const totalDur = src.animDuration || 1;
-    const wordDur = 0.3;
+    const wordDur = 0.42;
     const baseDelay = src.animDelay || 0;
+    // Stagger normalised to animDuration, so a 3-word row and a 12-word row from
+    // the same data sheet both finish on time.
     const wordDelay = totalDur / Math.max(1, nonSpas.length);
+    // Overshoot ease: scale passes 1 and settles back — that's the "pop". Kept
+    // brief so it never eats into the ad's 1–3s read window.
+    const POP_EASE = 'cubic-bezier(0.34, 1.56, 0.64, 1)';
     let wordIdx = 0;
     return words.map(w => {
       if (w === '\n') return '<br/>';
       if (/\s+/.test(w)) return w.replace(/\n/g, '<br/>');
       const del = (Number(baseDelay) + wordIdx * wordDelay).toFixed(3);
       wordIdx++;
-      const animStyle = isImageExport ? '' : `opacity:0; display:inline-block; animation: anim-fade-in ${wordDur}s linear ${del}s both;`;
+      const exitCss = spanExitAnimCss(src, opts, wordIdx - 1, nonSpas.length);
+      const animStyle = isImageExport
+        ? ''
+        : `opacity:0; display:inline-block; animation: anim-word-pop ${wordDur}s ${POP_EASE} ${del}s both${exitCss};`;
       return `<span style="${animStyle}">${esc(w)}</span>`;
     }).join('');
   }
@@ -859,10 +958,15 @@ function getSlideKeyframes(el) {
 // FROM the resting state (transform:none, opacity:1) TO an offset/scaled + faded
 // state, so they compose cleanly after the entry animation's fill. Direction means
 // "leaves toward": up = -Y, down = +Y, left = -X, right = +X.
+// Slide and Zoom exits ALWAYS fade, and there is no toggle for it in the panel.
+// Neither travels far enough to leave on its own — Slide moves only exitDistance
+// (20px by default) and Zoom only scales to 0.8 — so without the opacity ramp the
+// element just sits there at full strength and never actually exits. Forcing it
+// here rather than migrating data also fixes any project already saved with
+// exitFade: false on these two.
 function getSlideOutKeyframes(el) {
   const dir = el.exitDirection || 'down';
   const dist = el.exitDistance !== undefined ? el.exitDistance : 20;
-  const fade = el.exitFade !== false;
   const animName = `anim-slide-out-${el.id}`;
   let transformTo = '';
   if (dir === 'up') transformTo = `translateY(${-dist}px)`;
@@ -870,17 +974,16 @@ function getSlideOutKeyframes(el) {
   else if (dir === 'left') transformTo = `translateX(${-dist}px)`;
   else transformTo = `translateX(${dist}px)`;
   return `@keyframes ${animName} {
-      from { transform: translate(0); ${fade ? 'opacity: 1;' : ''} }
-      to { transform: ${transformTo}; ${fade ? 'opacity: 0;' : ''} }
+      from { transform: translate(0); opacity: 1; }
+      to { transform: ${transformTo}; opacity: 0; }
     }`;
 }
 
 function getZoomOutKeyframes(el) {
-  const fade = el.exitFade !== false;
   const animName = `anim-zoom-out-${el.id}`;
   return `@keyframes ${animName} {
-      from { transform: scale(1); ${fade ? 'opacity: 1;' : ''} }
-      to { transform: scale(0.8); ${fade ? 'opacity: 0;' : ''} }
+      from { transform: scale(1); opacity: 1; }
+      to { transform: scale(0.8); opacity: 0; }
     }`;
 }
 
@@ -1813,7 +1916,7 @@ function _generateExportHTMLRaw(targetCanvas, zipRef, isImageExport = false, opt
       const lsStyle = el.letterSpacing ? `letter-spacing:${el.letterSpacing}px;` : '';
       let content = esc(el.text).replace(/\n/g, '<br/>');
 
-      const entranceHTML = buildTextEntranceHTML(el, esc, animType, isImageExport);
+      const entranceHTML = buildTextEntranceHTML(el, esc, animType, isImageExport, undefined, undefined, { includeExit: !!frameCtx && !isImageExport });
       if (entranceHTML !== null) content = entranceHTML;
       const vAlignMap = { top: 'flex-start', middle: 'center', bottom: 'flex-end' };
       const hAlignMap = { left: 'flex-start', center: 'center', right: 'flex-end' };
@@ -1900,7 +2003,7 @@ function _generateExportHTMLRaw(targetCanvas, zipRef, isImageExport = false, opt
       const paddingLR = el.paddingLR !== undefined ? el.paddingLR : 16;
       
       let btnContent = esc(el.text).replace(/\n/g, '<br/>');
-      const btnEntranceHTML = buildTextEntranceHTML(el, esc, animType, isImageExport);
+      const btnEntranceHTML = buildTextEntranceHTML(el, esc, animType, isImageExport, undefined, undefined, { includeExit: !!frameCtx && !isImageExport });
       if (btnEntranceHTML !== null) btnContent = btnEntranceHTML;
 
       let staggerStyle = '';
@@ -2233,6 +2336,14 @@ ${dynamicKeyframes}
 
   @keyframes anim-fade-in { from { opacity: 0; } to { opacity: 1; } }
   @keyframes anim-rise { from { transform: translateY(115%); } to { transform: translateY(0); } }
+  @keyframes anim-rise-down { from { transform: translateY(-115%); } to { transform: translateY(0); } }
+  @keyframes anim-rise-left { from { transform: translateX(-115%); } to { transform: translateX(0); } }
+  @keyframes anim-rise-right { from { transform: translateX(115%); } to { transform: translateX(0); } }
+  @keyframes anim-word-pop { from { opacity: 0; transform: scale(0.72); } to { opacity: 1; transform: scale(1); } }
+  @keyframes anim-unreveal-up { from { transform: translateY(0); } to { transform: translateY(115%); } }
+  @keyframes anim-unreveal-down { from { transform: translateY(0); } to { transform: translateY(-115%); } }
+  @keyframes anim-unreveal-left { from { transform: translateX(0); } to { transform: translateX(-115%); } }
+  @keyframes anim-unreveal-right { from { transform: translateX(0); } to { transform: translateX(115%); } }
   @keyframes anim-zoom-in { from { opacity: 0; transform: scale(var(--zoom-from, 1.1)); } to { opacity: 1; transform: scale(1); } }
   @keyframes anim-zoom-in-nofade { from { transform: scale(var(--zoom-from, 1.1)); } to { transform: scale(1); } }
   @keyframes anim-slide-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }

@@ -93,6 +93,10 @@ function setupRiseLines(wrapper) {
   // Opacity rides its own LINEAR track (see buildRiseContentHTML) — sharing the
   // rise's expo-out curve would make the fade imperceptible.
   var fade = wrapper.getAttribute('data-rise-fade') === '1';
+  // Direction travels as the keyframe NAME on the wrapper, not as a direction
+  // string mapped here: this function is serialized into exports via toString(),
+  // so it can't reach RISE_DIR_ANIMS. Older markup has no attribute -> anim-rise.
+  var riseAnim = wrapper.getAttribute('data-rise-anim') || 'anim-rise';
   // Group masks (document order = reading order) into visual lines by offsetTop.
   var lines = [];
   var lineTop = null;
@@ -103,13 +107,29 @@ function setupRiseLines(wrapper) {
   }
   var step = totalDur / Math.max(1, lines.length);
   var unitDur = Math.max(0.3, Math.round(totalDur * 0.55 * 100) / 100);
+  // 'Unreveal' exit, staged per line the same way. Its parameters arrive as data
+  // attributes because line grouping is only knowable post-layout, so the builder
+  // can't bake per-line delays (see riseLineExitAttrs).
+  var unrevAnim = wrapper.getAttribute('data-unrev-anim');
+  var unrevStart = parseFloat(wrapper.getAttribute('data-unrev-start'));
+  var unrevTotal = parseFloat(wrapper.getAttribute('data-unrev-dur'));
+  var unrevFade = wrapper.getAttribute('data-unrev-fade') === '1';
+  var hasUnrev = !!unrevAnim && isFinite(unrevStart) && isFinite(unrevTotal);
+  var unrevStep = hasUnrev ? unrevTotal / Math.max(1, lines.length) : 0;
+  var unrevDur = hasUnrev ? Math.max(0.2, Math.round(unrevTotal * 0.55 * 100) / 100) : 0;
   for (var li = 0; li < lines.length; li++) {
     var del = (baseDelay + li * step).toFixed(3);
+    var exitCss = '';
+    if (hasUnrev) {
+      var xdel = (unrevStart + li * unrevStep).toFixed(3);
+      exitCss = ', ' + unrevAnim + ' ' + unrevDur + 's cubic-bezier(0.55, 0, 0.55, 0.2) ' + xdel + 's forwards' +
+        (unrevFade ? ', anim-fade-out ' + unrevDur + 's linear ' + xdel + 's forwards' : '');
+    }
     for (var mi = 0; mi < lines[li].length; mi++) {
       var inner = lines[li][mi].firstChild;
       if (inner && inner.style) {
-        inner.style.animation = 'anim-rise ' + unitDur + 's cubic-bezier(0.19, 1, 0.22, 1) ' + del + 's both' +
-          (fade ? ', anim-fade-in ' + unitDur + 's linear ' + del + 's both' : '');
+        inner.style.animation = riseAnim + ' ' + unitDur + 's cubic-bezier(0.19, 1, 0.22, 1) ' + del + 's both' +
+          (fade ? ', anim-fade-in ' + unitDur + 's linear ' + del + 's both' : '') + exitCss;
       }
     }
   }
@@ -222,13 +242,43 @@ const DEFAULT_EXIT_MOTION_DURATION = 0.6;
 
 // Entrances that animate per character / word / line via generated spans, so
 // the ELEMENT wrapper must not carry the animation itself.
-const SPAN_DRIVEN_ENTRANCES = ['typing', 'fade-typing', 'word-fade', 'rise'];
+const SPAN_DRIVEN_ENTRANCES = ['typing', 'fade-typing', 'word-fade', 'word-pop', 'rise'];
 function isSpanDrivenEntrance(animType) {
   return SPAN_DRIVEN_ENTRANCES.indexOf(animType) !== -1;
 }
 // Typing-family entrances share the staggered per-line background treatment.
+//
+// 'word-fade' stays in the family and in SPAN_DRIVEN_ENTRANCES but is no longer
+// offered as a preset: it was Typing-by-word under a separate name, and is now
+// Typing's `typingUnit: 'word'` option instead. Kept resolvable so any project
+// already carrying animType 'word-fade' renders exactly as before.
+//
+// word-pop is deliberately NOT in this family: its per-word scale reads as
+// discrete beats rather than a line filling in, so a progressive line-background
+// wipe fights it. A word-pop element with a background just paints it normally.
 function isTypingFamilyEntrance(animType) {
   return animType === 'typing' || animType === 'fade-typing' || animType === 'word-fade';
+}
+// Which unit a Typing entrance advances by. Legacy 'word-fade' is Typing-by-word.
+function typingUnitOf(el, animType) {
+  if (animType === 'word-fade') return 'word';
+  return (el && el.typingUnit === 'word') ? 'word' : 'letter';
+}
+
+// Rise direction → the shared @keyframes that moves the unit out from under its
+// mask. Declared here so the export bundle, the editor stylesheet, the timeline
+// playback and setupRiseLines all name the same animation.
+//
+// 'up' maps to the original `anim-rise` so projects saved before directions
+// existed (no riseDirection) render byte-identically.
+const RISE_DIR_ANIMS = {
+  up:    { anim: 'anim-rise',       from: 'translateY(115%)' },
+  down:  { anim: 'anim-rise-down',  from: 'translateY(-115%)' },
+  left:  { anim: 'anim-rise-left',  from: 'translateX(-115%)' },
+  right: { anim: 'anim-rise-right', from: 'translateX(115%)' }
+};
+function riseDirSpec(el) {
+  return RISE_DIR_ANIMS[(el && el.riseDirection) || 'up'] || RISE_DIR_ANIMS.up;
 }
 
 const ANIM_IN_PRESETS = [
@@ -240,14 +290,58 @@ const ANIM_IN_PRESETS = [
   { val: 'split', label: 'Split' },
   { val: 'blur', label: 'Blur' },
   { val: 'typing', label: 'Typing', badge: 'text', textOnly: true },
-  { val: 'rise', label: 'Rise', badge: 'text', textOnly: true }
+  { val: 'word-pop', label: 'Word Pop', badge: 'text', textOnly: true },
+  { val: 'rise', label: 'Reveal', badge: 'text', textOnly: true }
 ];
+// Exits that animate per character / word / line via the generated spans, so the
+// ELEMENT wrapper must not carry the exit itself — the mirror of
+// SPAN_DRIVEN_ENTRANCES. See getElementAnimationCSS, which suppresses the
+// wrapper's exit animation for these, and buildTextEntranceHTML, which composes
+// each unit's entrance and exit onto the same span.
+const SPAN_DRIVEN_EXITS = ['untype', 'unreveal'];
+function isSpanDrivenExit(exitType) {
+  return SPAN_DRIVEN_EXITS.indexOf(exitType) !== -1;
+}
+
+// Is this exit offerable for this element?
+//   • text-only exits are hidden on non-text layers
+//   • 'unreveal' tucks each unit back behind the overflow mask that ONLY the
+//     Reveal entrance builds, so it requires Reveal as the entrance. Without that
+//     gate it would silently do nothing (there'd be no mask to travel into).
+function isExitAvailable(el, exitType) {
+  if (!el) return true;
+  const preset = ANIM_OUT_PRESETS.find(p => p.val === exitType);
+  const isText = el.type === 'text' || el.type === 'button';
+  if (preset && preset.textOnly && !isText) return false;
+  if (exitType === 'unreveal') return isText && animInEnabled(el) && (el.animType || '') === 'rise';
+  // Untype rides the per-unit spans, and those only exist when the ENTRANCE is
+  // span-driven. With Fade In / Slide / Zoom there is simply nothing to untype —
+  // the element would never leave, since the wrapper exit is suppressed for
+  // span-driven exits. So it needs a span-driven entrance, any of them.
+  if (exitType === 'untype') return isText && animInEnabled(el) && isSpanDrivenEntrance(el.animType || 'none');
+  return true;
+}
+
+// The exit that will actually RUN, which is not always the one stored on the
+// element. A stored exit can become unavailable after the fact — set Reveal +
+// Unreveal, then switch the entrance to Typing and there's no longer a mask for
+// Unreveal to travel into. The menu stops offering it, but the stored value
+// remains, so every consumer resolves through here and degrades to a plain Fade
+// Out rather than emitting markup that cannot work.
+function resolveExitType(el) {
+  const stored = (el && el.exitType) || 'fade-out';
+  return isExitAvailable(el, stored) ? stored : 'fade-out';
+}
+
 const ANIM_OUT_PRESETS = [
   { val: 'fade-out', label: 'Fade Out' },
   { val: 'slide', label: 'Slide' },
   { val: 'swipe', label: 'Swipe' },
   { val: 'zoom', label: 'Zoom' },
-  { val: 'blur', label: 'Blur' }
+  { val: 'blur', label: 'Blur' },
+  // Text exits — the inverses of the Typing and Reveal entrances.
+  { val: 'untype', label: 'Untype', badge: 'text', textOnly: true },
+  { val: 'unreveal', label: 'Unreveal', badge: 'text', textOnly: true }
 ];
 const ANIM_FX_PRESETS = [
   { val: 'none', label: 'None' },
@@ -270,7 +364,18 @@ function getInAnimPresets(el) {
   const textOnly = ANIM_IN_PRESETS.filter(p => p.textOnly);
   return [general[0], ...textOnly, ...general.slice(1)].map(p => ({ ...p }));
 }
-function getOutAnimPresets() { return ANIM_OUT_PRESETS.map(p => ({ ...p })); }
+// Exits offered for an element. Same shape as getInAnimPresets: text-only entries
+// are dropped for non-text layers and lead the list for text/buttons. Unreveal is
+// additionally filtered out unless the entrance is Reveal (see isExitAvailable).
+// Called with no argument in older code paths, which then offers everything.
+function getOutAnimPresets(el) {
+  const avail = ANIM_OUT_PRESETS.filter(p => isExitAvailable(el, p.val));
+  const isTextLike = !!el && (el.type === 'text' || el.type === 'button');
+  if (!isTextLike) return avail.map(p => ({ ...p }));
+  const textOnly = avail.filter(p => p.textOnly);
+  const general = avail.filter(p => !p.textOnly);
+  return [...textOnly, ...general].map(p => ({ ...p }));
+}
 function getFxPresets() { return ANIM_FX_PRESETS.map(p => ({ ...p })); }
 
 // Animation-category enable flags. Each category (IN / OUT / FX / TRANS) has an
@@ -427,7 +532,7 @@ function getElementAnimationCSS(el, isImageExport, frameCtx) {
   // in the gap. Each exit keyframe's 0% is the resting state, so there's no jump.
   // frameCtx present means this is a per-frame element (persistent layers excluded).
   let exitAnims = [];
-  const exitType = el.exitType || 'fade-out';
+  const exitType = resolveExitType(el);   // degrades an orphaned exit (see resolveExitType)
   const isExitZoom = exitType === 'zoom';
   const hasExit = animOutEnabled(el) && frameCtx && !isImageExport;
   if (hasExit) {
@@ -442,7 +547,11 @@ function getElementAnimationCSS(el, isImageExport, frameCtx) {
     else if (exitType === 'zoom') name = `anim-zoom-out-${el.id}`;
     else if (exitType === 'swipe') name = `anim-swipe-out-${dir}${fadeOn ? '-fade' : ''}`;
     else if (exitType === 'blur') name = `anim-blur-out${fadeOn ? '' : '-nofade'}`;
-    if (name) exitAnims.push(`${name} ${dur}s ease-in ${start}s forwards`);
+    // Span-driven exits (Untype / Unreveal) are carried by the per-unit spans
+    // instead, exactly as span-driven ENTRANCES are — the wrapper must stay clear
+    // or it would fade/move the whole block on top of the per-unit animation.
+    const spanExit = (el.type === 'text' || el.type === 'button') && isSpanDrivenExit(exitType);
+    if (name && !spanExit) exitAnims.push(`${name} ${dur}s ease-in ${start}s forwards`);
   }
 
   const allEntry = entryAnims.concat(exitAnims);
