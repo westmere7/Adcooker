@@ -1152,7 +1152,7 @@ function wireCustomSelects(el, updateProp) {
         }
       } else {
         if (el) {
-          if (key === 'animDirection' || key === 'riseSplit' || key === 'riseDirection' || key === 'typingUnit') {
+          if (key === 'animDirection' || key === 'riseSplit' || key === 'riseDirection' || key === 'typingUnit' || key === 'popUnit') {
             if (startElementAnimPreviewFn) startElementAnimPreviewFn(el.animType || 'none');
           } else if (key === 'panDir') {
             hoverEffectPreviewActive = true;
@@ -1179,7 +1179,7 @@ function wireCustomSelects(el, updateProp) {
       if (isFrame) {
         stopFrameTransitionPreview();
       } else {
-        if (key === 'animDirection' || key === 'animType' || key === 'riseSplit' || key === 'riseDirection' || key === 'typingUnit') {
+        if (key === 'animDirection' || key === 'animType' || key === 'riseSplit' || key === 'riseDirection' || key === 'typingUnit' || key === 'popUnit') {
           if (stopElementAnimPreviewFn) stopElementAnimPreviewFn();
         } else if (key === 'panDir') {
           hoverEffectPreviewActive = false;
@@ -1258,7 +1258,7 @@ function wireCustomSelects(el, updateProp) {
           }
           pushHistory();
           renderProps();
-          if (key === 'animDirection' || key === 'riseSplit' || key === 'riseDirection' || key === 'typingUnit') {
+          if (key === 'animDirection' || key === 'riseSplit' || key === 'riseDirection' || key === 'typingUnit' || key === 'popUnit') {
             if (startElementAnimPreviewFn) startElementAnimPreviewFn(el.animType || 'none');
           } else if (key === 'animType') {
             if (startElementAnimPreviewFn) startElementAnimPreviewFn(el.animType || 'none');
@@ -1309,6 +1309,7 @@ function wireCustomSelects(el, updateProp) {
           const origRiseSplit = el.riseSplit;
           const origRiseDirection = el.riseDirection;
           const origTypingUnit = el.typingUnit;
+          const origPopUnit = el.popUnit;
 
           if (key === 'riseSplit') {
             el.riseSplit = val;
@@ -1318,6 +1319,9 @@ function wireCustomSelects(el, updateProp) {
             if (startElementAnimPreviewFn) startElementAnimPreviewFn(el.animType || 'none');
           } else if (key === 'typingUnit') {
             el.typingUnit = val;
+            if (startElementAnimPreviewFn) startElementAnimPreviewFn(el.animType || 'none');
+          } else if (key === 'popUnit') {
+            el.popUnit = val;
             if (startElementAnimPreviewFn) startElementAnimPreviewFn(el.animType || 'none');
           } else if (key === 'animDirection') {
             if ((el.animType || '').startsWith('swipe-')) {
@@ -1352,7 +1356,8 @@ function wireCustomSelects(el, updateProp) {
             if (origRiseSplit === undefined) delete el.riseSplit; else el.riseSplit = origRiseSplit;
             if (origRiseDirection === undefined) delete el.riseDirection; else el.riseDirection = origRiseDirection;
             if (origTypingUnit === undefined) delete el.typingUnit; else el.typingUnit = origTypingUnit;
-            if (key === 'animDirection' || key === 'riseSplit' || key === 'riseDirection' || key === 'typingUnit') {
+            if (origPopUnit === undefined) delete el.popUnit; else el.popUnit = origPopUnit;
+            if (key === 'animDirection' || key === 'riseSplit' || key === 'riseDirection' || key === 'typingUnit' || key === 'popUnit') {
               if (startElementAnimPreviewFn) startElementAnimPreviewFn(el.animType || 'none');
             } else if (key === 'panDir') {
               hoverEffectPreviewActive = true;
@@ -2713,6 +2718,20 @@ function renderProps() {
           </div>
         </div>
       `);
+    } else if (el.animType === 'word-pop') {
+      // No 'letter' option on purpose — a per-character scale-and-overshoot is far
+      // too granular to read on a headline at banner sizes.
+      f.push(`
+        <div class="prop-row" style="margin-bottom:8px;">
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label>Pop by</label>
+            ${customSelect('popUnit', [
+              { val: 'word', label: 'Words' },
+              { val: 'line', label: 'Lines' }
+            ], el.popUnit === 'line' ? 'line' : 'word', 'What pops as one unit — each word in turn, or a whole visual line at a time')}
+          </div>
+        </div>
+      `);
     } else if (isTypingFamilyEntrance(el.animType)) {
       const fadeBg = el.animFadeBg !== undefined ? el.animFadeBg : (el.type === 'button' ? true : !!el.animateBg);
       const typingUnit = (el.animType === 'word-fade' || el.typingUnit === 'word') ? 'word' : 'letter';
@@ -3447,6 +3466,7 @@ function checkButtonFontSizeWarning(el) {
             riseSplit: el.riseSplit,
             riseDirection: el.riseDirection,
             typingUnit: el.typingUnit,
+            popUnit: el.popUnit,
             riseFade: el.riseFade
           };
           let previewVal = val;
@@ -3480,8 +3500,7 @@ function checkButtonFontSizeWarning(el) {
                   target.innerHTML = spanHTML;
                   // Rise Line mode groups by the visual lines, measurable only
                   // after layout.
-                  const riseMarker = target.querySelector('[data-rise-lines]');
-                  if (riseMarker && typeof setupRiseLines === 'function') setupRiseLines(riseMarker);
+                  if (typeof setupLineStaggers === 'function') setupLineStaggers(target);
                 }
               }
 
@@ -4084,8 +4103,7 @@ function checkButtonFontSizeWarning(el) {
             if (html !== null) {
               target.innerHTML = html;
               // Reveal Line mode groups by visual lines, measurable only post-layout.
-              const riseMarker = target.querySelector('[data-rise-lines]');
-              if (riseMarker && typeof setupRiseLines === 'function') setupRiseLines(riseMarker);
+              if (typeof setupLineStaggers === 'function') setupLineStaggers(target);
             }
           }
           return;   // the spans own it; the wrapper stays clear

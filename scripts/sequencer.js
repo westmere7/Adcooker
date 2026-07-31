@@ -1127,8 +1127,7 @@ function seqStartPlayback() {
           seqPlayTextTargets.push({ node: target, html: target.innerHTML, style: target.getAttribute('style') || '' });
           target.innerHTML = html;
           // Rise Line mode groups by the visual lines only measurable post-layout.
-          const riseMarker = target.querySelector('[data-rise-lines]');
-          if (riseMarker && typeof setupRiseLines === 'function') setupRiseLines(riseMarker);
+          if (typeof setupLineStaggers === 'function') setupLineStaggers(target);
 
           const fadeBg = el.animFadeBg !== undefined ? el.animFadeBg : (el.type === 'button' ? true : !!el.animateBg);
           if (el.type === 'text' && el.hasBg && fadeBg && typeof isTypingFamilyEntrance === 'function' && isTypingFamilyEntrance(animType) && typeof setupTextLineBgs === 'function') {

@@ -135,6 +135,65 @@ function setupRiseLines(wrapper) {
   }
 }
 
+// 'Pop' Line mode — the same post-layout trick as setupRiseLines, but Pop has no
+// mask wrapper: the word span itself scales, so the animation goes on the unit
+// rather than on an inner riser. The builder emits [data-pop-word] spans with no
+// animation inside a [data-pop-lines] marker; this groups them by the visual line
+// they actually landed on and starts one staggered pop per line, so the grouping
+// re-derives itself whenever the copy re-wraps.
+//
+// Serialized into exports via .toString(), so it must not reference anything
+// outside itself — every parameter arrives as a data attribute.
+function setupPopLines(wrapper) {
+  if (wrapper.dataset.popInited) return;
+  if (wrapper.offsetWidth === 0 && wrapper.offsetHeight === 0) return; // not laid out yet
+  var words = wrapper.querySelectorAll('[data-pop-word]');
+  if (!words.length) return;
+  wrapper.dataset.popInited = '1';
+  var totalDur = parseFloat(wrapper.getAttribute('data-pop-dur')) || 1;
+  var baseDelay = parseFloat(wrapper.getAttribute('data-pop-delay')) || 0;
+  // Group by visual line (document order = reading order).
+  var lines = [];
+  var lineTop = null;
+  for (var i = 0; i < words.length; i++) {
+    var t = words[i].offsetTop;
+    if (lineTop === null || Math.abs(t - lineTop) > 2) { lines.push([]); lineTop = t; }
+    lines[lines.length - 1].push(words[i]);
+  }
+  var step = totalDur / Math.max(1, lines.length);
+  var unitDur = Math.max(0.3, Math.round(totalDur * 0.55 * 100) / 100);
+  // Untype exit, staged per line. Runs in reverse (last line leaves first) to
+  // match the word-level behaviour.
+  var xStart = parseFloat(wrapper.getAttribute('data-pop-exit-start'));
+  var xTotal = parseFloat(wrapper.getAttribute('data-pop-exit-dur'));
+  var xFade = wrapper.getAttribute('data-pop-exit-fade') === '1';
+  var hasExit = isFinite(xStart) && isFinite(xTotal);
+  var xStep = hasExit ? xTotal / Math.max(1, lines.length) : 0;
+  for (var li = 0; li < lines.length; li++) {
+    var del = (baseDelay + li * step).toFixed(3);
+    var exitCss = '';
+    if (hasExit) {
+      var xdel = (xStart + (lines.length - 1 - li) * xStep).toFixed(3);
+      exitCss = ', anim-fade-out ' + (xFade ? 0.3 : 0.01) + 's linear ' + xdel + 's forwards';
+    }
+    for (var wi = 0; wi < lines[li].length; wi++) {
+      var w = lines[li][wi];
+      if (w && w.style) {
+        w.style.animation = 'anim-word-pop ' + unitDur + 's cubic-bezier(0.34, 1.56, 0.64, 1) ' +
+          del + 's both' + exitCss;
+      }
+    }
+  }
+}
+
+// One entry point for every post-layout line-stagger hook, so adding another
+// line-mode preset needs no new call sites (there are nine).
+function setupLineStaggers(root) {
+  if (!root || !root.querySelectorAll) return;
+  root.querySelectorAll('[data-rise-lines]').forEach(setupRiseLines);
+  root.querySelectorAll('[data-pop-lines]').forEach(setupPopLines);
+}
+
 // Runtime per-line BG measurement: reads the per-char spans inside `wrapper`,
 // groups them by offsetTop into "lines", and inserts an absolute-positioned bg
 // overlay per line with a staggered scaleX animation that tracks each line's
@@ -259,6 +318,12 @@ function isSpanDrivenEntrance(animType) {
 function isTypingFamilyEntrance(animType) {
   return animType === 'typing' || animType === 'fade-typing' || animType === 'word-fade';
 }
+// Which unit a Pop entrance advances by. Deliberately no 'letter' option — a
+// per-character scale-and-overshoot on a headline is far too granular to read.
+function popUnitOf(el) {
+  return (el && el.popUnit === 'line') ? 'line' : 'word';
+}
+
 // Which unit a Typing entrance advances by. Legacy 'word-fade' is Typing-by-word.
 function typingUnitOf(el, animType) {
   if (animType === 'word-fade') return 'word';
@@ -290,7 +355,7 @@ const ANIM_IN_PRESETS = [
   { val: 'split', label: 'Split' },
   { val: 'blur', label: 'Blur' },
   { val: 'typing', label: 'Typing', badge: 'text', textOnly: true },
-  { val: 'word-pop', label: 'Word Pop', badge: 'text', textOnly: true },
+  { val: 'word-pop', label: 'Pop', badge: 'text', textOnly: true },
   { val: 'rise', label: 'Reveal', badge: 'text', textOnly: true }
 ];
 // Exits that animate per character / word / line via the generated spans, so the

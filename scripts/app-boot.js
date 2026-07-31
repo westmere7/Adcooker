@@ -181,7 +181,7 @@ document.addEventListener('contextmenu', (e) => {
         if (animBtn && el) {
           // Rise's own settings were missing here, so "Reset Settings" left
           // riseSplit / riseFade / riseDirection behind on the element.
-          const inAnimProps = ['animDuration', 'animDelay', 'animFade', 'animFadeLetters', 'animFadeBg', 'zoomFrom', 'animBounce', 'animDirection', 'animDistance', 'animRotateOffset', 'animAngle', 'animateBg', 'bgOffset', 'zoomAnchor', 'animStaggerText', 'riseSplit', 'riseFade', 'riseDirection', 'typingUnit'];
+          const inAnimProps = ['animDuration', 'animDelay', 'animFade', 'animFadeLetters', 'animFadeBg', 'zoomFrom', 'animBounce', 'animDirection', 'animDistance', 'animRotateOffset', 'animAngle', 'animateBg', 'bgOffset', 'zoomAnchor', 'animStaggerText', 'riseSplit', 'riseFade', 'riseDirection', 'typingUnit', 'popUnit'];
           inAnimProps.forEach(p => delete el[p]);
         } else if (effBtn && el) {
           const effectProps = ['effDuration', 'effDelay', 'panDist', 'panDir', 'effEase', 'effOnce', 'effSpeed', 'zoomTarget', 'spinTarget', 'spinRepeat', 'panFromX', 'panFromY', 'panRotate', 'panFade', 'panTowards', 'panMidX', 'panMidY', 'pulseScale', 'heartbeatScale', 'floatRange', 'floatDirection'];

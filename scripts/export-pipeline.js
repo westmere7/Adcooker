@@ -328,6 +328,21 @@ function riseLineExitAttrs(el, opts, dirSpec) {
     ` data-unrev-fade="${el.exitFade !== false ? 1 : 0}"`;
 }
 
+// Pop LINE mode's exit params, for the same reason riseLineExitAttrs exists: the
+// per-line delays can't be baked before layout. Untype is the only span-driven
+// exit Pop can pair with (Unreveal requires a Reveal entrance).
+function popLineExitAttrs(el, opts) {
+  if (!opts || !opts.includeExit) return '';
+  if (typeof isSpanDrivenExit !== 'function' || typeof animOutEnabled !== 'function') return '';
+  const exitType = (typeof resolveExitType === 'function') ? resolveExitType(el) : (el.exitType || 'fade-out');
+  if (!animOutEnabled(el) || exitType !== 'untype') return '';
+  const inDelay = (typeof animInEnabled === 'function' && animInEnabled(el)) ? Number(el.animDelay || 0) : 0;
+  const start = inDelay + (el.exitStart !== undefined ? Number(el.exitStart) : 1.5);
+  const total = el.exitDuration !== undefined ? Number(el.exitDuration) : 0.6;
+  return ` data-pop-exit-start="${start}" data-pop-exit-dur="${total}"` +
+    ` data-pop-exit-fade="${el.exitFade !== false ? 1 : 0}"`;
+}
+
 function buildTextEntranceHTML(el, esc, animType, isImageExport, textOverride, delayOverride, opts) {
   const src = (delayOverride !== undefined) ? { ...el, animDelay: delayOverride } : el;
   const text = textOverride !== undefined ? textOverride : (src.text || '');
@@ -378,6 +393,22 @@ function buildTextEntranceHTML(el, esc, animType, isImageExport, textOverride, d
     const totalDur = src.animDuration || 1;
     const wordDur = 0.42;
     const baseDelay = src.animDelay || 0;
+
+    // LINE mode: visual lines only exist after layout, so emit the words parked
+    // (opacity 0, no animation) inside a marker and let setupPopLines group them
+    // by the line they actually landed on and stage one pop per line. Same trick
+    // as Reveal's line mode, minus the mask.
+    const popUnit = (typeof popUnitOf === 'function') ? popUnitOf(src) : (src.popUnit === 'line' ? 'line' : 'word');
+    if (popUnit === 'line' && !isImageExport) {
+      const inner = words.map(w => {
+        if (w === '\n') return '<br/>';
+        if (/\s+/.test(w)) return w.replace(/\n/g, '<br/>');
+        return `<span data-pop-word="1" style="opacity:0; display:inline-block;">${esc(w)}</span>`;
+      }).join('');
+      return `<span data-pop-lines="1" data-pop-dur="${totalDur}" data-pop-delay="${baseDelay}"` +
+        `${popLineExitAttrs(src, opts)}>${inner}</span>`;
+    }
+
     // Stagger normalised to animDuration, so a 3-word row and a 12-word row from
     // the same data sheet both finish on time.
     const wordDelay = totalDur / Math.max(1, nonSpas.length);
@@ -2471,7 +2502,7 @@ ${elsTop}
       nextFrameEl.style.zIndex = '2';
       nextFrameEl.style.display = 'block';
       nextFrameEl.querySelectorAll('[data-bg-anim]').forEach(setupTextLineBgs);
-      nextFrameEl.querySelectorAll('[data-rise-lines]').forEach(setupRiseLines);
+      setupLineStaggers(nextFrameEl);
       
       var t = frames[currentFrame].transition;
       var td = (frames[currentFrame].transitionDuration || 0.5) + 's';
@@ -2537,7 +2568,7 @@ ${elsTop}
       void document.documentElement.offsetHeight; // flush the hide so the re-show restarts CSS animations
       frameEl.style.display = 'block';
       frameEl.querySelectorAll('[data-bg-anim]').forEach(setupTextLineBgs);
-      frameEl.querySelectorAll('[data-rise-lines]').forEach(setupRiseLines);
+      setupLineStaggers(frameEl);
 
       var t = fr.transition;
       if (t && t !== 'none') {
@@ -2553,6 +2584,8 @@ ${elsTop}
     ${setupTextLineBgs.toString()}
 
     ${setupRiseLines.toString()}
+    ${setupPopLines.toString()}
+    ${setupLineStaggers.toString()}
 
     function adjustAutoSizes() {
       document.querySelectorAll('.auto-size-text').forEach(function(wrapper) {
@@ -2713,7 +2746,7 @@ ${elsTop}
       updatePersistentLayersVisibility(0);
       document.querySelectorAll('[data-bg-anim]').forEach(setupTextLineBgs);
       // After adjustAutoSizes so Rise's line grouping measures the FINAL wrap.
-      document.querySelectorAll('[data-rise-lines]').forEach(setupRiseLines);
+      setupLineStaggers(document);
 
       var ad = document.getElementById('ad');
       if (ad) {
@@ -2770,7 +2803,7 @@ ${options.previewControls ? `
         if (adEl) adEl.style.background = cur.style.background;
         document.documentElement.style.background = cur.style.background;
         cur.querySelectorAll('[data-bg-anim]').forEach(setupTextLineBgs);
-        cur.querySelectorAll('[data-rise-lines]').forEach(setupRiseLines);
+        setupLineStaggers(cur);
       }
       updatePersistentLayersVisibility(currentFrame);
       if (loopSingle) {
