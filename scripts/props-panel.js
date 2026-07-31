@@ -4025,6 +4025,13 @@ function checkButtonFontSizeWarning(el) {
     if (!exitVal) { resetExitPreviewNodes(); return; }
     document.body.classList.add('previewing-animation-hover');
     const MOTION = el.exitDuration !== undefined ? el.exitDuration : 0.6;
+    // Every exit preview used a flat 0.35s lead-in, so hovering an exit felt
+    // laggy where hovering an entrance is instant (those use 0s). The lead exists
+    // for the REPLAY loop — it gives a beat of the layer back at rest before it
+    // leaves again, without which the loop strobes. So it now applies only from
+    // the second pass onwards: the first pass fires immediately.
+    const REPLAY_LEAD = 0.35;
+    let firstPass = true;
     const ensureStyleTag = () => {
       let s = document.getElementById('dynamic-anim-styles');
       if (!s) { s = document.createElement('style'); s.id = 'dynamic-anim-styles'; document.head.appendChild(s); }
@@ -4032,6 +4039,8 @@ function checkButtonFontSizeWarning(el) {
     };
     const runLoop = () => {
       if (activeExitVal !== exitVal) return;
+      const lead = firstPass ? 0 : REPLAY_LEAD;
+      firstPass = false;
       const domNodes = getPreviewDomNodes(el, 'outAnim');
       // Full reset before each pass — including any span markup a previous
       // span-driven preview injected, so switching presets starts from pristine
@@ -4061,13 +4070,13 @@ function checkButtonFontSizeWarning(el) {
             const overrides = typeof dmDisplay === 'function' ? dmDisplay(nodeEl) : {};
             const displayText = overrides.text !== undefined ? overrides.text : (nodeEl.text || '');
             // The entrance is collapsed to instant so the line is simply present,
-            // then the exit runs after the same 0.35s lead the whole-element
-            // previews use — the point is to show the EXIT, not replay the entry.
+            // then the exit runs after the shared lead (0 on the first pass, so
+            // hovering responds immediately) — the point is to show the EXIT.
             const previewEl = {
               ...merged,
               animType: nodeEl.animType,
               animDelay: 0, animDuration: 0.01,
-              exitType: exitVal, exitStart: 0.35, exitDuration: MOTION
+              exitType: exitVal, exitStart: lead, exitDuration: MOTION
             };
             const escP = (s) => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
             const html = buildTextEntranceHTML(previewEl, escP, previewEl.animType || 'typing',
@@ -4098,7 +4107,7 @@ function checkButtonFontSizeWarning(el) {
           name = `anim-zoom-out-${merged.id}`;
           node.style.transformOrigin = 'center';
         }
-        if (name) node.style.animation = `${name} ${MOTION}s ease-in 0.35s forwards`;
+        if (name) node.style.animation = `${name} ${MOTION}s ease-in ${lead}s forwards`;
         if (name && nodeEl.isMask) {
           // The mask node is invisible — play the exit on the masked image.
           const nodeCanvas = state.canvases.find(cv => cv.elements.some(x => x.id === nodeEl.id)) || getActiveCanvas();
@@ -4109,12 +4118,12 @@ function checkButtonFontSizeWarning(el) {
               // swipe-out animates clip-path, which would clobber the mask's own
               // clip-path on the wrapper — run it on the inner <img> instead.
               const innerImg = imgDom.querySelector('img');
-              if (innerImg) innerImg.style.animation = `${name} ${MOTION}s ease-in 0.35s forwards`;
+              if (innerImg) innerImg.style.animation = `${name} ${MOTION}s ease-in ${lead}s forwards`;
             } else {
               if (exitVal === 'zoom') {
                 imgDom.style.transformOrigin = `${nodeEl.x + nodeEl.width / 2 - imgEl.x}px ${nodeEl.y + nodeEl.height / 2 - imgEl.y}px`;
               }
-              imgDom.style.animation = `${name} ${MOTION}s ease-in 0.35s forwards`;
+              imgDom.style.animation = `${name} ${MOTION}s ease-in ${lead}s forwards`;
             }
           }
         }
