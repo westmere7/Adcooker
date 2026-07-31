@@ -790,6 +790,14 @@ document.getElementById('menu-help-documentation').addEventListener('click', ope
 
 const CHANGELOG_DATA = [
   {
+    version: 'v0.34.9',
+    date: 'July 2026 — Engine v2.19',
+    items: [
+      'Fixed Dropping a Photo Onto a Dynamic Image Doing Nothing: dragging an image onto a picture that is bound to a data column appeared to be ignored — no error, no change — while dropping onto an ordinary picture worked. Masking had nothing to do with it, which is why removing the mask didn\'t help either. When a version is active, a bound picture shows that ROW\'s image; the element\'s own picture is only the template default, which nothing is displaying at that moment. The drop was writing the template default, so the change was real but invisible. Dropping now updates the active version\'s image, exactly as the Replace image button in the properties panel already did, and your template default is left alone. With Data lock on it now tells you to unlock instead of quietly doing nothing.',
+      'All three ways of dropping a picture — a file from your computer, an image from the Assets panel, and dragging one picture on the canvas onto another — now go through one shared path, so they can\'t drift apart again.'
+    ]
+  },
+  {
     version: 'v0.34.8',
     date: 'July 2026 — Engine v2.19',
     items: [

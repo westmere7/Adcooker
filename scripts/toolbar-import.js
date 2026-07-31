@@ -698,8 +698,9 @@ canvasArea.addEventListener('drop', async (e) => {
         if (imgEl && imgEl.assetId) {
           const found = findElementById(placeholderId);
           if (found) {
-            found.element.assetId = imgEl.assetId;
-            found.element.name = imgEl.name || found.element.name;
+            // Dynamic-slot aware: writes the active row's cell when the target
+            // is a bound image slot, otherwise the template default.
+            applyPhotoToElement(found.element, imgEl.assetId, imgEl.name);
             if (imgEl._assetDmMap && state.dataMerge) {
               if (!state.dataMerge.mappings) state.dataMerge.mappings = {};
               const sk = dmSlotKey(found.element) + '::';
@@ -726,8 +727,9 @@ canvasArea.addEventListener('drop', async (e) => {
           const { assetId } = await readFileAsAsset(imageFiles[0]);
           const found = findElementById(placeholderId);
           if (found) {
-            found.element.assetId = assetId;
-            found.element.name = imageFiles[0].name || found.element.name;
+            // Dynamic-slot aware: writes the active row's cell when the target
+            // is a bound image slot, otherwise the template default.
+            applyPhotoToElement(found.element, assetId, imageFiles[0].name);
             pushHistory();
             render();
             return;

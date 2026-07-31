@@ -292,8 +292,9 @@ function onElementMouseDown(e, el, canvasCtx) {
       if (target && target.type === 'image' && target.assetId) {
         const found = findElementById(placeholderId);
         if (found) {
-          found.element.assetId = target.assetId;
-          found.element.name = target.name || found.element.name;
+          // Dynamic-slot aware: writes the active row's cell when the target is
+          // a bound image slot, otherwise the template default.
+          applyPhotoToElement(found.element, target.assetId, target.name);
 
           if (!ev.altKey) {
             // Remove the source element from its canvas

@@ -1,6 +1,10 @@
 RMIT Adflow - Version & Changelog History
 
-v0.34.8 (Current) - July 2026 — Engine v2.19
+v0.34.9 (Current) - July 2026 — Engine v2.19
+- Fixed Dropping a Photo Onto a Dynamic Image Doing Nothing: dragging an image onto a picture that is bound to a data column appeared to be ignored — no error, no change — while dropping onto an ordinary picture worked. Masking had nothing to do with it, which is why removing the mask didn't help either. When a version is active, a bound picture shows that ROW's image; the element's own picture is only the template default, which nothing is displaying at that moment. The drop was writing the template default, so the change was real but invisible. Dropping now updates the active version's image, exactly as the Replace image button in the properties panel already did, and your template default is left alone. With Data lock on it now tells you to unlock instead of quietly doing nothing.
+- All three ways of dropping a picture — a file from your computer, an image from the Assets panel, and dragging one picture on the canvas onto another — now go through one shared path, so they can't drift apart again.
+
+v0.34.8 - July 2026 — Engine v2.19
 - Drop a Photo Onto a Masked Image to Replace It: dragging an image file from your computer, or an image out of the Assets panel, onto a photo inside a mask group now replaces that photo — as it always has for an unmasked one. Previously the drop was simply ignored and you had to unmask the shape, swap the photo, then re-apply the mask. The cause: a mask shape sits directly on top of the image it clips and stays clickable so you can still move and resize it, so a drop aimed at the visible masked photo landed on the shape instead, and a shape isn't something a photo can replace. Adflow now looks through to the image underneath. The mask, its position and its size are all left untouched — only the photo changes. Dragging one image on the canvas onto a masked one works the same way, and an image can't be dropped onto its own mask to replace itself.
 
 v0.34.7 - July 2026 — Engine v2.19

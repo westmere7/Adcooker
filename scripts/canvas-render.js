@@ -1627,6 +1627,34 @@ function resolvePhotoDropTarget(c, el) {
   return null;
 }
 
+// Put a photo onto an image element, honouring dynamic data.
+//
+// This is the ONLY correct way to apply a dropped photo. When the element is a
+// dynamic image slot and a version is active, the picture belongs to THAT ROW's
+// cell: `el.assetId` is only the template default, and elementNode() renders
+// `_dm.assetId` in preference to it (see dAssetId). So writing el.assetId while
+// a version is active changes a value nothing is displaying — the drop silently
+// appears to do nothing, which is exactly how this presented.
+//
+// Mirrors the props panel's replace-image button (props-panel.js) and the
+// compress/crop paths (modals.js), so every route to "change this picture"
+// behaves identically. Returns false when the write was refused.
+function applyPhotoToElement(el, assetId, name) {
+  if (!el || !assetId) return false;
+  const isDyn = typeof dmIsDynamicEditable === 'function' && dmIsDynamicEditable(el, 'image');
+  if (isDyn) {
+    if (state.dataMerge && state.dataMerge.locked) {
+      showCanvasNotification('Data lock is on — unlock to change this version’s image.', { type: 'warning' });
+      return false;
+    }
+    dmWriteCell(el, 'image', assetId);
+  } else {
+    el.assetId = assetId;
+  }
+  if (name) el.name = name;
+  return true;
+}
+
 function sanitizeMasks(c) {
   if (!c || !c.elements) return;
   c.elements.forEach(el => {
