@@ -13,63 +13,43 @@
   
   <!-- JSZip for unzipping .flow files -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  
+
+  <!-- The app's real stylesheet, so this portal shares the editor's palette,
+       themes, buttons and dialogs instead of maintaining a parallel look.
+       Loaded BEFORE the page-specific block below so the portal's own layout
+       rules can still override where they must. -->
+  <link rel="stylesheet" href="styles.css?v=0.34.5" />
+
   <style>
-    :root {
-      --bg-app: #0b0f17;
-      --bg-sidebar: #111827;
-      --bg-card: #1f2937;
-      --bg-input: #374151;
-      --border-color: #2e3748;
-      
-      --text-bright: #f9fafb;
-      --text-main: #e5e7eb;
-      --text-muted: #9ca3af;
-      --text-label: #6b7280;
-      
-      --accent-base: #7c5cff;
-      --accent-hover: #6d4aff;
-      --accent-light: #a78bfa;
-      
+    /* This page's layout was written against its own palette names. Rather than
+       rewrite every rule, alias those names onto the app's real tokens
+       (styles.css) so the chrome matches the editor — and so the app's themes
+       carry over for free.
+
+       These MUST sit on `body`, not `:root`: the app's themes override tokens on
+       `body.theme-*`, and a var() alias resolves against the element it is
+       declared on. Declared on :root, the aliases would freeze the default dark
+       values and every theme would only half-apply. */
+    body {
+      --bg-app: var(--bg-body);
+      --bg-sidebar: var(--bg-panel);
+      --bg-card: var(--bg-panel);
+      --border-color: var(--border-light);
       --success-base: #10b981;
       --warning-base: #f59e0b;
       --danger-base: #ef4444;
-      
       --sidebar-width: 320px;
     }
-    
-    .theme-slate {
-      --bg-app: #18181b;
-      --bg-sidebar: #202024;
-      --bg-card: #27272a;
-      --bg-input: #3f3f46;
-      --border-color: #52525b;
-      --text-bright: #ffffff;
-      --text-main: #f4f4f5;
-      --text-muted: #a1a1aa;
-    }
-    
-    .theme-light {
-      --bg-app: #f3f4f6;
-      --bg-sidebar: #ffffff;
-      --bg-card: #ffffff;
-      --bg-input: #f3f4f6;
-      --border-color: #e5e7eb;
-      --text-bright: #111827;
-      --text-main: #374151;
-      --text-muted: #6b7280;
-      --accent-light: #6d4aff;
-    }
-    
+
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
     }
-    
+
     body {
-      font-family: 'Inter', sans-serif;
-      background: var(--bg-app);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg-body);
       color: var(--text-main);
       display: flex;
       height: 100vh;
@@ -235,10 +215,14 @@
       border-color: var(--accent-base);
     }
     
-    .swatch-obsidian { background: #0b0f17; }
-    .swatch-slate { background: #27272a; }
-    .swatch-light { background: #f3f4f6; }
-    
+    /* Swatch previews. Each now maps to a REAL app theme from styles.css
+       (the old bespoke "slate" palette had no app equivalent, so it became
+       Nordic), keeping this page inside the editor's design system. */
+    .swatch-adflow   { background: #0b0c0f; }
+    .swatch-obsidian { background: #14161c; }
+    .swatch-nordic   { background: #2e3440; }
+    .swatch-light    { background: #f1f5f9; }
+
     .swatch-chess {
       background-color: #f1f1f1;
       background-image: linear-gradient(45deg, #e0e0e0 25%, transparent 25%),
@@ -254,38 +238,25 @@
       gap: 8px;
     }
     
-    .btn {
-      flex: 1;
-      padding: 8px 12px;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-bright);
-      background: var(--bg-input);
-      border: 1px solid var(--border-color);
-      border-radius: 6px;
-      cursor: pointer;
-      outline: none;
+    /* Colour, hover, :disabled and .primary all come from styles.css so this
+       portal's buttons ARE the editor's buttons. These rules add only the
+       flex/gap layout the sidebar rows need.
+
+       Scoped, and LAYOUT ONLY, on purpose: an unscoped `.btn` that also set
+       colour would either lose to `.btn.primary` or (once scoped, becoming
+       specificity-equal and later in the cascade) beat it and silently strip
+       the accent fill off every primary button. `flex: none` because these sit
+       in column containers — a growable basis lets flex dictate their height;
+       the side-by-side rows set `flex:1` inline, which still wins. */
+    .sidebar .btn,
+    .main-header .btn {
+      flex: none;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 6px;
-      transition: background 0.2s ease, border-color 0.2s ease;
     }
-    
-    .btn:hover {
-      background: rgba(255,255,255,0.05);
-    }
-    
-    .btn.primary {
-      background: var(--accent-base);
-      border-color: var(--accent-base);
-    }
-    
-    .btn.primary:hover {
-      background: var(--accent-hover);
-      border-color: var(--accent-hover);
-    }
-    
+
     /* Main Content Area */
     .main-viewport {
       flex: 1;
@@ -388,22 +359,28 @@
       min-height: auto;
     }
     
-    .card-body.checkered {
-      background-color: #f1f1f1;
-      background-image: linear-gradient(45deg, #e0e0e0 25%, transparent 25%),
-                        linear-gradient(-45deg, #e0e0e0 25%, transparent 25%),
-                        linear-gradient(45deg, transparent 75%, #e0e0e0 75%),
-                        linear-gradient(-45deg, transparent 75%, #e0e0e0 75%);
-      background-size: 16px 16px;
-      background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
-    }
-    
-    .theme-obsidian .card-body.checkered, .theme-slate .card-body.checkered {
+    /* Checkered banner backdrop, now driven off one body class so cards rebuilt
+       by renderCanvases inherit it instead of silently losing the per-card
+       class. Dark by default; the app's light themes get the light checker. */
+    body.preview-checkered .card-body {
       background-color: #161b22;
       background-image: linear-gradient(45deg, #21262d 25%, transparent 25%),
                         linear-gradient(-45deg, #21262d 25%, transparent 25%),
                         linear-gradient(45deg, transparent 75%, #21262d 75%),
                         linear-gradient(-45deg, transparent 75%, #21262d 75%);
+      background-size: 16px 16px;
+      background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+    }
+    body.preview-checkered.theme-light .card-body,
+    body.preview-checkered.theme-rmit .card-body,
+    body.preview-checkered.theme-nordic-light .card-body,
+    body.preview-checkered.theme-amber-light .card-body,
+    body.preview-checkered.theme-sage-light .card-body {
+      background-color: #f1f1f1;
+      background-image: linear-gradient(45deg, #e0e0e0 25%, transparent 25%),
+                        linear-gradient(-45deg, #e0e0e0 25%, transparent 25%),
+                        linear-gradient(45deg, transparent 75%, #e0e0e0 75%),
+                        linear-gradient(-45deg, transparent 75%, #e0e0e0 75%);
     }
     
     .iframe-wrapper {
@@ -525,7 +502,8 @@
     <div id="props"></div>
   </div>
 </head>
-<body class="theme-obsidian">
+<!-- Default Adflow theme; the sidebar swatches switch it at runtime. -->
+<body>
 
   <!-- PORTAL LOADING OVERLAY -->
   <div class="portal-loader" id="portal-loader">
@@ -622,10 +600,11 @@
       <div class="control-group">
         <div class="control-label">Presentation Grid / BG</div>
         <div class="swatches">
-          <div class="swatch swatch-obsidian active" data-theme="obsidian" title="Obsidian Theme"></div>
-          <div class="swatch swatch-slate" data-theme="slate" title="Slate Gray Theme"></div>
-          <div class="swatch swatch-light" data-theme="light" title="Light Theme"></div>
-          <div class="swatch swatch-chess" data-theme="chess" title="Checkered Canvas Pattern"></div>
+          <div class="swatch swatch-adflow active" data-theme="default" title="Adflow (default)"></div>
+          <div class="swatch swatch-obsidian" data-theme="obsidian" title="Obsidian"></div>
+          <div class="swatch swatch-nordic" data-theme="nordic" title="Nordic"></div>
+          <div class="swatch swatch-light" data-theme="light" title="Light"></div>
+          <div class="swatch swatch-chess" data-theme="chess" title="Checkered banner backdrop"></div>
         </div>
       </div>
       
@@ -670,6 +649,12 @@
       zoom: 1.0
     };
     
+    // Declared in core-state.js, which this page doesn't load. export-pipeline's
+    // addCanvasAssetsToZip writes to it while packing `data/Elements/` assets
+    // (the RMIT logo); without it that write threw inside a catch, so the asset
+    // was silently left OUT of exported ads.
+    var urlSizeCache = {};
+
     function getActiveCanvas() {
       return state.canvases ? state.canvases[0] : null;
     }
@@ -795,12 +780,12 @@
   <!-- LOAD WORKSPACE ENGINE SCRIPTS
        ?v= is bumped with each release (same as index.html) so reviewers'
        browsers never pair stale engine scripts with new inline portal code. -->
-  <script src="scripts/render-runtime.js?v=0.34.4"></script>
-  <script src="scripts/auto-arrange-config.js?v=0.34.4"></script>
-  <script src="scripts/auto-resize-engine.js?v=0.34.4"></script>
-  <script src="scripts/data-merge.js?v=0.34.4"></script>
-  <script src="scripts/font-subset.js?v=0.34.4"></script>
-  <script src="scripts/export-pipeline.js?v=0.34.4"></script>
+  <script src="scripts/render-runtime.js?v=0.34.5"></script>
+  <script src="scripts/auto-arrange-config.js?v=0.34.5"></script>
+  <script src="scripts/auto-resize-engine.js?v=0.34.5"></script>
+  <script src="scripts/data-merge.js?v=0.34.5"></script>
+  <script src="scripts/font-subset.js?v=0.34.5"></script>
+  <script src="scripts/export-pipeline.js?v=0.34.5"></script>
 
   <!-- MAIN PREVIEW ENGINE PORTAL -->
   <script>
@@ -881,21 +866,35 @@
     }
     
     // Theme Management
+    // Presentation swatches. The first four are real app themes applied exactly
+    // the way the editor applies them (canvas-render.js sets body.className to
+    // the single theme class), so this page can't drift from the editor's look.
+    // "Chess" is not a theme — it's a checkered banner backdrop layered over
+    // whichever theme is active, driven by a body class so cards rebuilt by
+    // renderCanvases keep it.
+    let previewTheme = 'default';
+    let previewCheckered = false;
+
+    function applyPreviewAppearance() {
+      document.body.className = (previewTheme && previewTheme !== 'default') ? 'theme-' + previewTheme : '';
+      if (previewCheckered) document.body.classList.add('preview-checkered');
+    }
+
     document.querySelectorAll('.swatch').forEach(swatch => {
       swatch.onclick = () => {
-        document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
-        swatch.classList.add('active');
-        
         const theme = swatch.dataset.theme;
-        document.body.className = '';
-        
         if (theme === 'chess') {
-          document.body.classList.add('theme-obsidian');
-          document.querySelectorAll('.card-body').forEach(b => b.classList.add('checkered'));
+          // Toggles independently of the theme swatches.
+          previewCheckered = !previewCheckered;
+          swatch.classList.toggle('active', previewCheckered);
         } else {
-          document.body.classList.add('theme-' + theme);
-          document.querySelectorAll('.card-body').forEach(b => b.classList.remove('checkered'));
+          previewTheme = theme;
+          document.querySelectorAll('.swatch').forEach(s => {
+            if (s.dataset.theme !== 'chess') s.classList.remove('active');
+          });
+          swatch.classList.add('active');
         }
+        applyPreviewAppearance();
       };
     });
     

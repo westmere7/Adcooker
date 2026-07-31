@@ -721,6 +721,9 @@ function dmBakeRow(rowIdx) {
 // restored afterwards so the editor's current selection is untouched.
 async function dmRunExport(rowIdx, fn) {
   const dm = state.dataMerge;
+  // Projects saved before data-merge existed (and hand-built files) have no
+  // dataMerge block at all — there is nothing to bake, so just run the body.
+  if (!dm) return await fn();
   const savedActive = dm.activeVersion;
   if (rowIdx != null) dm.activeVersion = rowIdx;
   const restore = (dm.enabled && dm.activeVersion != null) ? dmBakeRow(dm.activeVersion) : null;

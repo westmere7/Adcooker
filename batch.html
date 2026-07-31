@@ -756,6 +756,12 @@
       zoom: 1.0
     };
     
+    // Declared in core-state.js, which this page doesn't load. export-pipeline's
+    // addCanvasAssetsToZip writes to it while packing `data/Elements/` assets
+    // (the RMIT logo); without it that write threw inside a catch, so the asset
+    // was silently left OUT of exported ads.
+    var urlSizeCache = {};
+
     function getActiveCanvas() {
       return state.canvases ? state.canvases[0] : null;
     }
@@ -1757,6 +1763,74 @@
     // successful load can be added to Recent. Null when reopening FROM Recent.
     let recentMeta = null;
 
+    // --- RMIT stock image library -------------------------------------------
+    // Data-sheet Images columns reference stock art BY FILENAME (e.g.
+    // "2026_Health.jpg"), and dmResolveImage maps that name to an asset via
+    // state.assetNames / state.assetLibrary. The editor fills those in with
+    // syncRmitAssets() on load; this page had no equivalent, so every version
+    // row's image resolved to a bare relative path and rendered broken — while
+    // the template's own baked-in assets (embedded in the .flow) were fine,
+    // which is why only the default version looked right.
+    //
+    // Templates make this unavoidable: buildFlowBlob deliberately clears
+    // assetLibrary when saving one, so a template can never carry the library
+    // with it. Mirrors project-io.js's id scheme so ids stay interchangeable.
+    let _rmitAssetsPromise = null;
+    function preloadRmitAssets() {
+      if (_rmitAssetsPromise) return _rmitAssetsPromise; // fetch once per session
+      _rmitAssetsPromise = (async () => {
+        let files = [];
+        try {
+          const r = await fetch(`data/assets/manifest.json?t=${Date.now()}`);
+          if (r.ok) files = await r.json();
+        } catch (e) { console.warn('RMIT asset manifest unavailable:', e); }
+        const loaded = await Promise.all((files || []).map(async (filename) => {
+          try {
+            const r = await fetch('data/assets/' + encodeURIComponent(filename));
+            if (!r.ok) return null;
+            const blob = await r.blob();
+            const dataUrl = await new Promise((res, rej) => {
+              const fr = new FileReader();
+              fr.onload = () => res(fr.result);
+              fr.onerror = () => rej(fr.error);
+              fr.readAsDataURL(blob);
+            });
+            return { filename, dataUrl };
+          } catch (e) { return null; }
+        }));
+        return loaded.filter(Boolean);
+      })();
+      return _rmitAssetsPromise;
+    }
+
+    // Merge the stock library into the freshly loaded project. Never overwrites
+    // an asset the template already carries.
+    async function attachRmitAssets() {
+      const items = await preloadRmitAssets();
+      if (!items.length) return 0;
+      if (!state.assets) state.assets = {};
+      if (!state.assetNames) state.assetNames = {};
+      if (!Array.isArray(state.assetLibrary)) state.assetLibrary = [];
+      items.forEach(({ filename, dataUrl }) => {
+        const imgId = 'img_rmit_' + filename;
+        if (!state.assets[imgId]) state.assets[imgId] = dataUrl;
+        // Exact-filename lookup (dmResolveImage step 2).
+        if (!state.assetNames[imgId]) state.assetNames[imgId] = filename;
+        // Extension-insensitive lookup (dmResolveImage step 3).
+        const libId = 'as_rmit_' + filename;
+        if (!state.assetLibrary.some(a => a && a.id === libId)) {
+          state.assetLibrary.push({
+            id: libId,
+            name: filename.substring(0, filename.lastIndexOf('.')) || filename,
+            kind: 'element', iconType: 'image', folderId: 'af_rmit', readOnly: true,
+            elements: [{ id: 'el_' + libId, type: 'image', name: filename,
+                         assetId: imgId, width: 120, height: 90, x: 0, y: 0 }]
+          });
+        }
+      });
+      return items.length;
+    }
+
     // Process raw file buffer
     async function processProjectFile(buffer) {
       loader.style.opacity = '1';
@@ -1819,6 +1893,11 @@
 
         // A template's own state.theme is deliberately ignored — this portal
         // always renders in the default Adflow theme.
+
+        // Stock image library must be in place BEFORE the first render, or
+        // version rows that reference stock art by filename paint broken.
+        loaderSubtitle.textContent = 'Loading image library';
+        await attachRmitAssets();
 
         loaderSubtitle.textContent = 'Rendering canvases';
         showEmptyState(false);
