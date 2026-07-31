@@ -13,63 +13,43 @@
   
   <!-- JSZip for unzipping .flow files -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-  
+
+  <!-- The app's real stylesheet, so this page shares the editor's palette,
+       themes, buttons, modals and Data & Versions sheet styling rather than
+       maintaining a parallel look. Loaded BEFORE the page-specific block below
+       so the portal layout rules can still override where they must. -->
+  <link rel="stylesheet" href="styles.css?v=0.34.5" />
+
   <style>
-    :root {
-      --bg-app: #0b0f17;
-      --bg-sidebar: #111827;
-      --bg-card: #1f2937;
-      --bg-input: #374151;
-      --border-color: #2e3748;
-      
-      --text-bright: #f9fafb;
-      --text-main: #e5e7eb;
-      --text-muted: #9ca3af;
-      --text-label: #6b7280;
-      
-      --accent-base: #7c5cff;
-      --accent-hover: #6d4aff;
-      --accent-light: #a78bfa;
-      
+    /* This page's layout was written against its own palette names. Rather
+       than rewrite every rule, alias those names onto the app's real tokens
+       (styles.css) so the chrome matches the editor exactly — and so the app's
+       themes carry over for free.
+
+       These MUST sit on `body`, not `:root`: the app's themes override tokens
+       on `body.theme-*`, and a var() alias resolves against the element it is
+       declared on. Declared on :root, the aliases would freeze the default
+       dark values and every theme would half-apply. */
+    body {
+      --bg-app: var(--bg-body);
+      --bg-sidebar: var(--bg-panel);
+      --bg-card: var(--bg-panel);
+      --border-color: var(--border-light);
       --success-base: #10b981;
       --warning-base: #f59e0b;
       --danger-base: #ef4444;
-      
       --sidebar-width: 320px;
     }
-    
-    .theme-slate {
-      --bg-app: #18181b;
-      --bg-sidebar: #202024;
-      --bg-card: #27272a;
-      --bg-input: #3f3f46;
-      --border-color: #52525b;
-      --text-bright: #ffffff;
-      --text-main: #f4f4f5;
-      --text-muted: #a1a1aa;
-    }
-    
-    .theme-light {
-      --bg-app: #f3f4f6;
-      --bg-sidebar: #ffffff;
-      --bg-card: #ffffff;
-      --bg-input: #f3f4f6;
-      --border-color: #e5e7eb;
-      --text-bright: #111827;
-      --text-main: #374151;
-      --text-muted: #6b7280;
-      --accent-light: #6d4aff;
-    }
-    
+
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
     }
-    
+
     body {
-      font-family: 'Inter', sans-serif;
-      background: var(--bg-app);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg-body);
       color: var(--text-main);
       display: flex;
       height: 100vh;
@@ -212,80 +192,69 @@
       text-decoration: underline;
     }
     
-    .swatches {
-      display: flex;
-      gap: 8px;
-    }
-    
-    .swatch {
-      width: 28px;
-      height: 28px;
-      border-radius: 6px;
-      border: 2px solid transparent;
-      cursor: pointer;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-      transition: transform 0.1s ease;
-    }
-    
-    .swatch:hover {
-      transform: scale(1.1);
-    }
-    
-    .swatch.active {
-      border-color: var(--accent-base);
-    }
-    
-    .swatch-obsidian { background: #0b0f17; }
-    .swatch-slate { background: #27272a; }
-    .swatch-light { background: #f3f4f6; }
-    
-    .swatch-chess {
-      background-color: #f1f1f1;
-      background-image: linear-gradient(45deg, #e0e0e0 25%, transparent 25%),
-                        linear-gradient(-45deg, #e0e0e0 25%, transparent 25%),
-                        linear-gradient(45deg, transparent 75%, #e0e0e0 75%),
-                        linear-gradient(-45deg, transparent 75%, #e0e0e0 75%);
-      background-size: 8px 8px;
-      background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
-    }
-    
     .playback-row {
       display: flex;
       gap: 8px;
     }
     
-    .btn {
-      flex: 1;
-      padding: 8px 12px;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-bright);
-      background: var(--bg-input);
-      border: 1px solid var(--border-color);
-      border-radius: 6px;
-      cursor: pointer;
-      outline: none;
+    /* Same visual language as the editor's .btn (styles.css) — this override
+       exists only to add the flex/gap layout this page's own button rows need.
+       Hover, :disabled and .primary all come from styles.css.
+
+       SCOPED DELIBERATELY to the portal's own chrome. Applied globally, the
+       `flex: 1` bled into panels injected by the app scripts (data-merge.js's
+       Data & Versions sheet) — in their vertical columns the buttons stretched
+       to fill the whole column height. */
+    .sidebar .btn,
+    #batch-empty .btn {
+      /* `flex: none`, not `flex: 1`: these buttons sit in column containers, and
+         a growable flex-basis let flex decide their height — silently defeating
+         the explicit heights below. The two side-by-side rows that DO want to
+         share a line set `flex:1` inline, which still wins. */
+      flex: none;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 6px;
-      transition: background 0.2s ease, border-color 0.2s ease;
+      /* LAYOUT ONLY — deliberately no background/border/color here. Scoping
+         this rule to `.sidebar .btn` made it specificity-equal to styles.css's
+         `.btn.primary`, and because this block loads later it won, silently
+         stripping the accent fill off every primary button on the page. */
     }
-    
-    .btn:hover {
-      background: rgba(255,255,255,0.05);
+
+    /* --- Sidebar action hierarchy -------------------------------------------
+       hero  — the two actions that carry the workflow (open a template, export)
+       mid   — useful but secondary (download the sheet template)
+       plain — everything else keeps the stock .btn look
+       ---------------------------------------------------------------------- */
+    .sidebar .btn.batch-hero,
+    #batch-empty .btn.batch-hero {
+      height: 38px;
+      font-size: 13px;
+      font-weight: 600;
     }
-    
-    .btn.primary {
-      background: var(--accent-base);
+    .sidebar .btn.batch-hero.primary,
+    #batch-empty .btn.batch-hero.primary {
+      box-shadow: 0 2px 14px color-mix(in srgb, var(--accent-base) 42%, transparent);
+    }
+    .sidebar .btn.batch-hero.primary:disabled {
+      box-shadow: none;
+    }
+    .sidebar .btn.batch-mid {
+      height: 32px;
+      font-weight: 600;
+      color: var(--accent-light);
+      background: color-mix(in srgb, var(--accent-base) 14%, transparent);
+      border-color: color-mix(in srgb, var(--accent-base) 55%, transparent);
+    }
+    .sidebar .btn.batch-mid:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--accent-base) 26%, transparent);
       border-color: var(--accent-base);
+      color: var(--text-bright);
     }
     
-    .btn.primary:hover {
-      background: var(--accent-hover);
-      border-color: var(--accent-hover);
-    }
-    
+    /* .btn:hover / .btn.primary / .btn:disabled all come from styles.css. */
+
     /* Main Content Area */
     .main-viewport {
       flex: 1;
@@ -388,24 +357,7 @@
       min-height: auto;
     }
     
-    .card-body.checkered {
-      background-color: #f1f1f1;
-      background-image: linear-gradient(45deg, #e0e0e0 25%, transparent 25%),
-                        linear-gradient(-45deg, #e0e0e0 25%, transparent 25%),
-                        linear-gradient(45deg, transparent 75%, #e0e0e0 75%),
-                        linear-gradient(-45deg, transparent 75%, #e0e0e0 75%);
-      background-size: 16px 16px;
-      background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
-    }
-    
-    .theme-obsidian .card-body.checkered, .theme-slate .card-body.checkered {
-      background-color: #161b22;
-      background-image: linear-gradient(45deg, #21262d 25%, transparent 25%),
-                        linear-gradient(-45deg, #21262d 25%, transparent 25%),
-                        linear-gradient(45deg, transparent 75%, #21262d 75%),
-                        linear-gradient(-45deg, transparent 75%, #21262d 75%);
-    }
-    
+
     .iframe-wrapper {
       position: relative;
       box-shadow: none;
@@ -486,7 +438,7 @@
     .portal-loader {
       position: fixed;
       inset: 0;
-      background: #0b0f17;
+      background: var(--bg-body);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -495,6 +447,97 @@
       gap: 16px;
       opacity: 1;
       transition: opacity 0.5s ease;
+    }
+
+    /* Empty state — takes the grid's place until a template is opened. */
+    #batch-empty {
+      flex: 1;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 32px;
+      text-align: center;
+      overflow: auto;
+    }
+    #batch-empty.visible { display: flex; }
+    #batch-empty-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-bright);
+      margin-top: 2px;
+    }
+    #batch-empty-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+      max-width: 380px;
+      line-height: 1.5;
+    }
+    #batch-empty .btn.primary {
+      flex: none;
+      margin-top: 8px;
+      height: 34px;
+      padding: 0 18px;
+      font-size: 12.5px;
+      font-weight: 600;
+    }
+    #batch-empty-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      opacity: .85;
+    }
+    /* In-place error, shown right where the user already is rather than on a
+       takeover screen they'd have to dismiss. */
+    #batch-empty-error {
+      display: none;
+      align-items: flex-start;
+      gap: 7px;
+      max-width: 420px;
+      margin-top: 4px;
+      padding: 9px 12px;
+      text-align: left;
+      font-size: 11.5px;
+      line-height: 1.45;
+      color: var(--text-main);
+      background: color-mix(in srgb, var(--danger-base) 12%, transparent);
+      border: 1px solid color-mix(in srgb, var(--danger-base) 45%, transparent);
+      border-radius: 6px;
+    }
+    #batch-empty-error.visible { display: flex; }
+    #batch-empty-error svg { color: var(--danger-base); }
+    #batch-empty-recents {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border-light);
+      width: 100%;
+      max-width: 360px;
+    }
+    #batch-empty-recents.visible { display: flex; }
+    .batch-empty-recents-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+    }
+    .batch-empty-recents-label {
+      font-size: 9.5px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--text-label);
+      font-weight: 600;
+    }
+    #batch-empty-recents #btn-recent-clear { font-size: 10px; }
+    #batch-empty-recents .btn {
+      flex: none;
+      width: 100%;
+      justify-content: flex-start;
+      padding: 5px 9px;
+      font-size: 11px;
     }
     
     .spinner {
@@ -510,122 +553,10 @@
       to { transform: rotate(360deg); }
     }
 
-    /* ==================================================================
-       Editor-component support (Data & Versions panel + Adflow dialogs).
-       The panel markup comes from data-merge.js / modals.js, which style
-       against the editor's CSS variables — alias them to this portal's
-       palette, then carry over the component rules they rely on.
-       ================================================================== */
-    :root {
-      --bg-panel: var(--bg-sidebar);
-      --bg-body: var(--bg-app);
-      --bg-btn: var(--bg-input);
-      --border-light: var(--border-color);
-      --text-accent: var(--accent-light);
-      --shadow-heavy: rgba(0, 0, 0, 0.6);
-      --table-zebra-1: rgba(255, 255, 255, 0.03);
-      --table-zebra-2: rgba(255, 255, 255, 0.055);
-    }
 
-    .modal-bg {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, .6);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      z-index: 100000;
-    }
-    .modal {
-      background: var(--bg-panel);
-      border: 1px solid var(--border-light);
-      border-radius: 10px;
-      width: 640px;
-      max-width: 90vw;
-      max-height: 86vh;
-      display: flex;
-      flex-direction: column;
-      box-shadow: 0 20px 60px var(--shadow-heavy);
-    }
-    .modal-head {
-      display: flex;
-      align-items: center;
-      padding: 14px 18px;
-      border-bottom: 1px solid var(--border-light);
-    }
-    .modal-head h2 {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--text-bright);
-      flex: 1;
-      margin: 0;
-    }
-    .modal-body {
-      flex: 1;
-      overflow: auto;
-      padding: 16px 18px;
-      color: var(--text-main);
-      font-size: 12.5px;
-    }
-    .modal-foot {
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-      padding: 12px 18px;
-    }
-    .modal-foot:empty { display: none; }
-    .modal input[type="text"], .modal input[type="number"], .modal textarea, .modal select {
-      background: var(--bg-input);
-      border: 1px solid var(--border-light);
-      color: var(--text-main);
-      border-radius: 5px;
-      font-size: 12px;
-      padding: 5px 8px;
-    }
-
-    /* Data & Versions sheet (ids/classes emitted by dmRenderPanel) */
-    #dm-panel .dm-row:nth-child(even) > td { background-color: var(--table-zebra-1); }
-    #dm-panel .dm-row > td:nth-child(2n+4) { background-color: var(--table-zebra-1); }
-    #dm-panel .dm-row:nth-child(even) > td:nth-child(2n+4) { background-color: var(--table-zebra-2); }
-    #dm-panel th {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      background-color: var(--bg-panel);
-    }
-    #dm-panel .dm-col-th.dm-key-col .dm-col-name { font-weight: 700; }
-    #dm-panel .dm-row > td.dm-key-col input.dm-cell { font-weight: 700; }
-    #dm-panel .dm-col-th.dm-col-highlight {
-      background-color: color-mix(in srgb, var(--accent-base) 28%, var(--bg-panel)) !important;
-      box-shadow: inset 0 -2px 0 var(--text-accent);
-      transition: background-color 0.15s ease, box-shadow 0.15s ease;
-    }
-    #dm-panel .dm-row > td.dm-col-highlight {
-      background-color: color-mix(in srgb, var(--accent-base) 14%, transparent) !important;
-      transition: background-color 0.15s ease;
-    }
-    #dm-panel .dm-row:nth-child(even) > td.dm-col-highlight {
-      background-color: color-mix(in srgb, var(--accent-base) 18%, transparent) !important;
-      transition: background-color 0.15s ease;
-    }
-
-    /* Custom select dropdowns rendered by dmRenderCustomSelect */
-    .custom-select-item:hover {
-      background: var(--accent-base) !important;
-      color: var(--text-bright) !important;
-    }
-    .custom-select-dropdown::-webkit-scrollbar { width: 4px; }
-    .custom-select-dropdown::-webkit-scrollbar-track { background: transparent; }
-    .custom-select-dropdown::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 2px; }
-    .custom-select-dropdown::-webkit-scrollbar-thumb:hover { background: var(--accent-base); }
-
-    .checkbox-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 12px;
-      color: var(--text-main);
-    }
+    /* The Data & Versions panel (data-merge.js) and Adflow dialogs
+       (modals.js) are styled entirely by styles.css, which this page now
+       links — no duplicated component CSS needed here. */
   </style>
   
   <!-- Empty mock elements to absorb editor script listeners -->
@@ -640,21 +571,25 @@
     <div id="btn-version-next"></div>
     <div id="btn-data-lock"></div>
     <div id="props"></div>
+    <!-- Frame select isn't offered in the batch sidebar (the grid always plays
+         all frames) but the playback code reads and repopulates it. -->
+    <select id="select-frame"><option value="play" selected>All frames</option></select>
   </div>
 </head>
-<body class="theme-obsidian">
+<!-- No theme class: this portal always uses the default Adflow theme. -->
+<body>
 
   <!-- PORTAL LOADING OVERLAY -->
   <div class="portal-loader" id="portal-loader">
     <div class="spinner"></div>
-    <h2 id="loader-title" style="font-family:'Outfit',sans-serif; color:#fff; font-size:18px;">Loading preview...</h2>
-    <p id="loader-subtitle" style="color:var(--text-muted); font-size:13px;">Downloading project package</p>
+    <h2 id="loader-title" style="color:var(--text-bright); font-size:17px; font-weight:600;">Loading…</h2>
+    <p id="loader-subtitle" style="color:var(--text-muted); font-size:13px;">Reading template</p>
   </div>
 
   <!-- DRAG & DROP OVERLAY -->
   <div class="drag-overlay" id="drag-overlay">
     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent-base)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-    <div class="drag-title">Drop a certified .flow template here</div>
+    <div class="drag-title">Drop an Adflow template (.flow) here</div>
     <p style="color:var(--text-muted);">This will load the project locally inside your browser</p>
   </div>
 
@@ -666,17 +601,17 @@
     
     <div class="sidebar-content">
 
-      <!-- 1. CERTIFIED TEMPLATE -->
+      <!-- 1. TEMPLATE -->
       <div class="control-group">
-        <div class="control-label">1 · Certified Template</div>
+        <div class="control-label">1 · Template</div>
         <div style="display:flex; flex-direction:column; gap:8px; width:100%;">
-          <select id="select-template" style="width:100%; margin:0; height:26px; font-size:11.5px; padding:2px 8px;">
-            <option value="">Loading templates…</option>
-          </select>
-          <button class="btn primary" id="btn-load-template" style="width:100%;" disabled>Load Template</button>
+          <button class="btn primary batch-hero" id="btn-open-template" style="width:100%;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            <span>Open Template File…</span>
+          </button>
           <div style="font-size:10px; color:var(--text-muted); line-height:1.35;">
-            Templates ship with this app (offline — nothing is fetched from the cloud).
-            You can also drop a certified <b>.flow template file</b> anywhere on this page.
+            Open a <b>.flow</b> template from the Adflow team — or drop one anywhere on this page.
+            Everything stays in your browser; nothing is uploaded.
           </div>
         </div>
       </div>
@@ -685,7 +620,7 @@
       <div class="control-group">
         <div class="control-label">2 · Data Sheet</div>
         <div style="display:flex; flex-direction:column; gap:8px; width:100%;">
-          <button class="btn" id="btn-sheet-template" style="width:100%;" disabled title="Download a CSV with this template's columns to fill in">
+          <button class="btn batch-mid" id="btn-sheet-template" style="width:100%;" disabled title="Download a CSV with this template's columns to fill in">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             <span>Download Sheet Template</span>
           </button>
@@ -699,8 +634,8 @@
       <div class="control-group">
         <div class="control-label">3 · Export</div>
         <div style="display:flex; flex-direction:column; gap:8px; width:100%;">
-          <button class="btn primary" id="btn-batch-export" style="width:100%;" disabled>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <button class="btn primary batch-hero" id="btn-batch-export" style="width:100%;" disabled>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             <span id="batch-export-label">Export ZIP</span>
           </button>
           <div id="export-hint" style="font-size:10px; color:var(--text-muted); line-height:1.35;">
@@ -733,22 +668,11 @@
         </div>
       </div>
       
-      <!-- FRAME BY FRAME SWITCHER -->
-      <div class="control-group">
-        <div class="control-label">Frame Select</div>
-        <div style="display:flex; align-items:center; gap:4px; width:100%;">
-          <button type="button" class="btn" id="btn-prev-frame" style="flex:none !important; padding:0; height:26px; width:22px; min-width:22px; background:var(--bg-btn); border:1px solid var(--border-color); border-radius:4px; color:var(--text-muted); cursor:pointer; display:flex; align-items:center; justify-content:center;" onmouseover="this.style.color='var(--text-bright)'" onmouseout="this.style.color='var(--text-muted)'" title="Previous Frame">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-          </button>
-          <select id="select-frame" style="flex:1; margin:0; height:26px; font-size:11.5px; padding:2px 8px;">
-            <option value="play" selected>All frames</option>
-          </select>
-          <button type="button" class="btn" id="btn-next-frame" style="flex:none !important; padding:0; height:26px; width:22px; min-width:22px; background:var(--bg-btn); border:1px solid var(--border-color); border-radius:4px; color:var(--text-muted); cursor:pointer; display:flex; align-items:center; justify-content:center;" onmouseover="this.style.color='var(--text-bright)'" onmouseout="this.style.color='var(--text-muted)'" title="Next Frame">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-          </button>
-        </div>
-      </div>
-      
+      <!-- Frame selection is intentionally not exposed here: batch users want
+           whole ads, so the grid always plays every frame. #select-frame still
+           exists (hidden, in the head stub block) because the playback code
+           reads it. -->
+
       <!-- DATA VERSION -->
       <div class="control-group" id="version-control-group" style="display:none;">
         <div class="control-label">Data Version</div>
@@ -778,17 +702,9 @@
       
 
       
-      <!-- PRESENTATION THEME -->
-      <div class="control-group">
-        <div class="control-label">Presentation Grid / BG</div>
-        <div class="swatches">
-          <div class="swatch swatch-obsidian active" data-theme="obsidian" title="Obsidian Theme"></div>
-          <div class="swatch swatch-slate" data-theme="slate" title="Slate Gray Theme"></div>
-          <div class="swatch swatch-light" data-theme="light" title="Light Theme"></div>
-          <div class="swatch swatch-chess" data-theme="chess" title="Checkered Canvas Pattern"></div>
-        </div>
-      </div>
-      
+      <!-- No appearance controls: this portal always uses the default Adflow
+           theme, so it can't drift from the editor's look. -->
+
     </div>
   </div>
 
@@ -800,11 +716,29 @@
         <span style="font-size:10px; font-weight:700; text-transform:uppercase; border:1px solid var(--accent-base); color:var(--accent-light); padding:2px 6px; border-radius:4px; white-space:nowrap; letter-spacing:0.04em;">Batch</span>
         <div id="preview-share-meta" style="display:none;"></div>
       </div>
-      <div style="font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 12px; flex-shrink:0;">
-        <button class="btn-link" id="btn-drag-trigger" style="font-size: 12px; white-space: nowrap; flex-shrink:0;">Open Template File...</button>
-      </div>
+      <!-- Opening a template is offered in the sidebar (step 1) and on the
+           empty-canvas prompt; a third copy up here was just noise. -->
     </div>
     
+    <!-- EMPTY STATE — shown in place of the grid until a template is opened.
+         Sibling of the grid (not inside it) so renderCanvases/layoutCards,
+         which own the grid's children, never have to know about it. -->
+    <div id="batch-empty">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-muted); opacity:.75;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      <div id="batch-empty-title">No template open</div>
+      <div id="batch-empty-sub">Open an Adflow template to preview it, add a data sheet, and export your ad pack.</div>
+      <div id="batch-empty-error" role="alert">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span id="batch-empty-error-msg"></span>
+      </div>
+      <button class="btn primary batch-hero" id="btn-empty-open">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        <span>Open Template File…</span>
+      </button>
+      <div id="batch-empty-hint">or drop a <b>.flow</b> template anywhere on this page</div>
+      <div id="batch-empty-recents"></div>
+    </div>
+
     <!-- GRID CONTAINER -->
     <div class="canvas-grid" id="canvas-grid"></div>
   </div>
@@ -996,9 +930,8 @@
     const chkLoopAd = document.getElementById('chk-loop-ad');
     const versionGroup = document.getElementById('version-control-group');
     
-    // Cycle select helpers
-    const btnPrevFrame = document.getElementById('btn-prev-frame');
-    const btnNextFrame = document.getElementById('btn-next-frame');
+    // Cycle select helpers (frame stepping isn't exposed on this page, so only
+    // the version arrows exist here).
     const btnPrevVersion = document.getElementById('btn-prev-version');
     const btnNextVersion = document.getElementById('btn-next-version');
 
@@ -1012,8 +945,6 @@
       selectEl.dispatchEvent(new Event('change'));
     }
 
-    if (btnPrevFrame) btnPrevFrame.onclick = () => cycleSelect(selectFrame, -1);
-    if (btnNextFrame) btnNextFrame.onclick = () => cycleSelect(selectFrame, 1);
     if (btnPrevVersion) btnPrevVersion.onclick = () => cycleSelect(selectVersion, -1);
     if (btnNextVersion) btnNextVersion.onclick = () => cycleSelect(selectVersion, 1);
     
@@ -1055,24 +986,8 @@
       };
     }
     
-    // Theme Management
-    document.querySelectorAll('.swatch').forEach(swatch => {
-      swatch.onclick = () => {
-        document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
-        swatch.classList.add('active');
-        
-        const theme = swatch.dataset.theme;
-        document.body.className = '';
-        
-        if (theme === 'chess') {
-          document.body.classList.add('theme-obsidian');
-          document.querySelectorAll('.card-body').forEach(b => b.classList.add('checkered'));
-        } else {
-          document.body.classList.add('theme-' + theme);
-          document.querySelectorAll('.card-body').forEach(b => b.classList.remove('checkered'));
-        }
-      };
-    });
+    // No theme management: this portal always renders in the default Adflow
+    // theme, so <body> deliberately carries no theme class.
     
     // Play / Static only state control
     function setPlayState(playing, triggerReload = true) {
@@ -1838,12 +1753,18 @@
       updateCanvasGridVisibility();
     };
     
+    // Set by the file picker / drop handler just before processProjectFile so a
+    // successful load can be added to Recent. Null when reopening FROM Recent.
+    let recentMeta = null;
+
     // Process raw file buffer
     async function processProjectFile(buffer) {
       loader.style.opacity = '1';
       loader.style.display = 'flex';
-      loaderTitle.textContent = 'Processing file...';
-      loaderSubtitle.textContent = 'Reading zip archives';
+      loader.querySelector('.spinner').style.display = 'block';
+      clearEmptyError(); // drop any message from a previous attempt
+      loaderTitle.textContent = 'Opening template…';
+      loaderSubtitle.textContent = 'Reading file';
       
       try {
         const zip = await JSZip.loadAsync(buffer);
@@ -1865,7 +1786,7 @@
           }
         }
         if (!certified) {
-          throw new Error('Not a certified Adflow template. Ask the Adflow team for a .flow TEMPLATE file (saved via "Save template"), or pick one from the Certified Templates list.');
+          throw new Error('This isn\'t an Adflow template. Ask the Adflow team for a template file — one saved from Adflow via File ▸ Save ▸ Save template.');
         }
 
         loaderSubtitle.textContent = 'Extracting assets';
@@ -1896,18 +1817,40 @@
         window.state = loadedState;
         templateLoaded = true; // certification passed above
 
+        // A template's own state.theme is deliberately ignored — this portal
+        // always renders in the default Adflow theme.
+
         loaderSubtitle.textContent = 'Rendering canvases';
+        showEmptyState(false);
         populateControls();
         renderCanvases();
-        
+
+        // Remember it for the Recent list (skipped for re-opens from Recent,
+        // which pass their own bytes back in).
+        if (recentMeta) {
+          await recentAdd(recentMeta.name, loadedState.projectName || recentMeta.name, recentMeta.bytes);
+          recentMeta = null;
+        }
+
         // Fade loader
         loader.style.opacity = '0';
         setTimeout(() => loader.style.display = 'none', 500);
       } catch (err) {
         console.error(err);
-        loaderTitle.textContent = err.message.includes('expired or has been deleted') ? 'Link Inactive' : 'Import Failed';
-        loaderSubtitle.textContent = err.message || err;
-        loader.querySelector('.spinner').style.display = 'none';
+        recentMeta = null; // a rejected file must not enter Recent
+        // No error screen: drop the overlay and report in place, so the user is
+        // never parked on something they have to escape from.
+        loader.style.opacity = '0';
+        loader.style.display = 'none';
+        const msg = err.message || String(err);
+        if (templateLoaded) {
+          // Something is already open — leave it on screen and just say so.
+          showCanvasNotification(msg, { type: 'error' });
+        } else {
+          // Nothing open: the empty prompt is where the user already is.
+          showEmptyState(true);
+          showEmptyError(msg);
+        }
       }
     }
     
@@ -1940,12 +1883,21 @@
       
       const file = e.dataTransfer.files[0];
       if (file && (file.name.endsWith('.flow') || file.name.endsWith('.zip'))) {
-        const reader = new FileReader();
-        reader.onload = (evt) => processProjectFile(evt.target.result);
-        reader.readAsArrayBuffer(file);
+        openTemplateFile(file);
       }
     });
-    
+
+    // Single entry point for both the picker and drop: read the bytes, stash
+    // them for the Recent list, then hand off to processProjectFile.
+    function openTemplateFile(file) {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        recentMeta = { name: file.name, bytes: evt.target.result };
+        processProjectFile(evt.target.result);
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
     // Load local file selector trigger
     const fileSelector = document.createElement('input');
     fileSelector.type = 'file';
@@ -1954,13 +1906,13 @@
       const file = e.target.files[0];
       if (file) {
         clearUrlQuery();
-        const reader = new FileReader();
-        reader.onload = (evt) => processProjectFile(evt.target.result);
-        reader.readAsArrayBuffer(file);
+        openTemplateFile(file);
       }
+      fileSelector.value = ''; // allow re-picking the same file
     };
-    document.getElementById('btn-drag-trigger').onclick = () => fileSelector.click();
-    
+    // Opened from the sidebar's step 1 and the empty-canvas prompt only.
+
+
     // Download All Banners package
     const downloadAllBtn = document.getElementById('btn-download-all');
     if (downloadAllBtn) {
@@ -2027,10 +1979,9 @@
     }
     
     // ------------------------------------------------------------------
-    // Batch portal: certified templates, data sheet, one-click export
+    // Batch portal: template file + recents, data sheet, one-click export
     // ------------------------------------------------------------------
-    const selectTemplate = document.getElementById('select-template');
-    const btnLoadTemplate = document.getElementById('btn-load-template');
+    const btnOpenTemplate = document.getElementById('btn-open-template');
     const btnSheetTemplate = document.getElementById('btn-sheet-template');
     const btnSheetImport = document.getElementById('btn-sheet-import');
     const btnSheetEdit = document.getElementById('btn-sheet-edit');
@@ -2075,52 +2026,133 @@
       }
     };
 
-    // --- Certified template registry (bundled with the app; offline) -------
-    async function loadTemplateRegistry() {
-      let entries = [];
-      try {
-        const res = await fetch(`Startup/registry.json?t=${Date.now()}`);
-        if (res.ok) entries = await res.json();
-      } catch (e) { console.warn('Could not read template registry:', e); }
-      if (!selectTemplate) return entries;
-      selectTemplate.innerHTML = '';
-      if (!entries.length) {
-        selectTemplate.innerHTML = '<option value="">No certified templates bundled</option>';
-        selectTemplate.disabled = true;
-        if (btnLoadTemplate) btnLoadTemplate.disabled = true;
-      } else {
-        entries.forEach(t => {
-          const opt = document.createElement('option');
-          opt.value = t.fileName;
-          opt.textContent = t.projectName || t.fileName;
-          selectTemplate.appendChild(opt);
-        });
-        selectTemplate.disabled = false;
-        if (btnLoadTemplate) btnLoadTemplate.disabled = false;
-      }
-      return entries;
-    }
+    // --- Recent templates -------------------------------------------------
+    // Its own IndexedDB store, separate from the editor's 'recents' — the
+    // templates a team opens here have nothing to do with the projects an
+    // Adflow author has been editing. Each entry keeps the raw .flow bytes so
+    // reopening is instant and works offline.
+    const RECENT_DB = 'adflow-batch';
+    const RECENT_STORE = 'recent-templates';
+    const RECENT_MAX = 6;
 
-    if (btnLoadTemplate) btnLoadTemplate.onclick = async () => {
-      const fileName = selectTemplate && selectTemplate.value;
-      if (!fileName) return;
+    function recentDb() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(RECENT_DB, 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains(RECENT_STORE)) db.createObjectStore(RECENT_STORE);
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+    async function recentGet() {
+      try {
+        const db = await recentDb();
+        return await new Promise((resolve, reject) => {
+          const r = db.transaction(RECENT_STORE, 'readonly').objectStore(RECENT_STORE).get('list');
+          r.onsuccess = () => resolve(r.result || []);
+          r.onerror = () => reject(r.error);
+        });
+      } catch (e) { console.warn('Recent templates unavailable:', e); return []; }
+    }
+    async function recentPut(list) {
+      try {
+        const db = await recentDb();
+        await new Promise((resolve, reject) => {
+          const r = db.transaction(RECENT_STORE, 'readwrite').objectStore(RECENT_STORE).put(list, 'list');
+          r.onsuccess = () => resolve();
+          r.onerror = () => reject(r.error);
+        });
+      } catch (e) { console.warn('Could not save recent template:', e); }
+    }
+    async function recentAdd(name, projectName, bytes) {
+      const list = (await recentGet()).filter(r => r.name !== name);
+      list.unshift({
+        name, projectName,
+        openedAt: Date.now(),
+        openedLabel: new Date().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        bytes
+      });
+      await recentPut(list.slice(0, RECENT_MAX));
+      await renderRecents();
+    }
+    // Reopen a stored template. Structured-clone hands back an ArrayBuffer,
+    // which processProjectFile takes directly (JSZip.loadAsync accepts buffers).
+    async function reopenRecent(it) {
       loader.style.opacity = '1';
       loader.style.display = 'flex';
       loader.querySelector('.spinner').style.display = 'block';
-      loaderTitle.textContent = 'Loading template...';
-      loaderSubtitle.textContent = fileName;
-      try {
-        const res = await fetch(`Startup/${encodeURIComponent(fileName)}?t=${Date.now()}`);
-        if (!res.ok) throw new Error(`Template file not found (HTTP ${res.status})`);
-        const blob = await res.blob();
-        await processProjectFile(blob); // sets templateLoaded on success
-      } catch (e) {
-        console.error(e);
-        loaderTitle.textContent = 'Template Load Failed';
-        loaderSubtitle.textContent = e.message || String(e);
-        loader.querySelector('.spinner').style.display = 'none';
-      }
-    };
+      loaderTitle.textContent = 'Reopening template…';
+      loaderSubtitle.textContent = it.projectName || it.name;
+      await processProjectFile(it.bytes);
+    }
+
+    // Recents live only on the empty-canvas prompt — that's the one moment they
+    // are useful, and it keeps the sidebar to the three numbered steps.
+    async function renderRecents() {
+      await renderEmptyRecents();
+    }
+    // --- Empty state ------------------------------------------------------
+    // Shown in place of the banner grid whenever no template is open, so the
+    // page opens straight into a usable workspace instead of a blocking gate.
+    const emptyEl = document.getElementById('batch-empty');
+
+    function showEmptyState(show) {
+      if (emptyEl) emptyEl.classList.toggle('visible', !!show);
+      if (gridContainer) gridContainer.style.display = show ? 'none' : '';
+    }
+
+    function showEmptyError(msg) {
+      const box = document.getElementById('batch-empty-error');
+      const txt = document.getElementById('batch-empty-error-msg');
+      if (!box || !txt) return;
+      txt.textContent = msg;
+      box.classList.add('visible');
+      const b = document.getElementById('btn-empty-open');
+      if (b) b.querySelector('span').textContent = 'Try another file…';
+    }
+
+    function clearEmptyError() {
+      const box = document.getElementById('batch-empty-error');
+      if (box) box.classList.remove('visible');
+      const b = document.getElementById('btn-empty-open');
+      if (b) b.querySelector('span').textContent = 'Open Template File…';
+    }
+
+    async function renderEmptyRecents() {
+      const box = document.getElementById('batch-empty-recents');
+      if (!box) return;
+      const items = (await recentGet()).slice(0, 3);
+      if (!items.length) { box.classList.remove('visible'); box.innerHTML = ''; return; }
+      box.innerHTML = `<div class="batch-empty-recents-head">
+        <span class="batch-empty-recents-label">Recent</span>
+        <button class="btn-link" id="btn-recent-clear" type="button">Clear</button>
+      </div>`;
+      box.querySelector('#btn-recent-clear').onclick = async () => {
+        await recentPut([]);
+        await renderRecents();
+        showCanvasNotification('Recent list cleared', { type: 'success' });
+      };
+      items.forEach(it => {
+        const b = document.createElement('button');
+        b.className = 'btn';
+        b.title = `${it.name} — opened ${it.openedLabel}`;
+        b.innerHTML = `<span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${
+          (it.projectName || it.name).replace(/[<>&]/g, '')
+        }</span><span style="margin-left:auto; color:var(--text-muted); font-size:9.5px; flex-shrink:0;">${it.openedLabel}</span>`;
+        b.onclick = () => reopenRecent(it);
+        box.appendChild(b);
+      });
+      box.classList.add('visible');
+    }
+
+    const btnEmptyOpen = document.getElementById('btn-empty-open');
+    if (btnEmptyOpen) btnEmptyOpen.onclick = () => fileSelector.click();
+
+    // Prominent primary action — this is how teams will load a template
+    // essentially every time.
+    if (btnOpenTemplate) btnOpenTemplate.onclick = () => fileSelector.click();
 
     // --- Data sheet actions -------------------------------------------------
     if (btnSheetTemplate) btnSheetTemplate.onclick = () => {
@@ -2198,15 +2230,13 @@
       }
     };
 
-    // Boot: populate the certified-template list; no cloud paths on this page.
+    // Boot: nothing to fetch and nothing to gate behind — drop the loading
+    // overlay immediately and let the empty-canvas prompt do the asking.
     async function bootPortal() {
-      const entries = await loadTemplateRegistry();
-      loaderTitle.textContent = 'Adflow Batch Operation';
-      loaderSubtitle.innerHTML = (entries.length
-        ? 'Pick a certified template in the sidebar to begin.'
-        : 'No certified templates are bundled with this deployment.<br/>Drop a certified .flow template file anywhere on this page.')
-        + '<br/><br/><button class="btn primary" onclick="document.getElementById(\'portal-loader\').style.display=\'none\'" style="display:inline-flex;">Got it</button>';
-      loader.querySelector('.spinner').style.display = 'none';
+      loader.style.display = 'none';
+      loader.style.opacity = '0';
+      showEmptyState(true);
+      await renderRecents();
     }
 
     // Canvas grid panning logic

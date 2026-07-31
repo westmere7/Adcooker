@@ -1047,6 +1047,15 @@ function dmRenderPanel(bg) {
 
       <!-- LEFT: controls -->
       <div style="width:280px; flex-shrink:0; display:flex; flex-direction:column; gap:14px; overflow-y:auto; padding-right:4px;">
+        <!-- Producing the export is what this panel is for, so it leads —
+             full width, taller than the utility buttons, and never stretched
+             (flex:none) no matter what the surrounding column does. -->
+        <button class="btn primary" id="dm-export-versions" ${btnDisabled}
+          style="flex:none; width:100%; height:52px; padding:0 16px; font-size:14px; font-weight:700; letter-spacing:.01em; display:flex; align-items:center; justify-content:center; gap:10px; box-shadow:0 2px 14px color-mix(in srgb, var(--accent-base) 45%, transparent);">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span>${btnLabel}</span>
+        </button>
+
         <div style="display:flex; gap:6px; flex-wrap:wrap;">
           <button class="btn" id="dm-import" style="flex:1;">Import CSV…</button>
           <button class="btn" id="dm-export" ${dm.columns.length ? '' : 'disabled'} style="flex:1;">Export CSV</button>
@@ -1061,8 +1070,6 @@ function dmRenderPanel(bg) {
             Enable merge
           </label>
         </div>
-
-        <button class="btn primary" id="dm-export-versions" ${btnDisabled} style="padding:8px; width:100%;">${btnLabel}</button>
 
         <div>
           <h3 style="font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); margin:0 0 8px; font-weight:600;">Dynamic Slots</h3>
