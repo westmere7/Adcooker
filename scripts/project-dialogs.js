@@ -1880,34 +1880,67 @@ document.getElementById('menu-help-shortcuts').addEventListener('click', () => {
       .shortcuts-table td { padding: 4px 0; border-bottom: 1px solid var(--border-light); }
       .shortcuts-table tr:last-child td { border-bottom: none; }
       .shortcuts-table b { color: #fff; font-weight: 500; }
+      .shortcuts-table tr.shortcuts-sec td {
+        border-bottom: none; padding: 14px 0 4px; font-size: 10.5px; font-weight: 700;
+        letter-spacing: .06em; text-transform: uppercase; color: var(--text-accent);
+      }
+      .shortcuts-table tr.shortcuts-sec:first-child td { padding-top: 0; }
+      .shortcuts-table td.shortcuts-note { color: var(--text-muted); font-size: 11px; }
     </style>
     <table class="shortcuts-table">
-      <tr><td><b>Save (Cloud)</b> <span style="color:var(--text-muted);">(falls back to local save when signed out)</span></td><td style="text-align: right;"><span class="kbd">⌘ / Ctrl</span> + <span class="kbd">S</span></td></tr>
-      <tr><td><b>Save Project locally (.flow)</b></td><td style="text-align: right;"><span class="kbd">⌘ / Ctrl</span> + <span class="kbd">Shift</span> + <span class="kbd">S</span></td></tr>
+      <tr class="shortcuts-sec"><td colspan="2">Saving &amp; history</td></tr>
+      <tr><td><b>Save to Cloud</b> <span style="color:var(--text-muted);">(warns if you're signed out — nothing is written locally)</span></td><td style="text-align: right;"><span class="kbd">⌘ / Ctrl</span> + <span class="kbd">S</span></td></tr>
+      <tr><td><b>Save to browser database</b> <span style="color:var(--text-muted);">(silent IndexedDB force-save)</span></td><td style="text-align: right;"><span class="kbd">⌘ / Ctrl</span> + <span class="kbd">Shift</span> + <span class="kbd">S</span></td></tr>
+      <tr><td><b>Undo</b></td><td style="text-align: right;"><span class="kbd">⌘ / Ctrl</span> + <span class="kbd">Z</span></td></tr>
+      <tr><td><b>Redo</b></td><td style="text-align: right;"><span class="kbd">⇧</span> + <span class="kbd">⌘ / Ctrl</span> + <span class="kbd">Z</span></td></tr>
+
+      <tr class="shortcuts-sec"><td colspan="2">Selection &amp; editing</td></tr>
       <tr><td><b>Copy Elements</b></td><td style="text-align: right;"><span class="kbd">⌘ / Ctrl</span> + <span class="kbd">C</span></td></tr>
       <tr><td><b>Cut Elements</b></td><td style="text-align: right;"><span class="kbd">⌘ / Ctrl</span> + <span class="kbd">X</span></td></tr>
       <tr><td><b>Paste Elements</b></td><td style="text-align: right;"><span class="kbd">⌘ / Ctrl</span> + <span class="kbd">V</span></td></tr>
-      <tr><td><b>Paste in Place</b></td><td style="text-align: right;"><span class="kbd">⇧ Shift</span> + <span class="kbd">⌘ / Ctrl</span> + <span class="kbd">V</span></td></tr>
+      <tr><td><b>Paste in Place</b> <span style="color:var(--text-muted);">(keeps the relative position on another canvas)</span></td><td style="text-align: right;"><span class="kbd">⇧ Shift</span> + <span class="kbd">⌘ / Ctrl</span> + <span class="kbd">V</span></td></tr>
       <tr><td><b>Duplicate Elements</b></td><td style="text-align: right;"><span class="kbd">⌘ / Ctrl</span> + <span class="kbd">D</span></td></tr>
+      <tr><td><b>Delete Elements</b> <span style="color:var(--text-muted);">(also deletes selected assets)</span></td><td style="text-align: right;"><span class="kbd">⌫</span> <span class="kbd">Del</span></td></tr>
+      <tr><td><b>Nudge 1 Pixel</b></td><td style="text-align: right;"><span class="kbd">←</span> <span class="kbd">↑</span> <span class="kbd">↓</span> <span class="kbd">→</span></td></tr>
+      <tr><td><b>Nudge 10 Pixels</b></td><td style="text-align: right;"><span class="kbd">⇧ Shift</span> + <span class="kbd">← ↑ ↓ →</span></td></tr>
+      <tr><td><b>Deselect / Exit Modes</b> <span style="color:var(--text-muted);">(group isolation, FX isolation, preview, modals)</span></td><td style="text-align: right;"><span class="kbd">Esc</span></td></tr>
+
+      <tr class="shortcuts-sec"><td colspan="2">Layers</td></tr>
       <tr><td><b>Group Elements</b></td><td style="text-align: right;"><span class="kbd">⌘ / Ctrl</span> + <span class="kbd">G</span></td></tr>
       <tr><td><b>Ungroup Elements</b></td><td style="text-align: right;"><span class="kbd">⇧</span> + <span class="kbd">⌘ / Ctrl</span> + <span class="kbd">G</span></td></tr>
+      <tr><td><b>Lock selected Layers</b></td><td style="text-align: right;"><span class="kbd">⌘ / Ctrl</span> + <span class="kbd">2</span></td></tr>
+      <tr><td><b>Unlock selected Layers</b></td><td style="text-align: right;"><span class="kbd">⇧</span> + <span class="kbd">⌘ / Ctrl</span> + <span class="kbd">2</span></td></tr>
       <tr><td><b>Bring Layer Forward</b></td><td style="text-align: right;"><span class="kbd">⌘ / Ctrl</span> + <span class="kbd">]</span></td></tr>
       <tr><td><b>Send Layer Backward</b></td><td style="text-align: right;"><span class="kbd">⌘ / Ctrl</span> + <span class="kbd">[</span></td></tr>
-      <tr><td><b>Undo</b></td><td style="text-align: right;"><span class="kbd">⌘ / Ctrl</span> + <span class="kbd">Z</span></td></tr>
-      <tr><td><b>Redo</b></td><td style="text-align: right;"><span class="kbd">⇧</span> + <span class="kbd">⌘ / Ctrl</span> + <span class="kbd">Z</span></td></tr>
-      <tr><td><b>Outline Mode</b></td><td style="text-align: right;"><span class="kbd">⌘ / Ctrl</span> + <span class="kbd">Y</span></td></tr>
-      <tr><td><b>Delete Elements</b></td><td style="text-align: right;"><span class="kbd">⌫</span> <span class="kbd">Del</span></td></tr>
+
+      <tr class="shortcuts-sec"><td colspan="2">Tools</td></tr>
+      <tr><td><b>Select Tool</b> (standard arrow cursor)</td><td style="text-align: right;"><span class="kbd">V</span></td></tr>
+      <tr><td><b>Zoom Tool</b> (hold <span class="kbd">Alt</span> to zoom out)</td><td style="text-align: right;"><span class="kbd">Z</span></td></tr>
+      <tr><td><b>Text Tool</b> (click the canvas to place a text layer)</td><td style="text-align: right;"><span class="kbd">T</span></td></tr>
+
+      <tr class="shortcuts-sec"><td colspan="2">View</td></tr>
+      <tr><td><b>Pan Workspace</b></td><td style="text-align: right;">Hold <span class="kbd">Space</span> + Drag</td></tr>
+      <tr><td><b>Toggle Rulers &amp; Guides</b></td><td style="text-align: right;"><span class="kbd">⌘ / Ctrl</span> + <span class="kbd">R</span></td></tr>
+      <tr><td><b>Toggle Outline Mode</b></td><td style="text-align: right;"><span class="kbd">⌘ / Ctrl</span> + <span class="kbd">Y</span></td></tr>
+      <tr><td><b>Toggle Fullscreen</b></td><td style="text-align: right;"><span class="kbd">Tab</span></td></tr>
+      <tr><td><b>Full Mode for the panel under the cursor</b></td><td style="text-align: right;">Hover a panel + <span class="kbd">\`</span></td></tr>
+
+      <tr class="shortcuts-sec"><td colspan="2">Timeline</td></tr>
+      <tr><td><b>Play / Stop this frame's animations</b></td><td style="text-align: right;">Tap <span class="kbd">Space</span></td></tr>
+      <tr><td><b>Move an IN / OUT / FX bar</b></td><td style="text-align: right;">Drag the bar</td></tr>
+      <tr><td><b>Retime an IN / OUT / FX bar</b></td><td style="text-align: right;">Drag either edge</td></tr>
+      <tr><td><b>Move / retime every selected layer at once</b></td><td style="text-align: right;">Multi-select rows, then drag one bar</td></tr>
+      <tr><td><b>Isolate an FX bar for editing</b></td><td style="text-align: right;">Click its striped bar (layer already selected)</td></tr>
+      <tr><td><b>Leave FX isolation</b></td><td style="text-align: right;"><span class="kbd">Esc</span> or click away</td></tr>
+      <tr><td><b>Change an IN / OUT / FX preset</b></td><td style="text-align: right;">Click the row's IN / OUT / FX chip</td></tr>
+      <tr><td><b>Reorder timeline rows</b> (display only)</td><td style="text-align: right;">Drag a row label</td></tr>
+
+      <tr class="shortcuts-sec"><td colspan="2">Mouse &amp; modifiers</td></tr>
       <tr><td><b>Duplicate on Drag</b></td><td style="text-align: right;">Hold <span class="kbd">Alt</span> while dragging</td></tr>
       <tr><td><b>Scale Font Size</b></td><td style="text-align: right;">Hold <span class="kbd">Alt</span> + Resize handle</td></tr>
       <tr><td><b>Constrain Drag / Aspect Ratio</b></td><td style="text-align: right;">Hold <span class="kbd">⇧ Shift</span> while dragging / resizing</td></tr>
       <tr><td><b>Snap Resize to 10px</b></td><td style="text-align: right;">Hold <span class="kbd">⌘ / Ctrl</span> while resizing</td></tr>
-      <tr><td><b>Nudge 1 Pixel</b></td><td style="text-align: right;"><span class="kbd">←</span> <span class="kbd">↑</span> <span class="kbd">↓</span> <span class="kbd">→</span></td></tr>
-      <tr><td><b>Nudge 10 Pixels</b></td><td style="text-align: right;"><span class="kbd">⇧ Shift</span> + <span class="kbd">← ↑ ↓ →</span></td></tr>
-      <tr><td><b>Pan Workspace</b></td><td style="text-align: right;">Hold <span class="kbd">Space</span> + Drag</td></tr>
-      <tr><td><b>Play / Stop Timeline</b></td><td style="text-align: right;">Tap <span class="kbd">Space</span></td></tr>
-      <tr><td><b>Toggle Rulers & Guides</b></td><td style="text-align: right;"><span class="kbd">⌘ / Ctrl</span> + <span class="kbd">R</span></td></tr>
-      <tr><td><b>Toggle Fullscreen</b></td><td style="text-align: right;"><span class="kbd">Tab</span></td></tr>
-      <tr><td><b>Deselect / Exit Modes</b></td><td style="text-align: right;"><span class="kbd">Esc</span></td></tr>
+      <tr><td><b>Add to / range-select Layers</b></td><td style="text-align: right;"><span class="kbd">⌘ / Ctrl</span> or <span class="kbd">⇧ Shift</span> + click</td></tr>
       <tr><td><b>Context Menu</b></td><td style="text-align: right;">Right-click Canvas or Element</td></tr>
       <tr><td><b>Edit Text Inline</b></td><td style="text-align: right;">Double-click text element</td></tr>
       <tr><td><b>Select Inside Group</b></td><td style="text-align: right;">Double-click grouped element</td></tr>
@@ -1922,7 +1955,7 @@ document.getElementById('menu-help-shortcuts').addEventListener('click', () => {
 
 
 function checkVersionUpdate() {
-  const currentVersion = 'v0.34.5';
+  const currentVersion = 'v0.34.6';
   const lastSeen = localStorage.getItem('last-seen-version');
   
   if (!lastSeen) {
@@ -1973,7 +2006,7 @@ function checkVersionUpdate() {
 
 
 document.getElementById('menu-about').addEventListener('click', () => {
-  const currentVersion = 'v0.34.5';
+  const currentVersion = 'v0.34.6';
   const body = `
       <div style="font-size:13px; line-height:1.75; color:var(--text-main); font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
         <p style="margin: 0 0 16px 0;"><strong>RMIT Adflow</strong> is a specialized, lightweight HTML5 display advertisement creation and automation platform. Designed to eliminate the overhead and complexities of legacy ad builders, Adflow offers a fast, precise, and visual environment for building, validating, and exporting high-performance advertising creatives.</p>
@@ -2148,7 +2181,7 @@ function openSettings() {
           <div class="modal-head" style="border-bottom:1px solid var(--border-light); background:var(--bg-panel); flex-shrink:0;">
             <div style="display:flex; align-items:center; gap:12px; flex:1;">
               <h2 style="margin:0; font-size:14px; font-weight:600; color:var(--text-bright);">Settings</h2>
-              <span style="font-size:11px; color:var(--text-muted);">v0.34.5</span>
+              <span style="font-size:11px; color:var(--text-muted);">v0.34.6</span>
               <button id="settings-changelog" class="btn" style="padding:4px 8px; font-size:10px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; cursor:pointer;">Changelog</button>
             </div>
             <button class="btn" id="settings-close">Close</button>

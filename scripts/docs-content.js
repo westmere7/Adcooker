@@ -42,11 +42,14 @@ const DOCS_SECTIONS = [
           <li style="margin-bottom: 8px;"><b>Deterministic Auto-Resize</b>: Build one format, and automatically generate your entire size set. The engine uses a 9-role heuristics taxonomy to reposition and wrap copy automatically.</li>
           <li style="margin-bottom: 8px;"><b>Live-Link Groups</b>: Bidirectionally sync copy, styles, typography, and background treatments across canvases in real-time, or choose specific properties to sync/unlink.</li>
           <li style="margin-bottom: 8px;"><b>Spreadsheet Data Merge</b>: Build version sheets inline or upload CSV files. Map column headers directly to dynamic slot-bound canvas layers to auto-generate version variations.</li>
-          <li style="margin-bottom: 8px;"><b>Frame-Based Animations</b>: Sequence multi-frame banners and apply entering transitions or Animation FX presets without manual timeline keyframing complexity.</li>
+          <li style="margin-bottom: 8px;"><b>Frame-Based Animations</b>: Sequence multi-frame banners and apply entering transitions, exits or Animation FX presets without manual keyframing complexity.</li>
+          <li style="margin-bottom: 8px;"><b>Drag-to-Retime Timeline</b>: A sequencer along the bottom of the workspace shows every layer's IN, OUT and FX spans as bars you can drag, resize, and retime several layers at a time — with a Play button that replays the frame using the exported ad's own animation code.</li>
           <li style="margin-bottom: 8px;"><b>Built-in Image Compressor</b>: Compress and convert JPEG/PNG assets to WebP, JPEG, or PNG depending on project configuration to meet strict ad network weight targets (150 KB standard).</li>
           <li style="margin-bottom: 8px;"><b>Layer-Based Vector Masking</b>: Use any vector shape layer (rectangles, circles, custom brand SVG pixels) to non-destructively mask images below using clean CSS clip-path logic.</li>
           <li style="margin-bottom: 8px;"><b>Supabase Team Spaces</b>: Collaborate with teammates, organize work in folders, and manage project backups with full Row-Level Security and invitation URLs.</li>
           <li style="margin-bottom: 8px;"><b>Pre-Flight Audit & Export</b>: Package ready-to-run compliant ZIP bundles. Adflow validates clicktags and asset constraints automatically.</li>
+          <li style="margin-bottom: 8px;"><b>Batch Operation Portal</b>: Hand a template to another team and let them produce the whole pack themselves — open template, import data sheet, export every version, in three steps and no editor knowledge.</li>
+          <li style="margin-bottom: 8px;"><b>Preview Portal</b>: A dedicated review page for stepping through every size, frame and data version — and for playing up to 10 standalone HTML5 ads built outside Adflow side by side.</li>
         </ul>
         <div style="font-size: 11.5px; color: var(--text-muted); opacity: 0.8; border-top: 1px solid var(--border-light); padding-top: 8px; margin-top: 16px;"><b>General Tips:</b> Combine <i>Data Merge</i> with <i>Link Groups</i> to update a specific copy element across all formats and all dynamic rows simultaneously.</div>
       `},
@@ -76,6 +79,7 @@ const DOCS_SECTIONS = [
       { id: 'workspace-intro', title: 'Introduction', body: `
         <p>Adflow's Workspace is an infinite, multi-canvas panning board designed to host and organize your entire display ad set side-by-side. Instead of treating each ad size as a separate project file, this workspace maps all canvases onto a single layout viewport, letting you pan with <span class="kbd">Space</span>+drag and scroll with the wheel to zoom.</p>
         <p>The workspace comes equipped with precision alignment guides, coordinate rules, and real-time bounding safezone overlays. These layout aids guarantee that creative components adhere strictly to legal requirements and visual guidelines across both landscape and portrait dimensions.</p>
+        <p>Along the bottom sits the <a href="#" data-doc-sec="animation" data-doc-sub="timeline" style="color:var(--text-accent); font-weight: 500;">Timeline</a> — a collapsible sequencer showing the active frame's animations as draggable bars. Click its header to expand or collapse it; the choice is remembered.</p>
         <p><b>Adflow's Advantage:</b> In legacy visual editors, adjusting different banner aspect ratios requires opening multiple application tabs, leading to mismatched copy and inconsistent layouts. Adflow places every target canvas side-by-side, allowing creative teams to verify layout alignments, compare formats, and coordinate updates instantly across the entire campaign.</p>
         <div style="font-size: 11.5px; color: var(--text-muted); opacity: 0.8; border-top: 1px solid var(--border-light); padding-top: 8px; margin-top: 16px;"><b>General Tips:</b> Use custom horizontal and vertical guides by dragging directly from the viewport rulers onto a focused canvas. Toggle the Safezone overlay to ensure critical call-to-actions and legal CRICOS text stay clear of format edges, preventing cut-offs on display networks.</div>
       `},
@@ -166,25 +170,54 @@ const DOCS_SECTIONS = [
     subs: [
       { id: 'animation-intro', title: 'Introduction', body: `
         <p>Adflow's Animation suite sequences multi-frame narratives and applies entering transitions or Animation FX motion to layout layers. You can define sequential frames with distinct durations, adjust frame entrance styles, and apply staggered delays to establish visual pacing.</p>
-        <p>Animations are split between per-element entrance transitions (which play once when a frame enters) and Animation FX (which play continuously while the frame remains active). This dual-layer motion model lets you create rich, dynamic banner advertisements with zero keyframing complexity.</p>
-        <p><b>Adflow's Advantage:</b> Legacy animation tools force designers to construct complex keyframe timelines for every single canvas element. Adflow abstracts this complexity: you can apply transitions like swipes, slides, or zooms, and configure Animation FX like floating, pulsing, or typing using simple dropdown presets.</p>
+        <p>Animations are split into four independent categories, each with its own on/off toggle in the Animation panel header: <b>IN</b> (entrance, plays once as the frame appears), <b>OUT</b> (exit, plays at the end of the element's time on the frame), <b>FX</b> (Animation FX, which run continuously while the frame is active), and <b>TRANS</b> (the frame's own entering transition). Turning a category off remembers its settings, so switching it back on restores exactly what you had.</p>
+        <p>The <b>Timeline</b> panel at the bottom of the workspace shows all three per-element categories as draggable bars, so you can retime an entrance, an exit and an effect by eye instead of typing numbers into the panel. Both surfaces edit the same values — use whichever is quicker.</p>
+        <p><b>Adflow's Advantage:</b> Legacy animation tools force designers to construct complex keyframe timelines for every single canvas element. Adflow abstracts this complexity: you can apply transitions like swipes, slides, or zooms, and configure Animation FX like floating, pulsing, or typing using simple dropdown presets — then fine-tune the timing on the timeline.</p>
         <div style="font-size: 11.5px; color: var(--text-muted); opacity: 0.8; border-top: 1px solid var(--border-light); padding-top: 8px; margin-top: 16px;"><b>General Tips:</b> Stagger layer delays (e.g., 0.2s, 0.4s, 0.6s) for element entrance transitions to build sequential visual narratives instead of animating all layers simultaneously. Toggle the 'Skip Frame' check to test specific portions of your frame sequence in isolation.</div>
       `},
       { id: 'frames-timeline', title: 'Frames & sequencing', body: `
         <p>Add frames using the frame controls. Each frame has its own duration (seconds). Toggle global <b>Loop</b> to repeat the sequence loop.</p>
         <p><b>Skip frame:</b> mark a frame as skipped to hide it in preview/export (max 1 skipped frame).</p>
+        <p><b>Single-frame loops:</b> a one-frame ad with Loop on still re-animates — the exported runtime restarts the frame each cycle, replaying every entrance (and the frame transition, if you set one). Useful for animated email signatures and similar always-on placements.</p>
+      `},
+      { id: 'timeline', title: 'Timeline (sequencer)', body: `
+        <p>The <b>Timeline</b> sits along the bottom of the workspace and lays out the animations of the <b>active canvas and frame</b>. Click its header bar to expand or collapse it — the state is remembered between sessions. The header also shows which canvas and frame you're looking at, the frame's duration, and the current grid step.</p>
+        <p>Each row is one layer, ordered like the Layers panel (topmost first). By default only layers that actually have an animation get a row; switch on <b>Show all elements</b> in the timeline's ⚙ settings to list everything on the frame.</p>
+        <p><b>The three bars.</b> Every row's track can show up to three bars, all on the same time axis:</p>
+        <ul>
+          <li><b>IN</b> — the entrance. Its position is the animation's delay; its length is its duration.</li>
+          <li><b>OUT</b> — the exit. It starts after the element appears, so moving the IN bar carries the OUT bar with it.</li>
+          <li><b>FX</b> — the Animation FX span, drawn as white diagonal stripes across the row's full height so it stays readable even where it sits under IN or OUT. The stripes drift slowly on the selected layer only. An FX effect set to loop forever runs to the end of the track.</li>
+        </ul>
+        <p><b>Editing.</b> Drag a bar to move it, or drag either edge to retime it. A tooltip follows the pointer showing the exact start → end while you drag. Everything snaps to the grid step (0.1s by default), and every edit is a normal undoable change that propagates through Link Groups exactly as the Animation panel's own fields do.</p>
+        <ul>
+          <li><b>Presets:</b> click a row's <b>IN</b>, <b>OUT</b> or <b>FX</b> chip to pick a preset — the same lists the Animation panel offers, with the same hover-to-preview. Picking a real preset also switches that category on. OUT is unavailable until IN is enabled.</li>
+          <li><b>Several layers at once:</b> multi-select rows (<span class="kbd">Ctrl</span> to add, <span class="kbd">Shift</span> for a range), then drag any one of their bars — every selected layer moves or resizes by the same amount, and the drag is clamped so no layer crosses zero.</li>
+          <li><b>Row order:</b> drag a row label to reorder rows. This affects the timeline's display only, not the layer stack.</li>
+          <li><b>Hover:</b> hovering a row outlines that element on the canvas, so you can tell which bar belongs to what.</li>
+        </ul>
+        <p><b>FX edit mode (isolating an FX bar).</b> Because an FX span often lies underneath the IN and OUT bars, a thin strip along the bottom of the FX bar stays grabbable at all times — so you can drag FX anywhere along its length even where those bars cover it. <b>Click</b> that strip on a layer that is already selected to <b>isolate</b> the FX bar, the timeline's equivalent of stepping inside a group on the canvas: the IN and OUT bars fade back and stop responding, and the whole FX bar becomes draggable with resize handles of its own. Press <span class="kbd">Esc</span> or click anywhere else to leave. IN and OUT stay fully grabbable whenever no FX bar is isolated, and the row's chips keep working while one is.</p>
+        <p><b>Play.</b> The <b>▶ Play</b> button (or tapping <span class="kbd">Space</span>) replays the current frame's animations in place on the editor canvas, using the very same animation code the export generates — so what you see is what ships. It deliberately does not advance to the next frame; use the full Preview for that.</p>
+        <p><b>Frame duration follows the animations.</b> If you drag an animation past the end of the frame, the frame's duration extends to fit and a notice tells you. Pull it back in and the duration shrinks again, but never below whatever it was before the timeline extended it. The stretch of track beyond the frame's end is shaded so you can see when you're over.</p>
+        <p><b>Settings (⚙).</b> Choose the grid step (0.1s – 0.5s) and toggle <b>Show all elements</b>. Moving to a <i>coarser</i> grid re-snaps every animation timing on the current canvas and frame, so Adflow asks first.</p>
       `},
       { id: 'frame-transitions', title: 'Frame transitions', body: `
-        <p>Set how each frame enters: <b>Fade</b>, <b>Slide</b> (4 directions), <b>Swipe</b> (4 directions — a directional wipe that reveals the next frame). Slide and Swipe also offer an <b>Add Fade</b> toggle and adjustable duration.</p>
+        <p>Set how each frame enters: <b>Fade</b>, <b>Slide</b> (4 directions), <b>Swipe</b> (4 directions — a directional wipe that reveals the next frame), <b>Zoom in</b> / <b>Zoom out</b>. Slide and Swipe also offer an <b>Add Fade</b> toggle and adjustable duration.</p>
+        <p>A transition can play on any frame that something actually enters from: a later frame, or <i>any</i> frame — including a lone single frame — when Loop is on. It is greyed out only for a single static frame with Loop off.</p>
       `},
       { id: 'entrance-animations', title: 'Entrance animations', body: `
-        <p>Per-element IN animations played when a frame begins: Pop-in, Fade, Slide, Blur, Typing. Each has duration, delay, and configuration settings (such as blur radius or fade toggle depending on the preset). Stagger them by adjusting delays.</p>
+        <p>Per-element IN animations play when a frame begins: <b>Fade In</b>, <b>Slide</b>, <b>Swipe</b>, <b>Zoom</b>, <b>Split</b>, <b>Blur</b>, plus two text-only presets — <b>Typing</b> and <b>Rise</b>. Each has a duration and delay, and preset-specific settings (direction, blur radius, an added fade, and so on). Stagger the delays to build a sequence rather than animating everything at once.</p>
+        <p><b>Rise</b> and <b>Typing</b> break the text into pieces and animate them in turn — Rise can split by letters, words or visual lines and optionally fade each piece in. Because both are driven by that split markup, they preview, play on the timeline, and export through exactly the same builder, so all three look identical.</p>
+        <p>The same preset list appears in the Animation panel and in the timeline's IN chip; they read from one shared registry, so a preset can never appear in one place and not the other.</p>
       `},
       { id: 'exit-animations', title: 'Exit animations', body: `
-        <p>Per-element OUT animations play at the end of the element's active time on a frame: Fade Out, Slide, Swipe, Zoom, Blur. The exit animation starts after the configured <b>after</b> delay. This timer automatically includes the entrance (IN) animation delay, ensuring the element remains fully visible for the specified duration before exiting.</p>
+        <p>Per-element OUT animations play at the end of the element's active time on a frame: <b>Fade Out</b>, <b>Slide</b>, <b>Swipe</b>, <b>Zoom</b>, <b>Blur</b>. The exit starts after the configured <b>after</b> delay. That timer automatically includes the entrance (IN) delay, so the element stays fully visible for the time you specify, counted from when it actually appears rather than from the start of the frame.</p>
+        <p>OUT requires IN to be enabled — an element with no entrance can't have an exit. Exits don't apply to persistent (Always Top / Always Bottom) layers, which never leave. Sync OUT across a Link Group with the group's <b>OUT Animation</b> property.</p>
       `},
       { id: 'continuous-effects', title: 'Animation FX', body: `
-        <p>Animation FX are looping, non-destructive effects that overlay on top of the frame state: Pan, Zoom, Float, Pulse, Wiggle, Spin, Heartbeat, Flash. Toggle <b>Perform once</b> to play a single cycle instead of looping.</p>
+        <p>Animation FX are looping, non-destructive effects that overlay on top of the frame state: <b>Pulse</b>, <b>Float</b>, <b>Flash</b>, <b>Wiggle</b>, <b>Spin</b>, <b>Heartbeat</b>, <b>Move</b>, <b>Zoom</b>. Toggle <b>Perform once</b> to play a single cycle instead of looping.</p>
+        <p>On a masked image the effect is applied to the mask wrapper while the image beneath receives the inverse motion, which keeps the photo itself stationary inside a moving mask.</p>
+        <p>Set the FX delay and duration numerically in the Animation panel, or drag the striped FX bar on the <a href="#" data-doc-sec="animation" data-doc-sub="timeline" style="color:var(--text-accent); font-weight: 500;">Timeline</a>.</p>
       `},
     ]
   },
@@ -284,6 +317,8 @@ const DOCS_SECTIONS = [
       `},
       { id: 'export-all-versions', title: 'Export all versions', body: `
         <p><b>Export All Versions</b> produces one folder per row, named from the version-name column, each containing the full compliant ZIP set through the standard export pipeline.</p>
+        <p>The button sits at the <b>top of the panel's left column</b> and is deliberately the largest control there — producing the export is what the panel is for.</p>
+        <p>If the merge work belongs to another team, hand them a template instead and let them run it themselves from the <a href="#" data-doc-sec="portals" data-doc-sub="batch-portal" style="color:var(--text-accent); font-weight: 500;">Batch Operation portal</a>, which uses this same panel and the same export pipeline.</p>
       `},
     ]
   },
@@ -306,6 +341,8 @@ const DOCS_SECTIONS = [
       { id: 'cloud-projects', title: 'Cloud Projects', body: `
         <p>When signed in, click the chip → <b>My Cloud Projects</b>. Push the current project to the cloud, open one back, or delete. Cloud projects use the same <code>.flow</code> format as local saves, so nothing needs re-importing.</p>
         <p><b>Same-name push:</b> if a project with the same name already exists in the current context, a toast appears with <b>Replace</b> (overwrite) and <b>Rename</b> (push as a new project with a different name).</p>
+        <p><b>Revert to Cloud Version</b> (File menu, under Save) re-downloads the last cloud-saved copy of the open project and loads it, discarding local changes. It confirms first, showing when that cloud save was made. Only available when signed in; a project that has never been pushed says there's nothing to revert to.</p>
+        <p><b>A save is always what you get back.</b> Project files are stored and read with caching disabled, so saving over an existing cloud project and reopening it hands back that save — never an older copy. The same guarantee covers Revert, duplicating a space, and refreshing a share link's snapshot.</p>
       `},
       { id: 'spaces', title: 'Spaces (team workspaces)', body: `
         <p>Spaces are shared pools. The chip dropdown lists all spaces you belong to plus "Personal". The current space's name appears next to your email in the top bar.</p>
@@ -384,6 +421,54 @@ const DOCS_SECTIONS = [
     ]
   },
   {
+    id: 'portals', title: 'Portals',
+    subs: [
+      { id: 'portals-intro', title: 'Introduction', body: `
+        <p>Adflow ships two standalone pages alongside the editor, both opened from the <b>File</b> menu and both running entirely in the browser. They exist so people who don't design ads never have to learn the editor to do their part of the job.</p>
+        <ul>
+          <li><b>Preview Portal</b> — a review surface. Step through every banner size, frame and data version of a project, or examine a third-party HTML5 ad that wasn't built in Adflow at all.</li>
+          <li><b>Batch Operation</b> — a production surface for other teams. Open a certified Adflow template, drop in a data sheet, export the whole pack.</li>
+        </ul>
+        <p>Both portals load the editor's own stylesheet and its shared render engine, so they can't drift from what the editor shows — and neither uploads anything.</p>
+        <div style="font-size: 11.5px; color: var(--text-muted); opacity: 0.8; border-top: 1px solid var(--border-light); padding-top: 8px; margin-top: 16px;"><b>General Tips:</b> Both portals accept drag-and-drop anywhere on the page, which is usually faster than the file picker. Send colleagues the portal link rather than the editor's — they get exactly the controls they need and nothing they don't.</div>
+      `},
+      { id: 'preview-portal', title: 'Preview Portal', body: `
+        <p><b>File → Preview Portal…</b> opens the review page on its own, with nothing loaded. From the empty prompt you can <b>Open Adflow Project…</b> (a <code>.flow</code> file) or <b>Open HTML5 Ad (.zip)…</b>, or drop either kind anywhere on the page. Cloud projects are deliberately not offered here — this is a local-file tool.</p>
+        <p>With an Adflow project open, the sidebar gives you:</p>
+        <ul>
+          <li><b>Playback</b> — <b>Animated</b> or <b>Static only</b>, <b>Restart Timeline</b>, and a <b>Loop timeline</b> override that affects the preview only, never the exported ad's own loop setting.</li>
+          <li><b>Frame Select</b> — <i>All frames</i>, or jump to and play any single frame across every size at once.</li>
+          <li><b>Data Version</b> — step through the merge rows and see every size update live (shown only when the project has a data sheet).</li>
+          <li><b>Banners Sizes</b> — tick which sizes to show, with Select All / Clear All, plus a per-banner KB estimate.</li>
+          <li><b>Presentation Grid / BG</b> — a real Adflow theme for the backdrop (Adflow, Obsidian, Nordic, Light), and a separate checkered option you can layer over any of them for reviewing ads with transparent edges.</li>
+        </ul>
+        <p>Each banner card carries its own <b>Restart</b> and <b>Download HTML5</b> buttons; <b>Download All (.zip)</b> in the header packages every visible size at once.</p>
+        <p><b>Share links</b> open this same page pointed at a snapshot in the cloud — see <a href="#" data-doc-sec="cloud-spaces" data-doc-sub="cloud-projects" style="color:var(--text-accent); font-weight: 500;">Cloud &amp; Spaces</a>. When a link is open, <b>Update Preview</b> re-fetches the latest snapshot. An expired link now says so and still lets you open a file instead of dead-ending.</p>
+      `},
+      { id: 'external-ads', title: 'Reviewing non-Adflow HTML5 ads', body: `
+        <p>The Preview Portal can also review a <b>standalone HTML5 ad built outside Adflow</b> — anything supplied as a zip containing an <code>index.html</code> plus its assets. Use <b>Open HTML5 Ad (.zip)…</b>, or drop the zips on the page.</p>
+        <p><b>Up to 10 ads at once</b>, laid out side by side exactly the way banner sizes are, so you can compare a whole set in one view. <b>+ Add Ad (.zip)</b> adds more to what's already open (the counter shows how many slots are left).</p>
+        <p>Each zip is unpacked and folded into a single self-contained page: stylesheets and scripts are inlined, and every image, font and media reference is rewritten — including ones the ad's own JavaScript loads by name — so it plays with no server and nothing uploaded.</p>
+        <p><b>Ad size</b> is read from the standard <code>ad.size</code> meta tag, falling back to a <code>300x250</code>-style hint in the file name. If neither is present the ad is shown at 300×250 and flagged, and you can correct the dimensions per ad in the sidebar (the label tells you where the current size came from).</p>
+        <p><b>Controls</b> are limited to what genuinely applies to someone else's ad:</p>
+        <ul>
+          <li><b>Restart All</b> — remounts every ad from the start.</li>
+          <li><b>Loop</b> + <b>Replay every N sec</b> — Adflow can't read a third-party ad's timeline, so Loop simply reloads them all on the interval you set.</li>
+          <li><b>Per-ad Restart and Remove</b>, from the sidebar row or the ad's own card footer.</li>
+        </ul>
+        <p>Adflow's timeline, frame and data-version controls are hidden in this mode, since they can't reach inside a third-party ad. Opening an Adflow project swaps back to the full control set — the two modes never mix.</p>
+      `},
+      { id: 'batch-portal', title: 'Batch Operation portal', body: `
+        <p><b>File → Batch Operation…</b> opens a page built for teams who need to produce ad packs from a template without learning the editor. It opens straight into its workspace — no start-up screen — and walks through three numbered steps in the sidebar.</p>
+        <p><b>1 · Template.</b> <b>Open Template File…</b> (or drop a <code>.flow</code> anywhere on the page). Only genuine Adflow <b>templates</b> are accepted — files saved from the editor via <b>File ▸ Save ▸ Save template</b>. Ordinary project files are declined with an explanation, so teams always start from a vetted base. Templates opened before are remembered on that machine and offered on the empty prompt for one-click reopening.</p>
+        <p><b>2 · Data Sheet.</b> <b>Download Sheet Template</b> gives you a CSV already carrying this template's column headers; fill it in, then <b>Import Data Sheet…</b> to bring it back — one ad version per row. <b>Edit Data &amp; Versions…</b> opens the same Data &amp; Versions panel the editor uses, so rows can be reviewed and corrected in place, with live banner previews per version. Importing a sheet whose headers have been renamed warns immediately rather than silently exporting default content.</p>
+        <p><b>3 · Export.</b> One click produces every data version × every ticked banner size, packed into a single ZIP with one folder per version, through the standard export pipeline — the same output the editor produces.</p>
+        <p>Alongside the three steps the sidebar keeps playback controls (Animated / Static only, Restart Timeline, Loop timeline), the data-version stepper, and the banner-size checklist. There is deliberately no frame picker (the grid always plays whole ads) and no appearance controls — the portal always renders in the standard Adflow theme so it can't drift from the editor.</p>
+        <p>A file the portal can't accept reports the problem in place: on the empty prompt as a short message under the heading, with the button becoming <b>Try another file</b>; if you already have a template open it arrives as a notice and your work stays on screen untouched.</p>
+      `},
+    ]
+  },
+  {
     id: 'reference', title: 'Reference',
     subs: [
       { id: 'reference-intro', title: 'Introduction', body: `
@@ -397,31 +482,39 @@ const DOCS_SECTIONS = [
           <thead><tr><th style="text-align:left; padding:6px 8px; border-bottom:1px solid var(--border-light);">Shortcut</th><th style="text-align:left; padding:6px 8px; border-bottom:1px solid var(--border-light);">Action</th></tr></thead>
           <tbody>
           ${[
-            ['Ctrl + S','Save to cloud (requires sign in)'],
+            ['Ctrl + S','Save to cloud (requires sign in — warns instead of saving locally when signed out)'],
             ['Ctrl + Shift + S','Save project silently to browser database (IndexedDB)'],
-            ['Ctrl + C / X / V','Copy / Cut / Paste'],
-            ['Ctrl + D','Duplicate selected'],
             ['Ctrl + Z / Ctrl + Shift + Z','Undo / Redo'],
-            ['Ctrl + Y','Toggle Outline Mode'],
-            ['Ctrl + G / Shift + G','Group / Ungroup'],
+            ['Ctrl + C / X / V','Copy / Cut / Paste'],
+            ['Ctrl + Shift + V','Paste in place (keeps the relative position on another canvas)'],
+            ['Ctrl + D','Duplicate selected'],
+            ['Delete / Backspace','Delete selected elements — or selected assets'],
+            ['Ctrl + G / Ctrl + Shift + G','Group / Ungroup'],
+            ['Ctrl + 2 / Ctrl + Shift + 2','Lock / Unlock selected layers'],
             ['Ctrl + ] / [','Layer order forward / back'],
-            ['Space + Drag','Pan workspace'],
-            ['Delete / Backspace','Delete selected'],
-            ['Tab','Toggle Fullscreen'],
-            ['V','Select Tool (standard arrow cursor)'],
-            ['Z','Zoom Tool (magnifying glass cursor)'],
             ['Arrow keys','Nudge 1px'],
             ['Shift + Arrows','Nudge 10px'],
+            ['V','Select Tool (standard arrow cursor)'],
+            ['Z','Zoom Tool (hold Alt to zoom out)'],
+            ['T','Text Tool — click the canvas to place a text layer'],
+            ['Space + Drag','Pan workspace'],
+            ['Space (tap)','Play / stop the current frame’s animations'],
+            ['Ctrl + R','Toggle rulers &amp; guides'],
+            ['Ctrl + Y','Toggle Outline Mode'],
+            ['Tab','Toggle Fullscreen'],
+            ['` (backtick)','Full Mode for the panel under the cursor'],
             ['Shift + Drag corner','Lock aspect ratio'],
             ['Alt + Drag','Clone element on drag'],
             ['Alt + Resize handle','Scale font proportionally'],
             ['Ctrl + Resize','Snap dimensions to 10px'],
+            ['Ctrl / Shift + click layer','Add to selection / select the range'],
             ['Double-click text','Inline edit'],
-            ['Double-click group','Isolate & edit inside'],
-            ['Escape','Deselect / close modal']
-          ].map(([k,v]) => `<tr><td style="padding:5px 8px; border-bottom:1px solid var(--border-light);"><span class="kbd">${k}</span></td><td style="padding:5px 8px; border-bottom:1px solid var(--border-light); color:var(--text-muted);">${v}</td></tr>`).join('')}
+            ['Double-click group','Isolate &amp; edit inside'],
+            ['Escape','Deselect, leave group or FX isolation, close modal']
+          ].map(([k,v]) => `<tr><td style="padding:5px 8px; border-bottom:1px solid var(--border-light); white-space:nowrap;"><span class="kbd">${k}</span></td><td style="padding:5px 8px; border-bottom:1px solid var(--border-light); color:var(--text-muted);">${v}</td></tr>`).join('')}
           </tbody>
         </table>
+        <p style="margin-top:14px;">Timeline drags have no key equivalents: drag a bar to move it, drag either edge to retime it, drag a row label to reorder rows, and click a row's IN / OUT / FX chip to change its preset. See <a href="#" data-doc-sec="animation" data-doc-sub="timeline" style="color:var(--text-accent); font-weight: 500;">Timeline</a>.</p>
       `},
       { id: 'changelog-link', title: 'Changelog', body: `
         <p>Click the version label in the bottom-right footer (e.g. <b>v0.16.68</b>) to open the full changelog modal.</p>
@@ -479,7 +572,38 @@ const DOCS_SECTIONS = [
           <li><b>Persistent Layers</b>: Elements placed in the **Always Top** or **Always Bottom** sections of the Layers panel remain visible across all frames and do not trigger entrance animations on frame swaps.</li>
           <li><b>Moving Elements</b>: Drag your layers into the **Main Layers (Frame N)** section of the Layers panel, matching them to the specific frame index where the transition should play.</li>
         </ul>
-        <div style="font-size: 11.5px; color: var(--text-muted); opacity: 0.8; border-top: 1px solid var(--border-light); padding-top: 8px; margin-top: 16px;"><b>General Tips:</b> Adjust the animation duration and delay sliders in the right panel to create staggered visual entries (e.g., header enters at 0s, button enters at 0.3s).</div>
+        <div style="font-size: 11.5px; color: var(--text-muted); opacity: 0.8; border-top: 1px solid var(--border-light); padding-top: 8px; margin-top: 16px;"><b>General Tips:</b> Adjust the animation duration and delay sliders in the right panel to create staggered visual entries (e.g., header enters at 0s, button enters at 0.3s) — or drag the bars on the Timeline, which is usually faster. If a layer has no row on the Timeline it has no animation at all; the timeline's ⚙ <i>Show all elements</i> lists the rest.</div>
+      `},
+      { id: 'faq-timeline-fx', title: 'Retiming an FX effect', body: `
+        <p><b>Question:</b> My element's FX bar is hidden under its IN or OUT bar on the Timeline — how do I move it?</p>
+        <p><b>Answer:</b> The FX bar is always drawn on top as white diagonal stripes, and a thin strip along its bottom edge stays grabbable even where IN or OUT covers it:</p>
+        <ol>
+          <li><b>Just moving it?</b> Drag that strip anywhere along the FX bar's length — the effect slides with it.</li>
+          <li><b>Need to resize it?</b> Select the layer, then <b>click</b> the FX bar to isolate it. The IN and OUT bars fade back and stop responding, and the whole FX bar becomes draggable with resize handles at both ends.</li>
+          <li><b>Done?</b> Press <span class="kbd">Esc</span> or click anywhere else to leave isolation. IN and OUT become grabbable again immediately.</li>
+        </ol>
+        <div style="font-size: 11.5px; color: var(--text-muted); opacity: 0.8; border-top: 1px solid var(--border-light); padding-top: 8px; margin-top: 16px;"><b>General Tips:</b> An FX effect set to loop forever has no end to drag — only its start moves. Give it a fixed duration in the Animation panel first if you need to shorten it. The stripes animate only on the selected layer, so a busy timeline stays calm.</div>
+      `},
+      { id: 'faq-handoff', title: 'Handing work to another team', body: `
+        <p><b>Question:</b> Another team needs to produce ads from my design with their own data. Do they have to learn Adflow?</p>
+        <p><b>Answer:</b> No — give them a template and point them at the Batch Operation portal:</p>
+        <ol>
+          <li><b>Save a template</b>: in the editor, <b>File ▸ Save ▸ Save template</b>. This is what marks the file as a template; the portal declines ordinary project files, so teams always start from a vetted base.</li>
+          <li><b>Send them the file</b> plus the portal link (or tell them <b>File → Batch Operation…</b>).</li>
+          <li><b>They open it</b>, click <b>Download Sheet Template</b> to get a CSV with your column headers already in place, fill in one row per ad version, and <b>Import Data Sheet…</b>.</li>
+          <li><b>They review</b> in the same Data &amp; Versions panel you use, with live previews per version, then hit <b>Export ZIP</b> — every version × every ticked size, one folder per version.</li>
+        </ol>
+        <div style="font-size: 11.5px; color: var(--text-muted); opacity: 0.8; border-top: 1px solid var(--border-light); padding-top: 8px; margin-top: 16px;"><b>General Tips:</b> Map your dynamic slots and name the columns clearly <i>before</i> saving the template — those names become the sheet's headers, and a renamed header no longer matches its slot. Everything runs in their browser; nothing is uploaded.</div>
+      `},
+      { id: 'faq-external-ad', title: 'Reviewing a non-Adflow ad', body: `
+        <p><b>Question:</b> An agency sent us HTML5 banners that weren't built in Adflow. Can I review them here?</p>
+        <p><b>Answer:</b> Yes, in the Preview Portal, as long as each ad is a zip containing an <code>index.html</code> plus its assets:</p>
+        <ol>
+          <li>Open <b>File → Preview Portal…</b> and choose <b>Open HTML5 Ad (.zip)…</b>, or just drop the zips on the page.</li>
+          <li>Up to <b>10 ads</b> can be open at once, laid out side by side like banner sizes so you can compare the set.</li>
+          <li>Controls are limited to what applies to someone else's ad: <b>Restart All</b>, a <b>Loop</b> that reloads them on an interval you set, and per-ad <b>Restart</b> and <b>Remove</b>.</li>
+        </ol>
+        <div style="font-size: 11.5px; color: var(--text-muted); opacity: 0.8; border-top: 1px solid var(--border-light); padding-top: 8px; margin-top: 16px;"><b>General Tips:</b> If an ad appears at the wrong dimensions its zip carried no <code>ad.size</code> meta tag and no size in the file name — type the correct width and height into that ad's row. Nothing is uploaded, and Adflow can't read a third-party ad's internal timeline, so frame and version controls are hidden in this mode.</div>
       `},
       { id: 'faq-unlinking', title: 'Unlinking elements', body: `
         <p><b>Question:</b> How do I unlink an element to make layout overrides on one size?</p>
@@ -526,17 +650,19 @@ const DOCS_SECTIONS = [
       `},
       { id: 'tech-architecture', title: 'Architecture & Sandbox', body: `
         <p>Adflow is engineered as a zero-dependency, compilation-free Single Page Application (SPA). It uses Vanilla JS, HTML5, and CSS3. There are no bundlers (Webpack, Vite) or compilers.</p>
-        <p><b>Script Loading Sequence:</b> Scripts are loaded via sequential HTML tags. Since they share the global lexical scope, states and functions are globally accessible at execution time. The order of execution is:</p>
+        <p><b>Script Loading Sequence:</b> The app is 24 JavaScript files loaded via sequential <code>&lt;script&gt;</code> tags — the tag order <i>is</i> the dependency graph. Since they share one global lexical scope, declarations in earlier files are visible to later ones at execution time. Every local tag is version-pinned with a <code>?v=</code> query string so a browser can never pair stale engine code with new page code. The order is:</p>
         <ol>
-          <li><b>auto-resize-engine.js</b>: Placement mathematics and collision resolver.</li>
+          <li><b>render-runtime.js</b>: Render and animation helpers shared by the editor, both portals, and the exporter — including the single animation-preset registry, so no surface can offer a preset another doesn't.</li>
+          <li><b>auto-resize-engine.js</b> → <b>auto-arrange-config.js</b>: Placement mathematics, collision resolver, and the per-format coordinate specs it reads.</li>
           <li><b>docs-content.js</b>: Internal documentation and changelog history structures.</li>
           <li><b>auth-ui.js</b>: Supabase backend integration controller.</li>
           <li><b>data-merge.js</b>: CSV merges and version preview state interpolation.</li>
-          <li><b>export-pipeline.js</b>: ZIP bundle generator (JSZip) and PNG rasterization canvas helper.</li>
+          <li><b>font-subset.js</b> → <b>export-pipeline.js</b>: HarfBuzz glyph subsetting, then the ZIP bundle generator (JSZip) and PNG rasterizer.</li>
           <li><b>color-picker.js</b>: Color palette and gradient stops controller.</li>
-          <li><b>script.js</b>: Main state, DOM render loop, workspace events, undo/redo stack, and layer configurations.</li>
+          <li><b>Core app</b> (formerly one <code>script.js</code>, split into 14 files in this order): core-state, autosave, link-system, canvas-render, interactions, canvases-panel, layers-assets, props-panel, <b>sequencer</b>, toolbar-import, project-io, project-dialogs, modals, then share-preview and app-boot last.</li>
         </ol>
         <p><b>Sandbox Preview Engine:</b> Isolation is achieved using dynamic <code>&lt;iframe&gt;</code> sandboxing with <code>srcdoc</code> injection, which prevents style or script leaks. The editor renders canvases at high performance using CSS <code>transform: translateZ(0)</code> (forces GPU layers) and <code>clip-path: inset(0)</code> to prevent subpixel hairline leaks during viewport pans and zooms.</p>
+        <p><b>Portal pages:</b> <code>preview.html</code> and <code>batch.html</code> are standalone documents that load the same version-pinned <code>scripts/</code> engine files plus their own inline page code, and link the app's own <code>styles.css</code> rather than carrying a private palette. A third-party ad zip opened in the Preview Portal is flattened into one self-contained document — stylesheets and scripts inlined, every other asset rewritten to a data URL — and mounted through the same <code>srcdoc</code> sandbox as an Adflow banner.</p>
       `},
       { id: 'tech-state-schema', title: 'Global State Schema', body: `
         <p>A single mutable object named <code>state</code> governs the application's runtime. A TypeScript-style summary of the schema includes:</p>
@@ -662,6 +788,15 @@ function renderDocsPanel(bg, activeSecId, activeSubId) {
 document.getElementById('menu-help-documentation').addEventListener('click', openDocumentation);
 
 const CHANGELOG_DATA = [
+  {
+    version: 'v0.34.6',
+    date: 'July 2026 — Engine v2.19',
+    items: [
+      'Documentation and Shortcuts Brought Up to Date: Help ▸ Documentation gains a full Timeline chapter — what the three bars mean, dragging and retiming, moving several layers at once, isolating an FX bar, Play, the grid step, and how the frame duration follows your animations — plus a new Portals chapter covering the Preview Portal, reviewing third-party HTML5 ads, and the Batch Operation portal end to end. Three new FAQ entries answer the questions those features actually raise: retiming an FX effect that sits under IN or OUT, handing a template to another team, and reviewing banners that weren\'t built in Adflow.',
+      'Corrected Documentation: the entrance and Animation FX preset lists now match what the app offers (Split, Rise and Swipe were missing; "Pan" is called Move). Exit animations, frame transitions and single-frame loops are documented properly. Cloud & Spaces now covers Revert to Cloud Version and the read-after-write guarantee. The technical chapter\'s script load order was several files out of date.',
+      'Shortcuts Reference Rewritten: the Shortcuts dialog is now grouped into Saving & history, Selection & editing, Layers, Tools, View, Timeline, and Mouse & modifiers, and includes bindings that were never listed — the Text tool (T), Lock and Unlock layers (Ctrl+2 / Ctrl+Shift+2), Full Mode for the panel under the cursor (backtick), Paste in Place, and every timeline interaction. Ctrl+S was also described incorrectly: signed out, it warns rather than saving locally.'
+    ]
+  },
   {
     version: 'v0.34.5',
     date: 'July 2026 — Engine v2.19',
