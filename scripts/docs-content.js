@@ -141,6 +141,13 @@ const DOCS_SECTIONS = [
       `},
       { id: 'images-svg', title: 'Images & SVG', body: `
         <p>Drop image files anywhere onto the workspace or insert via the Add panel. Aspect ratio is locked by default — hold <span class="kbd">Shift</span> while resizing to stretch.</p>
+        <p><b>Replacing a picture.</b> Three ways, all equivalent:</p>
+        <ul>
+          <li><b>Drop onto the image on the canvas</b> — works on a masked photo too; Adflow looks through the mask shape to the image beneath, leaving the mask's shape and position untouched.</li>
+          <li><b>Drop onto the preview thumbnail</b> in the Properties panel — drag a file from your computer or an image out of the Assets panel. The preview shows a dashed frame and a <i>Drop to replace image</i> label while you're over it. This is the route to use when a mask group is selected, since the panel already targets the masked image.</li>
+          <li><b>Click the preview</b> (or <b>Browse…</b>) to pick a file.</li>
+        </ul>
+        <p>All three behave identically: a picture bound to a data column updates the <b>active version's cell</b> rather than the template default, the <b>Data lock</b> is respected, the fixed RMIT logo can't be swapped, and a live-linked group propagates the new picture to its siblings (with Live-link off, use <b>Push changes to group</b>).</p>
         <p><b>Image compression:</b> Adflow includes a built-in multi-format compressor for PNG/JPEG uploads, supporting WebP, JPEG, or PNG formats depending on Project Settings and image transparency. Features a quality slider (10–100%) and live KB preview to help you stay under the ad weight limit.</p>
       `},
       { id: 'shapes', title: 'Shapes & Image Masking', body: `
@@ -789,6 +796,24 @@ function renderDocsPanel(bg, activeSecId, activeSubId) {
 document.getElementById('menu-help-documentation').addEventListener('click', openDocumentation);
 
 const CHANGELOG_DATA = [
+  {
+    version: 'v0.35.0',
+    date: 'July 2026 — Engine v2.19',
+    items: [
+      'Drop an Image Straight Onto the Properties Panel Preview to Replace It: with an image selected — or a mask group, where the panel already shows the masked image — you can now drag an image file from your computer, or an image out of the Assets panel, onto the preview thumbnail to swap the picture. No need to open Browse. The preview announces itself while you drag over it: a dashed accent frame, a glow, and a "Drop to replace image" label. Everything downstream is identical to using the Browse button, deliberately: a picture bound to a data column still updates that version\'s cell rather than the template default, Data lock still refuses (the preview simply isn\'t a drop target while locked), the fixed RMIT logo still can\'t be swapped, and a live-linked group still pushes the new picture to its siblings on the other canvases. With Live-link off it stays local, exactly as before — use Push changes to group.',
+      'Fixed a Missing Selection Box on a Layer Left Alone in Its Group: selecting it moved and resized it normally, but no outline or resize handles were drawn, so it was hard to tell it was selected at all. It showed up right after deleting a masked image, because the mask keeps the group it was auto-grouped into, leaving a group with a single member — clicking it selected the group, and a group selection is tracked differently from clicking one layer on its own. The canvas only drew an outline for a group of two or more, or for a single layer selected on its own, so a group of exactly one fell between the two and got nothing. Any selection of one layer now draws its box and handles however it was selected.',
+      'The Read-Only RMIT Asset Folder Now Says So, and Stops Pretending Anything Can Be Dropped: it carries a small padlock next to its name, and dragging something over it no longer lights it up as a drop target — it never accepted assets, so the highlight was promising something that always ended in a warning. Going further: as soon as you start dragging an asset OUT of that folder, the Assets panel stops showing any drop affordance at all — no panel tint, no folder highlight — because those assets can\'t be moved anywhere, and the cursor now shows it as not-allowed instead of inviting a drop. The canvas still shows its drop target as normal, so placing RMIT artwork on a banner is unchanged. Dragging assets from ordinary folders, and dropping files in from your computer, both behave exactly as before.',
+      'The Workspace No Longer Scrolls Itself While You Drag an Image In: hovering near the edge of the canvas area used to make the whole board slide away under the cursor, so you would drop onto the wrong place. The view now holds still for the duration of the drag and returns to normal scrolling the moment it ends.'
+    ]
+  },
+  {
+    version: 'v0.34.10',
+    date: 'July 2026 — Engine v2.19',
+    items: [
+      'Deleting a Masked Image Now Returns Its Mask to a Normal Shape: previously the mask shape stayed a mask — invisible, effectively impossible to select on the canvas, yet still listed in the Layers panel. The reason it only happened sometimes: a mask decided it was still valid simply because SOME image sat directly beneath it, so when you deleted the picture it was clipping, it silently adopted whichever image slid underneath — almost always the background, which nearly every ad has. So the mask survived, hidden, now clipping the wrong picture. Masks now remember which image they clip and turn back into an ordinary, visible, selectable shape when that image is deleted, and the background it wrongly grabbed is left alone. The [mask] tag disappears from the Layers panel at the same time. Masks in existing projects pick this up automatically the first time the project is drawn.',
+      'Copying, duplicating, pasting to another canvas and reordering a mask over a different picture all still work as before — a mask only reverts when the picture it was clipping is genuinely gone, not merely no longer next to it.'
+    ]
+  },
   {
     version: 'v0.34.9',
     date: 'July 2026 — Engine v2.19',

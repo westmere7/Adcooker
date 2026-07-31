@@ -2335,7 +2335,7 @@ function renderProps() {
           </div>`;
       f.push(`<div class="prop-row">
         <label>Preview</label>
-        <div class="img-preview-container" style="position:relative; width:100%; border-radius:4px; overflow:hidden; border:1px solid var(--border-light); background:#12131a; cursor:${isRmitLogo ? 'default' : 'pointer'};">
+        <div class="img-preview-container" ${(!imgDisabled && !isRmitLogo) ? 'data-img-drop="1" title="Click to browse, or drop an image here to replace it"' : ''} style="position:relative; width:100%; border-radius:4px; overflow:hidden; border:1px solid var(--border-light); background:#12131a; cursor:${isRmitLogo ? 'default' : 'pointer'};">
           <img src="${src}" style="display:block; width:100%; max-height:160px; object-fit:contain; pointer-events:none;" />
           ${overlayHtml}
         </div>
@@ -4099,32 +4099,102 @@ function checkButtonFontSizeWarning(el) {
       });
     }
   }
-  if (upload) upload.addEventListener('change', (e) => {
-    const f = e.target.files[0]; if (!f) return;
+
+  // --- Replace the image ----------------------------------------------------
+  // One path for every route (Browse…, and dropping onto the preview) so they
+  // can't drift. applyPhotoToElement is dynamic-slot aware — it writes the active
+  // version's cell instead of the template default, and refuses under Data lock.
+  // The closing render() is what propagates the change to a live-linked group
+  // (canvas-render's post-render sync treats every element in layerSelection as
+  // an authority, and applyLinkSync copies assetId when the group syncs `image`)
+  // — so a masked image inside a group behaves exactly as it does via Browse.
+  const commitReplacedImage = (assetId, fileName) => {
+    const named = (!el.name || String(el.name).startsWith('Image')) ? fileName : undefined;
+    if (!applyPhotoToElement(el, assetId, named)) return false;   // refused (Data lock)
+    el.isCompressed = false;
+    delete el.webpQuality;
+    pushHistory();
+    render();
+    return true;
+  };
+
+  const applyImageFile = (file) => {
+    if (!file || !/^image\//i.test(file.type)) return;
     const fr = new FileReader();
     fr.onload = () => {
       const id = 'img_' + uid();
       if (!state.assets) state.assets = {};
       state.assets[id] = fr.result;
       if (!state.assetNames) state.assetNames = {};
-      state.assetNames[id] = f.name;
-      const _imgDyn = typeof dmIsDynamicEditable === 'function' && dmIsDynamicEditable(el, 'image');
-      if (_imgDyn) {
-        // Dynamic image slot: write to the active version's cell, or do nothing when
-        // locked (read-only) — never overwrite the template default.
-        if (!state.dataMerge.locked) dmWriteCell(el, 'image', id);
-        else { showAdflowAlert('Data lock is on — unlock to change this version’s image.'); }
-      } else {
-        el.assetId = id;
-      }
-      if (!el.name || el.name.startsWith('Image')) el.name = f.name;
-      el.isCompressed = false;
-      delete el.webpQuality;
-      pushHistory();
-      render();
+      state.assetNames[id] = file.name;
+      commitReplacedImage(id, file.name);
     };
-    fr.readAsDataURL(f);
+    fr.readAsDataURL(file);
+  };
+
+  // An image dragged out of the Assets panel. Read-only (RMIT) assets are fine
+  // here — they may be placed and reused, they just can't be moved or deleted.
+  const applyLibraryAsset = (raw) => {
+    const aid = String(raw || '').split(',')[0];
+    const asset = (state.assetLibrary || []).find(a => a.id === aid);
+    const imgEl = asset && (asset.elements || []).find(x => x.type === 'image' && x.assetId);
+    if (!imgEl) return;
+    commitReplacedImage(imgEl.assetId, imgEl.name || asset.name);
+  };
+
+  if (upload) upload.addEventListener('change', (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    applyImageFile(f);
   });
+
+  // Drop an image straight onto the preview. Only wired when the build step
+  // marked it droppable (skipped under Data lock and for the fixed RMIT logo).
+  const dropPreview = propsEl.querySelector('.img-preview-container[data-img-drop="1"]');
+  if (dropPreview) {
+    // Prominent affordance: dashed accent frame + glow (same language as a
+    // canvas drop target) plus an explicit label — the preview is small enough
+    // that a bare outline reads as decoration rather than an invitation.
+    const DROP_HINT_ICON = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 9 12 4 17 9"/><line x1="12" y1="4" x2="12" y2="16"/></svg>`;
+    const setDropState = (on) => {
+      dropPreview.classList.toggle('img-drop-active', !!on);
+      let hint = dropPreview.querySelector('.img-drop-hint');
+      if (on) {
+        if (!hint) {
+          hint = document.createElement('div');
+          hint.className = 'img-drop-hint';
+          hint.innerHTML = `${DROP_HINT_ICON}<span>Drop to replace image</span>`;
+          dropPreview.appendChild(hint);
+        }
+      } else if (hint) {
+        hint.remove();
+      }
+    };
+    const carriesImage = (dt) => {
+      const t = dt && dt.types;
+      return !!t && (t.includes('Files') || t.includes('application/x-asset'));
+    };
+    dropPreview.addEventListener('dragover', (e) => {
+      if (!carriesImage(e.dataTransfer)) return;
+      // Claim the event so the panel-wide and canvas drop handlers stay out of it.
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'copy';
+      setDropState(true);
+    });
+    dropPreview.addEventListener('dragleave', (e) => {
+      if (!dropPreview.contains(e.relatedTarget)) setDropState(false);
+    });
+    dropPreview.addEventListener('drop', (e) => {
+      if (!carriesImage(e.dataTransfer)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setDropState(false);
+      const aid = e.dataTransfer.getData('application/x-asset');
+      if (aid) { applyLibraryAsset(aid); return; }
+      const file = Array.from(e.dataTransfer.files || []).find(f => /^image\//i.test(f.type));
+      if (file) applyImageFile(file);
+    });
+  }
 
   const btnCompress = propsEl.querySelector('#btn-webp-compress');
   if (btnCompress) {

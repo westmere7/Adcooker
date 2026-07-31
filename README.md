@@ -570,7 +570,7 @@ Link Groups bind matching elements across canvases. Updates propagate through th
 ### 6. Image Masking Engine
 Adflow uses a robust **CSS clip-path** implementation for layer-based masking:
 * **Core Logic**: A shape layer directly above an image element in z-order acts as a vector mask when `isMask` is set to `true`.
-* **Sanitization**: On every render sweep, `sanitizeMasks` validates the layer stack. If the mask's target image is deleted, or if the mask shape is moved away from its immediate image-neighbour, the mask is automatically stripped of its masking attributes.
+* **Sanitization**: On every render sweep, `sanitizeMasks` validates the layer stack. A mask records **which** image it clips in `maskTargetId` (backfilled from the current neighbour for legacy masks that predate the field), and is stripped of its masking attributes when that image is deleted, or when no image sits directly beneath it at all. The identity check matters: adjacency alone would let a mask silently adopt an unrelated image that slid underneath after a deletion — typically the background — leaving an invisible, unselectable layer clipping the wrong picture. A recorded target that still exists *somewhere* (copy, duplicate, cross-canvas paste, deliberate reorder) means the mask was cloned or moved rather than orphaned, so it adopts its new neighbour instead of reverting.
 * **SVG Clip Paths**: To support complex custom brand shapes (e.g., the RMIT Pixel), Adflow dynamically generates an inline `<svg>` definition block:
   ```html
   <clipPath id="svgrad_[uid]">

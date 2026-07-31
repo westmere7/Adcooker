@@ -513,6 +513,10 @@ document.addEventListener('contextmenu', (e) => {
       return;
     }
     el.isMask = true;
+    // Record WHICH image this mask clips, so deleting that image reverts the
+    // mask to a normal shape instead of it silently adopting whatever image is
+    // underneath (see sanitizeMasks).
+    el.maskTargetId = imgBeneath.id;
     // Mask layers are allowed in link groups (v0.16.50). Mask geometry on
     // auto-resize is handled by the engine's mask post-pass independent
     // of link-group sync, so the prior strip-linkGroupId-on-mask gate
@@ -538,6 +542,7 @@ document.addEventListener('contextmenu', (e) => {
     const el = c.elements.find(x => x.id === id);
     if (!el) return;
     delete el.isMask;
+    delete el.maskTargetId;   // no stale pairing left behind
     pushHistory(); render();
     showCanvasNotification('Mask removed — shape is back to normal.');
   });
@@ -1182,7 +1187,7 @@ const appSplash = (() => {
         const verEl = document.createElement('span');
         verEl.className = 'app-splash-version';
         verEl.style.cssText = 'font-size: 10px; color: var(--text-muted, #8b8f9c); border: 1px solid rgba(139, 143, 156, 0.4); padding: 2px 8px; border-radius: 10px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: inline-flex; align-items: center; justify-content: center; line-height: 1; margin-top: 2px;';
-        verEl.textContent = 'v0.34.9';
+        verEl.textContent = 'v0.35.0';
         logoEl.appendChild(verEl);
       }
     }

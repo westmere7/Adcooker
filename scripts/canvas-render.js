@@ -1173,18 +1173,29 @@ function canvasFrameNode(c) {
         }
       }
 
-      if (state.layerSelection && state.layerSelection.length > 1) {
-        const sels = c.elements.filter(e => state.layerSelection.includes(e.id) && !e.hidden);
-        const isGroup = sels.length > 1 && sels[0].groupId && sels.every(e => e.groupId === sels[0].groupId);
-        if (sels.length > 1) canvas.appendChild(multiSelectionOverlay(sels, isGroup));
-        else if (sels.length === 1) canvas.appendChild(selectionOverlay(sels[0]));
-      } else if (state.selectedElementId) {
-        const sel = c.elements.find(e => e.id === state.selectedElementId);
-        if (sel && !sel.hidden) {
-          canvas.appendChild(selectionOverlay(sel));
-          if (sel.effectType === 'pan') {
-            canvas.appendChild(moveGuideOverlay(sel, c));
-          }
+      // The selection lives in layerSelection for multi AND group clicks (a
+      // group click deliberately leaves selectedElementId null), or in
+      // selectedElementId alone for a plain single select. Resolve from
+      // whichever actually holds it.
+      //
+      // Previously a ONE-element layerSelection with no selectedElementId fell
+      // through both branches and drew nothing: the old outer test required
+      // length > 1, and the fallback required selectedElementId. A group reduced
+      // to a single member hits exactly that — e.g. a mask whose image was
+      // deleted keeps its auto-group id, so clicking it takes the group path and
+      // selects one element with no selectedElementId. The layer stayed fully
+      // draggable and resizable with no selection box drawn.
+      const selIds = (state.layerSelection && state.layerSelection.length)
+        ? state.layerSelection
+        : (state.selectedElementId ? [state.selectedElementId] : []);
+      const sels = c.elements.filter(e => selIds.includes(e.id) && !e.hidden);
+      if (sels.length > 1) {
+        const isGroup = sels[0].groupId && sels.every(e => e.groupId === sels[0].groupId);
+        canvas.appendChild(multiSelectionOverlay(sels, isGroup));
+      } else if (sels.length === 1) {
+        canvas.appendChild(selectionOverlay(sels[0]));
+        if (sels[0].effectType === 'pan') {
+          canvas.appendChild(moveGuideOverlay(sels[0], c));
         }
       }
     }
@@ -1655,15 +1666,49 @@ function applyPhotoToElement(el, assetId, name) {
   return true;
 }
 
+// Keep mask relationships honest. Runs for every canvas at the top of render().
+//
+// Positional adjacency alone is not enough to decide a mask is still valid. If
+// the masked image is DELETED and another image happens to sit underneath — a
+// background image, which nearly every ad has — the mask used to silently adopt
+// it and stay a mask. The shape's body is hidden while it's a mask, so the user
+// was left with an invisible, effectively unselectable layer that still showed in
+// the Layers panel, now clipping the wrong picture.
+//
+// So masks also record WHICH image they clip (`maskTargetId`) and revert to a
+// normal shape when that specific image is gone. Legacy masks that predate the
+// field get it backfilled from their current neighbour on first render, which is
+// safe because at that moment adjacency IS the truth.
 function sanitizeMasks(c) {
   if (!c || !c.elements) return;
   c.elements.forEach(el => {
-    if (el.isMask) {
-      const img = findImageBeneath(c, el);
-      if (!img) {
+    if (!el.isMask) return;
+
+    const below = findImageBeneath(c, el);
+    if (!below) {
+      // Nothing left to clip at all — back to being a plain shape.
+      delete el.isMask;
+      delete el.maskTargetId;
+      return;
+    }
+
+    if (el.maskTargetId && el.maskTargetId !== below.id) {
+      // The image directly beneath isn't the one we recorded. Either our image
+      // was deleted (and this one slid under), or the pair was copied/duplicated
+      // /reordered. Search every canvas: if the recorded image still exists
+      // somewhere the mask was cloned or moved, so adopt the new neighbour —
+      // only a genuinely deleted target reverts the mask.
+      const recordedStillExists = state.canvases.some(cv =>
+        cv.elements && cv.elements.some(x => x.id === el.maskTargetId));
+      if (!recordedStillExists) {
         delete el.isMask;
+        delete el.maskTargetId;
+        return;
       }
     }
+
+    // Valid pairing — record/refresh which image this mask clips.
+    el.maskTargetId = below.id;
   });
 }
 function startEffectPreview(el, tempVal) {

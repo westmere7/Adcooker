@@ -459,10 +459,18 @@ function renderAssets() {
     div.dataset.folderId = folder.id;
     const caretRot = folder.collapsed ? 'transform:rotate(-90deg);' : '';
     const deleteBtn = folder.readOnly ? '' : `<button class="icon-btn active" data-act="del-folder" title="Delete folder (contents move out; Shift+Click to delete folder and all contents)">${TRASH}</button>`;
+    // Read-only folders get a small padlock next to the name, so it's obvious
+    // why they can't be renamed, deleted, or dropped into.
+    const lockIcon = folder.readOnly
+      ? `<span class="folder-lock" title="Read-only — you can use these assets, but not add to or change this folder" style="display:inline-flex;align-items:center;flex-shrink:0;margin-left:-2px;opacity:.5;">
+           <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10.5" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/></svg>
+         </span>`
+      : '';
     div.innerHTML = `
       <svg class="folder-caret" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;cursor:pointer;${caretRot}transition:transform .15s;"><polyline points="6 9 12 15 18 9"/></svg>
       <svg class="layer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h5l2 3h9v11H4z"/></svg>
       <span class="layer-name" style="font-weight:600;">${esc(folder.name)}</span>
+      ${lockIcon}
       <div class="layer-actions">
         ${deleteBtn}
       </div>`;
@@ -643,6 +651,24 @@ function showAddAssetDropdown(e) {
 document.getElementById('btn-asset-add')?.addEventListener('click', (e) => { e.stopPropagation(); showAddAssetDropdown(e); });
 document.getElementById('btn-asset-folder')?.addEventListener('click', (e) => { e.stopPropagation(); createAssetFolder(); });
 
+// Is this library asset inside a read-only folder (e.g. RMIT)? Such assets can be
+// placed on the canvas but never moved, renamed or deleted.
+function isAssetInReadOnlyFolder(assetId) {
+  const a = (state.assetLibrary || []).find(x => x.id === assetId);
+  if (!a || !a.folderId) return false;
+  const f = (state.assetFolders || []).find(x => x.id === a.folderId);
+  return !!(f && f.readOnly);
+}
+
+// Asset ids the in-flight panel drag is carrying. dataTransfer.getData() is
+// blocked during dragover for security reasons, so this reconstructs what
+// dragstart put in there from the same state it read.
+function draggingAssetIds() {
+  const id = state.draggingAssetId;
+  if (!id) return [];
+  return (state.assetSelection || []).includes(id) ? state.assetSelection.slice() : [id];
+}
+
 // Handle dragging files directly from computer or layers to the assets panel
 (function initAssetsPanelDropTarget() {
   // Use a delegation listener on document to ensure it works even if elements are updated
@@ -653,23 +679,41 @@ document.getElementById('btn-asset-folder')?.addEventListener('click', (e) => { 
     const overAp = (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom);
     const t = e.dataTransfer.types;
     if (overAp && (t.includes('Files') || t.includes('text/plain') || t.includes('application/x-asset'))) {
+      // A drag that started in a read-only folder can never land anywhere in this
+      // panel — those assets cannot be moved — so show no drop affordance at all:
+      // no panel tint, no folder row highlight. Deliberately does NOT
+      // preventDefault, so the cursor reads "not allowed" rather than inviting a
+      // drop that always ended in a warning. The canvas keeps its own drop target.
+      if (draggingAssetIds().some(isAssetInReadOnlyFolder)) {
+        ap.style.background = '';
+        document.querySelectorAll('#asset-list [data-folder-id]').forEach(f => f.style.background = '');
+        return;
+      }
       e.preventDefault();
       ap.style.background = 'var(--accent-dark)';
-      
+
       // Clear all folder row highlights first
       document.querySelectorAll('#asset-list [data-folder-id]').forEach(f => f.style.background = '');
       
-      // Highlight specific folder row if hovered and NOT dragging to the left
+      // Highlight specific folder row if hovered and NOT dragging to the left.
+      // Read-only folders (e.g. RMIT) are skipped: the drop handler rejects them
+      // anyway, so lighting them up promised something that could never happen.
+      const isFolderReadOnly = (fid) => {
+        const f = fid ? (state.assetFolders || []).find(x => x.id === fid) : null;
+        return !!(f && f.readOnly);
+      };
       const isLeftDrag = (e.clientX - rect.left < 45);
       if (!isLeftDrag) {
         const folderRow = e.target.closest('[data-folder-id]');
         if (folderRow) {
-          folderRow.style.background = 'var(--accent-base)';
+          if (!isFolderReadOnly(folderRow.dataset.folderId)) {
+            folderRow.style.background = 'var(--accent-base)';
+          }
         } else {
           const assetRow = e.target.closest('[data-asset-id]');
           if (assetRow) {
             const targetAsset = (state.assetLibrary || []).find(a => a.id === assetRow.dataset.assetId);
-            if (targetAsset && targetAsset.folderId) {
+            if (targetAsset && targetAsset.folderId && !isFolderReadOnly(targetAsset.folderId)) {
               const targetFolderRow = document.querySelector(`#asset-list [data-folder-id="${targetAsset.folderId}"]`);
               if (targetFolderRow) {
                 targetFolderRow.style.background = 'var(--accent-base)';
@@ -795,14 +839,9 @@ document.getElementById('btn-asset-folder')?.addEventListener('click', (e) => { 
       e.preventDefault();
       e.stopPropagation();
       const aids = rawAids.split(',');
-      const hasReadOnlyAsset = aids.some(aid => {
-        const a = (state.assetLibrary || []).find(x => x.id === aid);
-        if (a) {
-          const pf = a.folderId ? (state.assetFolders || []).find(f => f.id === a.folderId) : null;
-          return pf && pf.readOnly;
-        }
-        return false;
-      });
+      // Backstop: dragover already withholds the drop affordance for these, so
+      // this normally can't be reached — kept in case a drop arrives another way.
+      const hasReadOnlyAsset = aids.some(isAssetInReadOnlyFolder);
       if (hasReadOnlyAsset) {
         showAdflowAlert("Pre-loaded read-only assets cannot be moved.");
         return;

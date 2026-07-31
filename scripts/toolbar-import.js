@@ -636,12 +636,45 @@ function setDropHighlight(canvasEl, on) {
   }
 }
 
+// Chrome auto-scrolls a scroll container whenever a native drag hovers near its
+// edge. On the workspace that yanks the whole board around mid-drop, so the
+// canvas area's scroll position is pinned for the duration of an asset/file drag
+// and released as soon as the drag ends.
+//
+// Implemented as a scroll listener that snaps the position back, rather than
+// `overflow: hidden` on the container: the area has real scrollbars, so hiding
+// overflow would reclaim their width and visibly shift every canvas mid-drag.
+let _dragScrollLock = null;
+function lockCanvasDragScroll() {
+  if (_dragScrollLock) return;
+  const lock = { left: canvasArea.scrollLeft, top: canvasArea.scrollTop, handler: null };
+  lock.handler = () => {
+    if (!_dragScrollLock) return;
+    if (canvasArea.scrollLeft !== lock.left) canvasArea.scrollLeft = lock.left;
+    if (canvasArea.scrollTop !== lock.top) canvasArea.scrollTop = lock.top;
+  };
+  _dragScrollLock = lock;
+  canvasArea.addEventListener('scroll', lock.handler);
+}
+function unlockCanvasDragScroll() {
+  if (!_dragScrollLock) return;
+  canvasArea.removeEventListener('scroll', _dragScrollLock.handler);
+  _dragScrollLock = null;
+}
+// Safety net: a drag can end without the canvas seeing drop/dragleave (dropped
+// on another panel, or cancelled with Esc), and OS file drags fire no dragend at
+// all — so release on every plausible terminator.
+document.addEventListener('dragend', unlockCanvasDragScroll);
+document.addEventListener('drop', unlockCanvasDragScroll);
+window.addEventListener('blur', unlockCanvasDragScroll);
+
 canvasArea.addEventListener('dragover', (e) => {
   // Intercept real file drags and Assets-panel drags (layer reorders carry text/plain)
   const t = e.dataTransfer.types;
   if (!t.includes('Files') && !t.includes('application/x-asset')) return;
   e.preventDefault();
   e.dataTransfer.dropEffect = 'copy';
+  lockCanvasDragScroll();
 
   // Check if hovering over an image placeholder
   const elsFromPoint = document.elementsFromPoint(e.clientX, e.clientY);
@@ -673,6 +706,7 @@ canvasArea.addEventListener('dragover', (e) => {
 
 canvasArea.addEventListener('dragleave', (e) => {
   if (!canvasArea.contains(e.relatedTarget)) {
+    unlockCanvasDragScroll();   // left the workspace — normal scrolling resumes
     setDropHighlight(null, false);
     if (state.dragOverPlaceholderId) {
       state.dragOverPlaceholderId = null;

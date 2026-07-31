@@ -2611,6 +2611,38 @@ body.theme-rmit-navy {
 
     }
 
+    /* Properties-panel image preview accepting a dropped photo. Mirrors the
+       canvas drop-target language (dashed accent + glow) and adds an explicit
+       label, since the preview is small and easy to misread as inert. */
+    .img-preview-container.img-drop-active {
+      outline: 2px dashed var(--accent-base);
+      outline-offset: -3px;
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-base) 30%, transparent);
+    }
+    .img-preview-container.img-drop-active .img-preview-overlay {
+      opacity: 0 !important;   /* suppress the hover "Browse…" overlay underneath */
+    }
+    .img-drop-hint {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      background: color-mix(in srgb, var(--accent-base) 30%, rgba(8, 9, 14, 0.82));
+      color: #fff;
+      font-size: 11.5px;
+      font-weight: 700;
+      letter-spacing: .02em;
+      text-align: center;
+      padding: 8px;
+      pointer-events: none;
+      z-index: 5;
+    }
+    .img-drop-hint svg { opacity: .95; }
+    .img-drop-hint span { text-shadow: 0 1px 3px rgba(0, 0, 0, .55); }
+
 
 
     .el {
