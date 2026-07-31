@@ -4,7 +4,22 @@
 
 function areStylesAndNamesEqual(el1, el2) {
   if (el1.type !== el2.type) return false;
+  // A mask and a plain shape are not siblings even when they share a name and
+  // type — they play different roles, and pairing them would sync geometry and
+  // visibility between a clip silhouette and ordinary artwork. Masks auto-link
+  // with masks, shapes with shapes.
+  if (!!el1.isMask !== !!el2.isMask) return false;
   return baseLayerLabel(el1) === baseLayerLabel(el2);
+}
+
+// Is this image currently clipped by a mask directly above it? Needs the element's
+// canvas, since the mask relationship is positional. Guarded because the helpers
+// live in later-loading files (available by call time, not load time).
+function isMaskedImageEl(el) {
+  if (!el || el.type !== 'image') return false;
+  if (typeof findElementById !== 'function' || typeof findMaskAbove !== 'function') return false;
+  const found = findElementById(el.id);
+  return !!(found && findMaskAbove(found.canvas, el));
 }
 
 function getDefaultSync(el) {
@@ -46,7 +61,12 @@ function getDefaultSync(el) {
     if (isRmitLogo) {
       defaultSync.variant = true;
     }
-    defaultSync.transform = !isRoleAssigned; // Unchecked by default for role-assigned
+    // A MASKED image's size is half of a per-canvas pair: its mask is sized to it
+    // on that canvas, and the mask's own Transform sync is off for the same
+    // reason. Syncing only one side's width/height across canvases would leave
+    // the clip no longer matching the picture, so both start off. Still tickable
+    // in the Link Groups panel — but tick it on both halves, not one.
+    defaultSync.transform = isMaskedImageEl(el) ? false : !isRoleAssigned;
     defaultSync.opacity = true;
     defaultSync.rotation = true;
     defaultSync.inAnim = true;
@@ -57,7 +77,12 @@ function getDefaultSync(el) {
     defaultSync.fill = true;
     defaultSync.stroke = true;
     defaultSync.radius = true;
-    defaultSync.transform = !isRoleAssigned;
+    // Mask geometry is deliberately per-canvas: a mask's size is tied to the
+    // image it clips on ITS canvas, and auto-resize's mask post-pass realigns it
+    // to that image independently of link sync. Copying one canvas's width and
+    // height onto every size would distort the clip and fight that pass — so
+    // Transform starts off for masks. Still user-enablable in the panel.
+    defaultSync.transform = el.isMask ? false : !isRoleAssigned;
     defaultSync.opacity = true;
     defaultSync.inAnim = true;
     defaultSync.outAnim = true;
@@ -187,6 +212,40 @@ async function autoLinkElements(forceSelectedOnly = false) {
       await showAdflowAlert("No matching elements with the same layer name and style were found.");
     }
   }
+}
+
+// May this element join this link group?
+//
+// A link group holds ONE kind of layer: applyLinkSync branches on group.category,
+// so an element sitting in a mismatched group gets the wrong sync rules applied to
+// it — a rect mask inside an `image` group would have an assetId copied onto it,
+// and an image inside a `shape` group would be driven by fill/stroke rules.
+//
+// This is also what keeps a mask and the image it clips out of the SAME group:
+// they are different categories by definition (shape vs image), so the category
+// test separates them on its own. The explicit partner test is a backstop, so the
+// guarantee doesn't silently depend on that coincidence holding forever.
+function canElementJoinGroup(el, gid) {
+  const group = state.linkGroups?.[gid];
+  if (!el || !group) return false;
+  const cat = getElementCategory(el);
+  if (!cat || cat !== group.category) return false;
+  const partner = maskPartnerOf(el);
+  if (partner && partner.linkGroupId === gid) return false;
+  return true;
+}
+
+// The other half of a mask pair: for a mask, the image beneath it; for a masked
+// image, the mask above it. Null when the element isn't part of a pair.
+function maskPartnerOf(el) {
+  if (!el) return null;
+  const found = (typeof findElementById === 'function') ? findElementById(el.id) : null;
+  const canvas = found && found.canvas;
+  if (!canvas) return null;
+  if (el.isMask) {
+    return (typeof findImageBeneath === 'function') ? findImageBeneath(canvas, el) : null;
+  }
+  return (typeof findMaskAbove === 'function') ? findMaskAbove(canvas, el) : null;
 }
 
 function getElementCategory(el) {
@@ -424,50 +483,91 @@ function getCanvasBg(c, frameId) {
   return c.bgColor;
 }
 
+// Create link group(s) for the current selection.
+//
+// One group PER CATEGORY. A link group carries a single `category` and its
+// syncProperties are keyed to it, so a selection spanning categories cannot share
+// one group — the clearest case being a mask group (a shape) plus the image it
+// clips: dropping a rect mask into an 'image' group would run applyLinkSync's
+// image branch against it and try to copy an assetId onto a shape. Splitting by
+// category means selecting a mask pair links the images together AND the masks
+// together, each with sync settings appropriate to what it is.
 function createAndLinkGroup(name) {
   const c = getActiveCanvas();
   if (!c || !state.layerSelection?.length) return;
-  const activeEl = getSelectedElement() || (state.layerSelection?.length > 0 ? c.elements.find(x => x.id === state.layerSelection[0]) : null);
-  const cat = getElementCategory(activeEl);
-  if (!cat) return;
+  const sel = c.elements.filter(el => state.layerSelection.includes(el.id));
+  if (!sel.length) return;
 
-  const gid = 'lg_' + uid();
-  const defaultSync = getDefaultSync(activeEl);
+  const byCat = new Map();
+  sel.forEach(el => {
+    const cat = getElementCategory(el);
+    if (!cat) return;
+    if (!byCat.has(cat)) byCat.set(cat, []);
+    byCat.get(cat).push(el);
+  });
+  if (!byCat.size) return;
 
   if (!state.linkGroups) state.linkGroups = {};
-  state.linkGroups[gid] = {
-    id: gid,
-    name: name,
-    category: cat,
-    syncProperties: defaultSync
-  };
-
-  // Assign selected elements to this group
-  c.elements.forEach(el => {
-    if (state.layerSelection.includes(el.id)) {
+  const needsSuffix = byCat.size > 1;   // disambiguate the sibling groups by name
+  byCat.forEach((els, cat) => {
+    const gid = 'lg_' + uid();
+    const label = els[0].isMask ? 'Mask' : (cat.charAt(0).toUpperCase() + cat.slice(1));
+    state.linkGroups[gid] = {
+      id: gid,
+      name: needsSuffix ? `${name} (${label})` : name,
+      category: cat,
+      syncProperties: getDefaultSync(els[0])
+    };
+    els.forEach(el => {
       if (typeof dmMigrateSlotKey === 'function') {
         dmMigrateSlotKey(el, gid);
       }
       el.linkGroupId = gid;
-    }
+    });
   });
 
   pushHistory();
   render();
 }
 
+// Add the selection to an existing group. Reachable from the context menu AND the
+// Link Groups panel's dropdown, and it used to assign the id to every selected
+// element unchecked — which could drop a mask and the image it clips into one
+// group, or any layer into a group of the wrong kind. Refused members are skipped
+// and reported rather than silently corrupting the group.
 function linkSelectionToGroup(gid) {
   const c = getActiveCanvas();
   if (!c || !state.layerSelection?.length) return;
+  const group = state.linkGroups?.[gid];
+  if (!group) return;
 
-  c.elements.forEach(el => {
-    if (state.layerSelection.includes(el.id)) {
-      if (typeof dmMigrateSlotKey === 'function') {
-        dmMigrateSlotKey(el, gid);
-      }
-      el.linkGroupId = gid;
+  const selected = c.elements.filter(el => state.layerSelection.includes(el.id));
+  const allowed = [];
+  const refused = [];
+  selected.forEach(el => (canElementJoinGroup(el, gid) ? allowed : refused).push(el));
+
+  allowed.forEach(el => {
+    if (typeof dmMigrateSlotKey === 'function') {
+      dmMigrateSlotKey(el, gid);
     }
+    el.linkGroupId = gid;
   });
+
+  if (refused.length) {
+    // Distinguish the mask-pair case, which has its own remedy (link the pair via
+    // Auto-Link / Create New Group so each half gets its own group).
+    const pairRefused = refused.some(el => {
+      const partner = maskPartnerOf(el);
+      return partner && (selected.includes(partner) || partner.linkGroupId === gid);
+    });
+    showCanvasNotification(
+      pairRefused
+        ? `A mask and the image it clips can't share one link group — they need one each. Use Auto-Link or Create New Group on the pair instead. ${refused.length} layer${refused.length === 1 ? '' : 's'} skipped.`
+        : `"${group.name}" only links ${group.category} layers — ${refused.length} layer${refused.length === 1 ? '' : 's'} skipped.`,
+      { type: 'warning' }
+    );
+  }
+  if (!allowed.length) return;
 
   pushHistory();
   render();
@@ -538,10 +638,16 @@ function autoAddAndLink(srcEl, skipNotify = false) {
   let countLinkedExisting = 0;
 
   state.canvases.forEach(c => {
-    // Find matching element on canvas c
-    const match = c.elements.find(el => el.type === srcEl.type && baseLayerLabel(el) === name);
+    // Find matching element on canvas c. Mask state is part of the match (same
+    // rule as areStylesAndNamesEqual): a mask must not adopt an ordinary shape
+    // that merely shares its name, and canElementJoinGroup is the final gate so
+    // a mask's own image can never be pulled in either.
+    const match = c.elements.find(el =>
+      el.type === srcEl.type &&
+      !!el.isMask === !!srcEl.isMask &&
+      baseLayerLabel(el) === name);
     if (match) {
-      if (match.linkGroupId !== gid) {
+      if (match.linkGroupId !== gid && canElementJoinGroup(match, gid)) {
         match.linkGroupId = gid;
         countLinkedExisting++;
       }
@@ -584,24 +690,27 @@ function autoAddAndLink(srcEl, skipNotify = false) {
   pushGroupChangesForId(gid, skipNotify);
 }
 
+// Push every group represented in the selection, not just the first element's.
+// A mask pair belongs to TWO groups (image + mask); pushing only one of them left
+// the other half of the pair stale on the other canvases.
 function pushGroupChanges() {
-  const sourceEl = getSelectedElement() || (state.layerSelection?.length > 0 ? getActiveCanvas()?.elements.find(x => x.id === state.layerSelection[0]) : null);
-  if (!sourceEl || !sourceEl.linkGroupId) return;
-  const gid = sourceEl.linkGroupId;
-  const group = state.linkGroups[gid];
-  if (!group) return;
+  const c = getActiveCanvas();
+  const sel = (c && state.layerSelection?.length)
+    ? c.elements.filter(x => state.layerSelection.includes(x.id))
+    : [];
+  const single = getSelectedElement();
+  const source = sel.length ? sel : (single ? [single] : []);
+  const gids = [...new Set(source.map(el => el.linkGroupId).filter(gid => gid && state.linkGroups?.[gid]))];
+  if (!gids.length) return;
 
-  state.canvases.forEach(c => {
-    c.elements.forEach(targetEl => {
-      if (targetEl.linkGroupId === gid && targetEl.id !== sourceEl.id) {
-        applyLinkSync(sourceEl, targetEl, group);
-      }
-    });
-  });
+  gids.forEach(gid => pushGroupChangesForId(gid, true));
 
   pushHistory();
   render();
-  showCanvasNotification(`Changes pushed to group "${group.name}"`);
+  const names = gids.map(gid => state.linkGroups[gid].name);
+  showCanvasNotification(gids.length === 1
+    ? `Changes pushed to group "${names[0]}"`
+    : `Changes pushed to ${gids.length} groups: ${names.join(', ')}`);
 }
 
 

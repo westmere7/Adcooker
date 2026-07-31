@@ -322,13 +322,29 @@ document.addEventListener('contextmenu', (e) => {
       const el = c.elements.find(x => x.id === id);
       return el && getElementCategory(el) === cat;
     });
-    // Mask layers don't participate in link groups.
-    const anyMaskInSelection = state.layerSelection?.some(id => {
-      const el = c.elements.find(x => x.id === id);
-      return el && el.isMask;
-    });
+    // Mask layers DO participate in link groups (they are shapes like any other,
+    // and a mask carries its own animation worth syncing across sizes). This menu
+    // used to hide the whole Link Group submenu whenever a mask was selected,
+    // which contradicted the data model — nothing strips linkGroupId from a mask,
+    // and the Link Groups panel manages them fine. Their default sync leaves
+    // Transform off, since mask geometry is per-canvas (see getDefaultSync).
+    //
+    // A MASK GROUP — the mask plus the image it clips, which is what clicking the
+    // pair on canvas selects — spans two categories, so `sameCat` excluded it.
+    // It's allowed through as a special case: createAndLinkGroup splits a mixed
+    // selection into one group per category, so the pair links as an image group
+    // + a mask group rather than one incoherent group.
+    const selectedForLink = (state.layerSelection || [])
+      .map(id => c.elements.find(x => x.id === id)).filter(Boolean);
+    const maskPairSelected = (() => {
+      if (selectedForLink.length !== 2) return null;
+      const mask = selectedForLink.find(e => isActiveMask(e));
+      const img = selectedForLink.find(e => e.type === 'image');
+      if (!mask || !img) return null;
+      return findImageBeneath(c, mask) === img ? { mask, img } : null;
+    })();
 
-    if (cat && sameCat && !anyMaskInSelection) {
+    if (cat && (sameCat || maskPairSelected)) {
       const linkedEl = c.elements.filter(x => state.layerSelection.includes(x.id));
       const groupIds = [...new Set(linkedEl.map(x => x.linkGroupId).filter(Boolean))];
       const hasLink = groupIds.length > 0;
@@ -343,7 +359,12 @@ document.addEventListener('contextmenu', (e) => {
       html += `<div class="ctx-item has-submenu">Link Group
         <div class="ctx-submenu">`;
       
-      const groups = Object.values(state.linkGroups || {}).filter(g => g.category === cat);
+      // "Link to: <group>" targets a single group, so it can only ever cover one
+      // half of a mask pair — offering it would half-link the pair. Auto-Link and
+      // Create New Group… handle both halves, so those are the routes here.
+      const groups = maskPairSelected
+        ? []
+        : Object.values(state.linkGroups || {}).filter(g => g.category === cat);
       if (groups.length > 0) {
         groups.forEach(g => {
           const isMember = linkedEl.some(x => x.linkGroupId === g.id);
@@ -722,13 +743,19 @@ document.addEventListener('contextmenu', (e) => {
   bind('ctx-link-push', () => {
     pushGroupChanges();
   });
-  bind('ctx-link-delete-all', () => {
+  bind('ctx-link-delete-all', async () => {
     const c = getActiveCanvas();
-    if (c && state.layerSelection?.length > 0) {
-      const firstEl = c.elements.find(x => x.id === state.layerSelection[0]);
-      if (firstEl && firstEl.linkGroupId) {
-        deleteGroupAndElements(firstEl.linkGroupId);
-      }
+    if (!c || !state.layerSelection?.length) return;
+    // Every group in the selection, not just the first element's — a mask pair
+    // belongs to two, and deleting one would strand the other half everywhere.
+    const gids = [...new Set(
+      c.elements
+        .filter(x => state.layerSelection.includes(x.id))
+        .map(x => x.linkGroupId)
+        .filter(gid => gid && state.linkGroups?.[gid])
+    )];
+    for (const gid of gids) {
+      await deleteGroupAndElements(gid);
     }
   });
   menu.querySelectorAll('.ctx-link-to-existing').forEach(btn => {
