@@ -257,6 +257,72 @@
       gap: 6px;
     }
 
+    /* Empty state — takes the grid's place until something is loaded. */
+    #pv-empty {
+      flex: 1;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 32px;
+      text-align: center;
+      overflow: auto;
+    }
+    #pv-empty.visible { display: flex; }
+    #pv-empty-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-bright);
+      margin-top: 2px;
+    }
+    #pv-empty-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+      max-width: 420px;
+      line-height: 1.5;
+    }
+    #pv-empty-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-top: 8px;
+    }
+    #pv-empty .btn.pv-hero {
+      flex: none;
+      height: 38px;
+      padding: 0 18px;
+      font-size: 12.5px;
+      font-weight: 600;
+    }
+    #pv-empty .btn.pv-hero.primary {
+      box-shadow: 0 2px 14px color-mix(in srgb, var(--accent-base) 42%, transparent);
+    }
+    #pv-empty-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      opacity: .85;
+    }
+    /* In-place error, so a rejected file never parks the user on a dead screen. */
+    #pv-empty-error {
+      display: none;
+      align-items: flex-start;
+      gap: 7px;
+      max-width: 440px;
+      margin-top: 4px;
+      padding: 9px 12px;
+      text-align: left;
+      font-size: 11.5px;
+      line-height: 1.45;
+      color: var(--text-main);
+      background: color-mix(in srgb, var(--danger-base) 12%, transparent);
+      border: 1px solid color-mix(in srgb, var(--danger-base) 45%, transparent);
+      border-radius: 6px;
+    }
+    #pv-empty-error.visible { display: flex; }
+    #pv-empty-error svg { color: var(--danger-base); }
+
     /* Main Content Area */
     .main-viewport {
       flex: 1;
@@ -527,8 +593,42 @@
     
     <div class="sidebar-content">
       
+      <!-- EXTERNAL HTML5 AD CONTROLS — only shown for a non-Adflow ad zip,
+           where all we can do is re-mount the ad and optionally replay it.
+           Adflow's own timeline/frame/version controls can't reach inside a
+           third-party ad, so they're hidden in that mode. -->
+      <div class="control-group" id="external-controls" style="display:none;">
+        <div class="control-label" style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+          <span>HTML5 Ads</span>
+          <span id="ext-count" style="font-size:10px; font-weight:normal; text-transform:none; color:var(--text-muted);">0 / 10</span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px; width:100%;">
+          <button class="btn" id="btn-ext-restart" style="width:100%;" title="Reload every ad from the start">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-top:-1px;"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            <span>Restart All</span>
+          </button>
+          <label class="checkbox-item" style="font-size:11.5px; color:var(--text-main); display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
+            <input type="checkbox" id="chk-ext-loop" style="margin:0; cursor:pointer;">
+            <span>Loop</span>
+          </label>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="font-size:10.5px; color:var(--text-muted);">Replay every</span>
+            <input type="number" id="ext-loop-secs" min="1" max="600" step="1" value="30"
+                   style="width:58px; margin:0; height:24px; font-size:11px; padding:2px 6px;" />
+            <span style="font-size:10.5px; color:var(--text-muted);">sec</span>
+          </div>
+          <div style="font-size:10px; color:var(--text-muted); line-height:1.35; font-style:italic;">
+            Adflow can't read a third-party ad's own timeline, so Loop simply
+            reloads them on this interval.
+          </div>
+          <!-- One row per loaded ad: name, size override, remove. -->
+          <div id="ext-list" style="display:flex; flex-direction:column; gap:6px; margin-top:2px;"></div>
+          <button class="btn" id="btn-ext-add" style="width:100%;" title="Add another zipped HTML5 ad">+ Add Ad (.zip)</button>
+        </div>
+      </div>
+
       <!-- TIMELINE CONTROLS -->
-      <div class="control-group">
+      <div class="control-group" id="adflow-playback-group">
         <div class="control-label">Playback Controls</div>
         <div class="playback-row" style="display:flex; flex-direction:column; gap:8px;">
           <div style="display:flex; gap:8px; width:100%;">
@@ -552,7 +652,7 @@
       </div>
       
       <!-- FRAME BY FRAME SWITCHER -->
-      <div class="control-group">
+      <div class="control-group" id="adflow-frame-group">
         <div class="control-label">Frame Select</div>
         <div style="display:flex; align-items:center; gap:4px; width:100%;">
           <button type="button" class="btn" id="btn-prev-frame" style="flex:none !important; padding:0; height:26px; width:22px; min-width:22px; background:var(--bg-btn); border:1px solid var(--border-color); border-radius:4px; color:var(--text-muted); cursor:pointer; display:flex; align-items:center; justify-content:center;" onmouseover="this.style.color='var(--text-bright)'" onmouseout="this.style.color='var(--text-muted)'" title="Previous Frame">
@@ -582,7 +682,7 @@
       </div>
       
       <!-- CANVAS CHECKLIST -->
-      <div class="control-group">
+      <div class="control-group" id="adflow-sizes-group">
         <div class="control-label" style="display:flex; justify-content:space-between; align-items:center; width:100%;">
           <span>Banners Sizes</span>
           <span id="ad-count" style="font-size:10px; font-weight:normal; text-transform:none; color:var(--text-muted);">0 sizes</span>
@@ -616,7 +716,7 @@
     <div class="main-header" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:nowrap; gap:12px; overflow:hidden;">
       <div style="display:flex; align-items:center; gap:10px; flex-wrap:nowrap; overflow:hidden; flex-shrink:1;">
         <div class="project-name-title" id="project-name" style="margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">No Project Loaded</div>
-        <span style="font-size:10px; font-weight:700; text-transform:uppercase; border:1px solid var(--border-color); color:var(--text-muted); padding:2px 6px; border-radius:4px; white-space:nowrap; letter-spacing:0.04em;">Preview</span>
+        <span id="portal-mode-badge" style="font-size:10px; font-weight:700; text-transform:uppercase; border:1px solid var(--border-color); color:var(--text-muted); padding:2px 6px; border-radius:4px; white-space:nowrap; letter-spacing:0.04em;">Preview</span>
         <div id="preview-share-meta" style="font-size:11.5px; color:var(--text-muted); font-weight:500; white-space:nowrap; flex-shrink:0;"></div>
       </div>
       <div style="font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 12px; flex-shrink:0;">
@@ -632,6 +732,30 @@
       </div>
     </div>
     
+    <!-- EMPTY STATE — the portal now opens standalone from the File menu, so
+         when nothing is loaded the banner area itself offers the two ways in.
+         Sibling of the grid so renderCanvases/layoutCards never see it. -->
+    <div id="pv-empty">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-muted); opacity:.75;"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      <div id="pv-empty-title">Nothing loaded yet</div>
+      <div id="pv-empty-sub">Open an Adflow project to review every banner size, or drop in a standalone HTML5 ad zip from outside Adflow.</div>
+      <div id="pv-empty-actions">
+        <button class="btn primary pv-hero" id="btn-empty-flow">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <span>Open Adflow Project…</span>
+        </button>
+        <button class="btn pv-hero" id="btn-empty-ext">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
+          <span>Open HTML5 Ad (.zip)…</span>
+        </button>
+      </div>
+      <div id="pv-empty-hint">Adflow projects are <b>.flow</b> files — or drop either kind anywhere on this page.</div>
+      <div id="pv-empty-error" role="alert">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span id="pv-empty-error-msg"></span>
+      </div>
+    </div>
+
     <!-- GRID CONTAINER -->
     <div class="canvas-grid" id="canvas-grid"></div>
   </div>
@@ -1727,17 +1851,24 @@
         window.state = loadedState;
         
         loaderSubtitle.textContent = 'Rendering canvases';
+        externalAds = [];
+        if (extLoopTimer) { clearInterval(extLoopTimer); extLoopTimer = null; }
+        applyPortalMode('adflow');
+        showPvEmpty(false);
         populateControls();
         renderCanvases();
-        
+
         // Fade loader
         loader.style.opacity = '0';
         setTimeout(() => loader.style.display = 'none', 500);
       } catch (err) {
         console.error(err);
-        loaderTitle.textContent = err.message.includes('expired or has been deleted') ? 'Link Inactive' : 'Import Failed';
-        loaderSubtitle.textContent = err.message || err;
-        loader.querySelector('.spinner').style.display = 'none';
+        // Report in place — never leave the user on a screen they can't exit.
+        loader.style.opacity = '0';
+        loader.style.display = 'none';
+        const msg = err.message || String(err);
+        if (portalMode) showCanvasNotification(msg, { type: 'error' });
+        else { showPvEmpty(true); showPvError(msg); }
       }
     }
     
@@ -1763,33 +1894,62 @@
       }
     }
 
+    // A dropped/picked file goes down one of two paths. `.flow` is always an
+    // Adflow project; a `.zip` is ambiguous, so peek inside — a project.json
+    // means it's an Adflow export, anything else is treated as a standalone
+    // HTML5 ad.
+    async function openPreviewFiles(files) {
+      const list = [...files].filter(f => /\.(flow|zip)$/i.test(f.name));
+      if (!list.length) return;
+      clearUrlQuery();
+      clearPvError();
+      // A .flow is always a project and is exclusive; several zips can stack.
+      const flow = list.find(f => /\.flow$/i.test(f.name));
+      if (flow) { await openAsFlow(flow); return; }
+      try {
+        // Peek at the first zip: a project.json means it's an Adflow export.
+        const zip = await JSZip.loadAsync(list[0]);
+        if (zip.file('project.json')) await openAsFlow(list[0]);
+        else await loadExternalAds(list);
+      } catch (err) {
+        console.error(err);
+        const msg = 'That file isn\'t a readable zip. Expected an Adflow .flow project or a zipped HTML5 ad.';
+        if (portalMode) showCanvasNotification(msg, { type: 'error' });
+        else { showPvEmpty(true); showPvError(msg); }
+      }
+    }
+
+    async function openAsFlow(file) {
+      const buf = await file.arrayBuffer();
+      await processProjectFile(buf);
+    }
+
     dragOverlay.addEventListener('drop', (e) => {
       e.preventDefault();
       dragOverlay.classList.remove('active');
-      clearUrlQuery();
-      
-      const file = e.dataTransfer.files[0];
-      if (file && (file.name.endsWith('.flow') || file.name.endsWith('.zip'))) {
-        const reader = new FileReader();
-        reader.onload = (evt) => processProjectFile(evt.target.result);
-        reader.readAsArrayBuffer(file);
-      }
+      if (e.dataTransfer.files.length) openPreviewFiles(e.dataTransfer.files);
     });
-    
-    // Load local file selector trigger
+
+    // Load local file selector triggers — one per kind so the picker filters
+    // sensibly. The HTML5-ad picker is `multiple` so several can be stacked.
     const fileSelector = document.createElement('input');
     fileSelector.type = 'file';
     fileSelector.accept = '.flow,.zip';
     fileSelector.onchange = (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        clearUrlQuery();
-        const reader = new FileReader();
-        reader.onload = (evt) => processProjectFile(evt.target.result);
-        reader.readAsArrayBuffer(file);
-      }
+      if (e.target.files.length) openPreviewFiles(e.target.files);
+      fileSelector.value = '';
+    };
+    const extSelector = document.createElement('input');
+    extSelector.type = 'file';
+    extSelector.accept = '.zip';
+    extSelector.multiple = true;
+    extSelector.onchange = (e) => {
+      if (e.target.files.length) openPreviewFiles(e.target.files);
+      extSelector.value = '';
     };
     document.getElementById('btn-drag-trigger').onclick = () => fileSelector.click();
+    document.getElementById('btn-empty-flow')?.addEventListener('click', () => fileSelector.click());
+    document.getElementById('btn-empty-ext')?.addEventListener('click', () => extSelector.click());
     
     // Download All Banners package
     const downloadAllBtn = document.getElementById('btn-download-all');
@@ -1883,34 +2043,385 @@
       }
     };
 
-    // Boot: Check query string for signed URL
+    // =====================================================================
+    // Empty state + portal modes
+    //
+    // The portal opens standalone from the File menu, so it has to be usable
+    // with nothing loaded. Two modes once something IS loaded:
+    //   'adflow'   — a .flow project: full timeline / frame / version controls
+    //   'external' — a standalone HTML5 ad zip from outside Adflow. We can only
+    //                mount it in an iframe, so everything that reaches into
+    //                Adflow's own render pipeline is hidden.
+    // =====================================================================
+    let portalMode = null;               // null until something loads
+    const pvEmpty = document.getElementById('pv-empty');
+
+    function showPvEmpty(show) {
+      if (pvEmpty) pvEmpty.classList.toggle('visible', !!show);
+      if (gridContainer) gridContainer.style.display = show ? 'none' : '';
+    }
+
+    function showPvError(msg) {
+      const box = document.getElementById('pv-empty-error');
+      const txt = document.getElementById('pv-empty-error-msg');
+      if (box && txt) { txt.textContent = msg; box.classList.add('visible'); }
+    }
+    function clearPvError() {
+      const box = document.getElementById('pv-empty-error');
+      if (box) box.classList.remove('visible');
+    }
+
+    // Show only the controls that can actually do something in this mode.
+    function applyPortalMode(mode) {
+      portalMode = mode;
+      const ext = mode === 'external';
+      const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? '' : 'none'; };
+      show('external-controls', ext);
+      show('adflow-playback-group', !ext);
+      show('adflow-frame-group', !ext);
+      show('adflow-sizes-group', !ext);
+      if (ext) {
+        const vg = document.getElementById('version-control-group');
+        if (vg) vg.style.display = 'none';
+      }
+      const dl = document.getElementById('btn-download-all');
+      if (dl) dl.style.display = ext ? 'none' : dl.style.display;
+      const badge = document.getElementById('portal-mode-badge');
+      if (badge) badge.textContent = ext ? 'HTML5 Ad' : 'Preview';
+    }
+
+    // =====================================================================
+    // Standalone (non-Adflow) HTML5 ad support
+    //
+    // A delivered HTML5 ad is a zip of index.html plus relative assets. An
+    // iframe can't resolve those relative paths from a blob, so everything is
+    // folded into one self-contained document: text assets are inlined, binary
+    // assets become data URLs, and every textual reference to them is
+    // rewritten. Rewriting by filename (not just parsing tags) is deliberate —
+    // it also catches assets that the ad's own JavaScript loads by name.
+    // =====================================================================
+    const EXT_MIME = {
+      png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:'image/gif',
+      webp:'image/webp', avif:'image/avif', svg:'image/svg+xml', ico:'image/x-icon',
+      woff:'font/woff', woff2:'font/woff2', ttf:'font/ttf', otf:'font/otf', eot:'application/vnd.ms-fontobject',
+      mp4:'video/mp4', webm:'video/webm', ogg:'video/ogg', mp3:'audio/mpeg', wav:'audio/wav',
+      json:'application/json', txt:'text/plain'
+    };
+    const extOf = (p) => (p.split('.').pop() || '').toLowerCase();
+    const isTextAsset = (p) => ['css','js','json','txt','svg'].includes(extOf(p));
+
+    // Up to EXT_MAX ads can be open at once, laid out side by side by
+    // layoutCards() just like Adflow banner sizes.
+    const EXT_MAX = 10;
+    let externalAds = [];    // [{ id, name, html, width, height, sizeSource, entry }]
+    let extSeq = 0;
+
+    // Unzip + inline ONE ad. Pure: returns the ad object, renders nothing, so
+    // several files can be parsed before a single re-render.
+    async function parseExternalAd(file) {
+      {
+        const zip = await JSZip.loadAsync(file);
+        const names = Object.keys(zip.files).filter(n => !zip.files[n].dir);
+        if (!names.length) throw new Error('That zip is empty.');
+
+        // Entry document: shallowest index.html, else shallowest .html.
+        const htmls = names.filter(n => /\.html?$/i.test(n) && !n.split('/').pop().startsWith('.'));
+        if (!htmls.length) {
+          throw new Error('No HTML file in this zip. A standalone HTML5 ad should contain an index.html plus its assets.');
+        }
+        const depth = (p) => p.split('/').length;
+        htmls.sort((a, b) =>
+          depth(a) - depth(b) ||
+          (/(^|\/)index\.html?$/i.test(b) ? 1 : 0) - (/(^|\/)index\.html?$/i.test(a) ? 1 : 0) ||
+          a.localeCompare(b));
+        const entry = htmls[0];
+        const baseDir = entry.includes('/') ? entry.slice(0, entry.lastIndexOf('/') + 1) : '';
+
+        loaderSubtitle.textContent = 'Inlining assets';
+        let html = await zip.file(entry).async('string');
+
+        // Collect every other file, keyed by the paths an author might use.
+        const assets = [];
+        for (const name of names) {
+          if (name === entry) continue;
+          const rel = name.startsWith(baseDir) ? name.slice(baseDir.length) : name;
+          if (!rel) continue;
+          const f = zip.file(name);
+          if (!f) continue;
+          let payload;
+          if (isTextAsset(name) && extOf(name) !== 'svg') {
+            payload = { text: await f.async('string') };
+          } else {
+            const b64 = await f.async('base64');
+            const mime = EXT_MIME[extOf(name)] || 'application/octet-stream';
+            payload = { dataUrl: `data:${mime};base64,${b64}` };
+          }
+          assets.push({ name, rel, base: rel.split('/').pop(), ...payload });
+        }
+        // Longest paths first so "img/a.png" is replaced before a bare "a.png".
+        assets.sort((a, b) => b.rel.length - a.rel.length);
+        const baseCounts = {};
+        assets.forEach(a => { baseCounts[a.base] = (baseCounts[a.base] || 0) + 1; });
+
+        const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Every replacement uses a FUNCTION, never a string: ad code and base64
+        // can contain `$&` / `$1`, which String.replace would expand.
+        const substitute = (text, a, value) => {
+          const variants = [a.rel, './' + a.rel, '/' + a.rel];
+          if (baseCounts[a.base] === 1 && a.base !== a.rel) variants.push(a.base);
+          let out = text;
+          for (const v of variants) out = out.replace(new RegExp(esc(v), 'g'), () => value);
+          return out;
+        };
+
+        // Built by concatenation so this file's own inline script isn't cut
+        // short — an HTML parser ends a <script> at the first literal closing
+        // tag, even inside a string.
+        const CLOSE_SCRIPT = '<' + '/script>';
+        const CLOSE_STYLE = '<' + '/style>';
+
+        // 1) Inline stylesheets and scripts (their own asset refs get rewritten
+        //    in step 2, since by then they are part of the document text).
+        for (const a of assets) {
+          if (a.text === undefined) continue;
+          const ext = extOf(a.name);
+          if (ext === 'css') {
+            const tag = new RegExp(`<link[^>]+href=["']?(?:\\./|/)?${esc(a.rel)}["']?[^>]*>`, 'gi');
+            if (tag.test(html)) html = html.replace(tag, () => `<style>\n${a.text}\n${CLOSE_STYLE}`);
+          } else if (ext === 'js') {
+            const tag = new RegExp(`<script[^>]+src=["']?(?:\\./|/)?${esc(a.rel)}["']?[^>]*>\\s*<\\/script>`, 'gi');
+            if (tag.test(html)) html = html.replace(tag, () => `<script>\n${a.text}\n${CLOSE_SCRIPT}`);
+          }
+        }
+        // 2) Point every remaining reference at a data URL.
+        for (const a of assets) {
+          if (a.dataUrl) html = substitute(html, a, a.dataUrl);
+        }
+
+        // --- Size: IAB/Google ad.size meta, else a WxH hint in a path/filename.
+        let width = 0, height = 0, sizeSource = '';
+        const meta = html.match(/<meta[^>]+name=["']ad\.size["'][^>]*content=["']([^"']+)["']/i);
+        if (meta) {
+          const w = meta[1].match(/width\s*=\s*(\d+)/i), h = meta[1].match(/height\s*=\s*(\d+)/i);
+          if (w && h) { width = +w[1]; height = +h[1]; sizeSource = 'ad.size meta tag'; }
+        }
+        if (!width) {
+          const hint = (file.name + ' ' + entry).match(/(\d{2,4})\s*[x×]\s*(\d{2,4})/i);
+          if (hint) { width = +hint[1]; height = +hint[2]; sizeSource = 'size in the file name'; }
+        }
+        if (!width) { width = 300; height = 250; sizeSource = 'no size found — defaulted, please set it'; }
+
+        return { id: 'ext' + (++extSeq), name: file.name.replace(/\.zip$/i, ''),
+                 html, width, height, sizeSource, entry };
+      }
+    }
+
+    // Add one or more ad zips to whatever is already open.
+    async function loadExternalAds(files) {
+      const list = [...files].filter(f => /\.zip$/i.test(f.name));
+      if (!list.length) return;
+      loader.style.opacity = '1';
+      loader.style.display = 'flex';
+      loader.querySelector('.spinner').style.display = 'block';
+      loaderTitle.textContent = list.length > 1 ? `Opening ${list.length} HTML5 ads…` : 'Opening HTML5 ad…';
+      clearPvError();
+
+      // Leaving Adflow mode: drop the project so the two never mix.
+      if (portalMode !== 'external') externalAds = [];
+
+      const room = EXT_MAX - externalAds.length;
+      const accepted = list.slice(0, Math.max(0, room));
+      const skippedForSpace = list.length - accepted.length;
+      const failed = [];
+
+      for (let i = 0; i < accepted.length; i++) {
+        loaderSubtitle.textContent = `Reading ${accepted[i].name} (${i + 1} of ${accepted.length})`;
+        try {
+          externalAds.push(await parseExternalAd(accepted[i]));
+        } catch (err) {
+          console.error('Could not open ' + accepted[i].name, err);
+          failed.push(accepted[i].name + ' — ' + (err.message || err));
+        }
+      }
+
+      if (!externalAds.length) {
+        loader.style.opacity = '0';
+        loader.style.display = 'none';
+        const msg = failed.length ? failed[0] : 'Nothing could be opened from that zip.';
+        if (portalMode) showCanvasNotification(msg, { type: 'error' });
+        else { showPvEmpty(true); showPvError(msg); }
+        return;
+      }
+
+      window.state = { canvases: [], frames: [], linkGroups: {}, assets: {}, loopAd: false, zoom: 1 };
+      applyPortalMode('external');
+      renderExternalAds();
+      showPvEmpty(false);
+      loader.style.opacity = '0';
+      setTimeout(() => loader.style.display = 'none', 400);
+
+      if (failed.length) showCanvasNotification(`${failed.length} file(s) couldn't be opened: ${failed[0]}`, { type: 'error' });
+      if (skippedForSpace > 0) {
+        showCanvasNotification(`Only ${EXT_MAX} ads can be open at once — ${skippedForSpace} skipped.`, { type: 'warning' });
+      }
+    }
+
+    const extEsc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+
+    function renderExternalAds() {
+      projectNameEl.textContent = externalAds.length === 1
+        ? externalAds[0].name
+        : `${externalAds.length} HTML5 ads`;
+      adCountEl.textContent = externalAds.length + (externalAds.length === 1 ? ' ad' : ' ads');
+
+      gridContainer.innerHTML = '';
+      externalAds.forEach(ad => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.dataset.canvasId = ad.id;
+        card.innerHTML = `
+          <div class="card-header">
+            <div class="card-title" style="display:flex; align-items:center; gap:8px; min-width:0; font-family:'JetBrains Mono', ui-monospace, monospace; font-size:11px; color:var(--text-muted); letter-spacing:0.04em;">
+              <span style="font-weight:600; color:var(--text-bright); flex-shrink:0;">${ad.width} &times; ${ad.height}</span>
+              <span style="flex-shrink:0;">&bull;</span>
+              <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${extEsc(ad.name)}">${extEsc(ad.name)}</span>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="iframe-wrapper" style="width:${ad.width}px; height:${ad.height}px;">
+              <iframe class="preview-iframe" id="iframe-${ad.id}" style="width:${ad.width}px; height:${ad.height}px;"
+                      scrolling="no" sandbox="allow-scripts allow-same-origin allow-popups"></iframe>
+            </div>
+          </div>
+          <div class="card-footer" style="display:flex; justify-content:flex-start; margin-top:10px; gap:8px; align-items:center;">
+            <button class="banner-footer-btn" title="Restart this ad" onclick="restartExternal('${ad.id}')" style="background:transparent; border:none; cursor:pointer; color:var(--text-muted); display:flex; align-items:center; justify-content:center; padding:2px; border-radius:3px; opacity:0.8;" onmouseover="this.style.color='#fff';" onmouseout="this.style.color='var(--text-muted)';">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            </button>
+            <button class="banner-footer-btn" title="Remove this ad" onclick="removeExternalAd('${ad.id}')" style="background:transparent; border:none; cursor:pointer; color:var(--text-muted); display:flex; align-items:center; justify-content:center; padding:2px; border-radius:3px; opacity:0.8;" onmouseover="this.style.color='var(--danger-base)';" onmouseout="this.style.color='var(--text-muted)';">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>
+            </button>
+          </div>`;
+        gridContainer.appendChild(card);
+      });
+      externalAds.forEach(ad => mountExternalIframe(ad.id));
+      renderExtList();
+      // Deferred like renderCanvases does: packRectangles measures offsetWidth,
+      // which is still 0 for cards appended in this same tick — packing them
+      // synchronously collapsed every ad into one column.
+      setTimeout(layoutCards, 50);
+    }
+
+    // Sidebar roster: name, per-ad size override, remove.
+    function renderExtList() {
+      const box = document.getElementById('ext-list');
+      const count = document.getElementById('ext-count');
+      if (count) count.textContent = `${externalAds.length} / ${EXT_MAX}`;
+      const addBtn = document.getElementById('btn-ext-add');
+      if (addBtn) addBtn.disabled = externalAds.length >= EXT_MAX;
+      if (!box) return;
+      box.innerHTML = '';
+      externalAds.forEach(ad => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex; flex-direction:column; gap:3px; padding:6px 7px; background:var(--bg-input); border-radius:5px;';
+        row.innerHTML = `
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="flex:1; min-width:0; font-size:10.5px; color:var(--text-main); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${extEsc(ad.name)}">${extEsc(ad.name)}</span>
+            <button class="btn-link" data-act="restart" style="flex:none; font-size:10px;">Restart</button>
+            <button class="btn-link" data-act="remove" style="flex:none; font-size:10px; color:var(--danger-base);">Remove</button>
+          </div>
+          <div style="display:flex; align-items:center; gap:5px;">
+            <input type="number" data-act="w" min="1" max="4000" value="${ad.width}"
+                   style="width:58px; margin:0; height:22px; font-size:10.5px; padding:1px 5px;" />
+            <span style="font-size:10px; color:var(--text-muted);">&times;</span>
+            <input type="number" data-act="h" min="1" max="4000" value="${ad.height}"
+                   style="width:58px; margin:0; height:22px; font-size:10.5px; padding:1px 5px;" />
+            <span style="font-size:9.5px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${extEsc(ad.sizeSource)}">${extEsc(ad.sizeSource)}</span>
+          </div>`;
+        row.querySelector('[data-act="restart"]').onclick = () => restartExternal(ad.id);
+        row.querySelector('[data-act="remove"]').onclick = () => removeExternalAd(ad.id);
+        const commitSize = () => {
+          const w = Math.max(1, Number(row.querySelector('[data-act="w"]').value) || ad.width);
+          const h = Math.max(1, Number(row.querySelector('[data-act="h"]').value) || ad.height);
+          ad.width = w; ad.height = h; ad.sizeSource = 'manual override';
+          renderExternalAds();
+        };
+        row.querySelector('[data-act="w"]').onchange = commitSize;
+        row.querySelector('[data-act="h"]').onchange = commitSize;
+        box.appendChild(row);
+      });
+    }
+
+    function mountExternalIframe(id) {
+      const ad = externalAds.find(a => a.id === id);
+      const f = document.getElementById('iframe-' + id);
+      if (ad && f) f.srcdoc = ad.html;
+    }
+    function mountAllExternal() { externalAds.forEach(a => mountExternalIframe(a.id)); }
+
+    // Exposed for the per-card footer buttons.
+    window.restartExternal = (id) => { mountExternalIframe(id); };
+    window.removeExternalAd = (id) => {
+      externalAds = externalAds.filter(a => a.id !== id);
+      if (!externalAds.length) {
+        if (extLoopTimer) { clearInterval(extLoopTimer); extLoopTimer = null; }
+        portalMode = null;
+        gridContainer.innerHTML = '';
+        projectNameEl.textContent = 'No Project Loaded';
+        adCountEl.textContent = '0 sizes';
+        applyPortalMode('adflow');   // restore the default control set
+        portalMode = null;           // ...but nothing is loaded
+        showPvEmpty(true);
+        renderExtList();
+        return;
+      }
+      renderExternalAds();
+    };
+
+    // --- External controls ---------------------------------------------------
+    let extLoopTimer = null;
+    function syncExtLoop() {
+      const on = document.getElementById('chk-ext-loop')?.checked;
+      const secs = Math.max(1, Number(document.getElementById('ext-loop-secs')?.value) || 30);
+      if (extLoopTimer) { clearInterval(extLoopTimer); extLoopTimer = null; }
+      if (on && portalMode === 'external') extLoopTimer = setInterval(mountAllExternal, secs * 1000);
+    }
+    document.getElementById('btn-ext-restart')?.addEventListener('click', () => {
+      mountAllExternal();
+      syncExtLoop(); // restart the cycle from now
+    });
+    document.getElementById('chk-ext-loop')?.addEventListener('change', syncExtLoop);
+    document.getElementById('ext-loop-secs')?.addEventListener('change', syncExtLoop);
+    document.getElementById('btn-ext-add')?.addEventListener('click', () => extSelector.click());
+
+    // Boot: a ?url= snapshot still auto-loads; otherwise open on the prompt.
     async function bootPortal() {
       const params = new URLSearchParams(window.location.search);
       const url = params.get('url');
-      
+
       if (url) {
         updatePreviewBtn.style.display = 'inline-flex';
         try {
           loaderSubtitle.textContent = 'Downloading cloud snapshot...';
           const res = await fetch(url, { cache: 'no-store' });
           if (!res.ok) throw new Error(`HTTP error fetching project: ${res.status}`);
-          
+
           const blob = await res.blob();
           await processProjectFile(blob);
         } catch (e) {
           console.error(e);
-          loaderTitle.textContent = 'Snap Load Failed';
-          loaderSubtitle.textContent = 'Could not load project. Ensure the preview link has not expired.';
+          loader.style.opacity = '0';
+          loader.style.display = 'none';
+          showPvEmpty(true);
+          showPvError('Could not load that preview link — it may have expired. You can still open a file below.');
         }
       } else {
         updatePreviewBtn.style.display = 'none';
-        // No snapshot URL. Ask user to drop local file
-        loaderTitle.textContent = 'Adflow Preview Portal';
-        loaderSubtitle.innerHTML = 'No snapshot URL provided.<br/><br/><button class="btn primary" onclick="document.getElementById(\'btn-drag-trigger\').click()" style="display:inline-flex;">Open Local .flow File</button>';
-        loader.querySelector('.spinner').style.display = 'none';
+        loader.style.display = 'none';
+        loader.style.opacity = '0';
+        showPvEmpty(true);
       }
     }
-    
+
     // Canvas grid panning logic
     let isPanning = false;
     let startX, startY;
