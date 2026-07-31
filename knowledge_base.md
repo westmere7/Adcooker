@@ -226,8 +226,10 @@ interface Element {
   exitEnabled?: boolean; exitType?: string;    exitStart?: number;    exitDuration?: number;
   fxEnabled?: boolean;   effectType?: string;  effDuration?: number;  effDelay?: number;
 
-  // Dynamic Data Opt-ins
-  dmText?: boolean; dmColor?: boolean; dmBg?: boolean; dmImage?: boolean;
+  // Dynamic Data opt-ins — a nested map, NOT dmText/dmImage/... flags.
+  // dmFieldActive() reads el.dynamic[field]; the merge is inert without it
+  // even when a column is mapped to the slot.
+  dynamic?: { text?: boolean; color?: boolean; bg?: boolean; image?: boolean; fill?: boolean };
 
   // States
   hidden?: boolean; locked?: boolean;

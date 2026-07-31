@@ -534,9 +534,12 @@ interface Element {
   exitEnabled?: boolean; exitType?: string;   exitStart?: number;    exitDuration?: number;
   fxEnabled?: boolean;   effectType?: string; effDuration?: number;  effDelay?: number;
 
-  dmText?: boolean; dmColor?: boolean; dmBg?: boolean; dmImage?: boolean; // Dynamic data opt-ins
+  // Dynamic data opt-ins — a nested map, NOT dmText/dmImage/... flags.
+  dynamic?: { text?: boolean; color?: boolean; bg?: boolean; image?: boolean; fill?: boolean };
 }
 ```
+
+A dynamic field only merges when **both** halves are present: a column mapped to the slot (`dataMerge.mappings['<slotKey>::image']`) *and* the element opting in via `el.dynamic.image` — or inheriting it through a link group that syncs that property. See `dmFieldActive` in [data-merge.js](scripts/data-merge.js).
 
 `exitStart` is stored **relative to the element's own IN delay**, so the effective CSS exit delay is `(animDelay || 0) + (exitStart || 1.5)`. `animOutEnabled(el)` is `animInEnabled(el) && !!el.exitEnabled` — an exit never plays without an entrance. The timeline reads and writes exactly these fields (see `seqBars` / `seqComputeBarPairs` in [sequencer.js](scripts/sequencer.js)).
 

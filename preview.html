@@ -18,7 +18,7 @@
        themes, buttons and dialogs instead of maintaining a parallel look.
        Loaded BEFORE the page-specific block below so the portal's own layout
        rules can still override where they must. -->
-  <link rel="stylesheet" href="styles.css?v=0.34.6" />
+  <link rel="stylesheet" href="styles.css?v=0.34.7" />
 
   <style>
     /* This page's layout was written against its own palette names. Rather than
@@ -904,12 +904,12 @@
   <!-- LOAD WORKSPACE ENGINE SCRIPTS
        ?v= is bumped with each release (same as index.html) so reviewers'
        browsers never pair stale engine scripts with new inline portal code. -->
-  <script src="scripts/render-runtime.js?v=0.34.6"></script>
-  <script src="scripts/auto-arrange-config.js?v=0.34.6"></script>
-  <script src="scripts/auto-resize-engine.js?v=0.34.6"></script>
-  <script src="scripts/data-merge.js?v=0.34.6"></script>
-  <script src="scripts/font-subset.js?v=0.34.6"></script>
-  <script src="scripts/export-pipeline.js?v=0.34.6"></script>
+  <script src="scripts/render-runtime.js?v=0.34.7"></script>
+  <script src="scripts/auto-arrange-config.js?v=0.34.7"></script>
+  <script src="scripts/auto-resize-engine.js?v=0.34.7"></script>
+  <script src="scripts/data-merge.js?v=0.34.7"></script>
+  <script src="scripts/font-subset.js?v=0.34.7"></script>
+  <script src="scripts/export-pipeline.js?v=0.34.7"></script>
 
   <!-- MAIN PREVIEW ENGINE PORTAL -->
   <script>
@@ -1792,6 +1792,98 @@
       updateCanvasGridVisibility();
     };
     
+    // --- RMIT stock image library -------------------------------------------
+    // Data-sheet Images columns reference stock art BY FILENAME (e.g.
+    // "2026_Health.jpg"), and dmResolveImage maps that name to an asset via
+    // state.assets / state.assetNames / state.assetLibrary. The editor fills
+    // those in with syncRmitAssets() on load; this page had no equivalent, so
+    // an unresolved name fell through to a bare relative path and rendered
+    // broken — while the file's own baked-in assets were fine, which is why
+    // only the default version looked right.
+    //
+    // Regular .flow projects DO carry the library (buildFlowBlob only strips
+    // assetLibrary for templates), so this is gated on an actual resolution
+    // failure — a share-link reviewer shouldn't re-download the whole stock
+    // library for a project that already has it. Mirrors project-io.js's id
+    // scheme so ids stay interchangeable.
+    let _rmitAssetsPromise = null;
+    function preloadRmitAssets() {
+      if (_rmitAssetsPromise) return _rmitAssetsPromise; // fetch once per session
+      _rmitAssetsPromise = (async () => {
+        let files = [];
+        try {
+          const r = await fetch('data/assets/manifest.json');
+          if (r.ok) files = await r.json();
+        } catch (e) { console.warn('RMIT asset manifest unavailable:', e); }
+        const loaded = await Promise.all((files || []).map(async (filename) => {
+          try {
+            const r = await fetch('data/assets/' + encodeURIComponent(filename));
+            if (!r.ok) return null;
+            const blob = await r.blob();
+            const dataUrl = await new Promise((res, rej) => {
+              const fr = new FileReader();
+              fr.onload = () => res(fr.result);
+              fr.onerror = () => rej(fr.error);
+              fr.readAsDataURL(blob);
+            });
+            return { filename, dataUrl };
+          } catch (e) { return null; }
+        }));
+        return loaded.filter(Boolean);
+      })();
+      return _rmitAssetsPromise;
+    }
+
+    // True when the loaded project maps any Images column whose values don't
+    // already resolve to a real asset — i.e. the stock library is missing.
+    function needsStockLibrary() {
+      const dm = state && state.dataMerge;
+      if (!dm || !dm.mappings || !Array.isArray(dm.rows) || !dm.rows.length) return false;
+      const imgCols = Object.keys(dm.mappings)
+        .filter(k => k.endsWith('::image'))
+        .map(k => dm.mappings[k])
+        .filter(Boolean);
+      if (!imgCols.length) return false;
+      for (const row of dm.rows) {
+        for (const col of imgCols) {
+          const val = row && row[col];
+          if (!val) continue;
+          // dmResolveImage returns the raw value back when nothing matched.
+          const hit = dmResolveImage(val);
+          if (!hit || !(state.assets && state.assets[hit])) return true;
+        }
+      }
+      return false;
+    }
+
+    // Merge the stock library into the freshly loaded project. Never overwrites
+    // an asset the file already carries.
+    async function attachRmitAssets() {
+      const items = await preloadRmitAssets();
+      if (!items.length) return 0;
+      if (!state.assets) state.assets = {};
+      if (!state.assetNames) state.assetNames = {};
+      if (!Array.isArray(state.assetLibrary)) state.assetLibrary = [];
+      items.forEach(({ filename, dataUrl }) => {
+        const imgId = 'img_rmit_' + filename;
+        if (!state.assets[imgId]) state.assets[imgId] = dataUrl;
+        // Exact-filename lookup (dmResolveImage step 2).
+        if (!state.assetNames[imgId]) state.assetNames[imgId] = filename;
+        // Extension-insensitive lookup (dmResolveImage step 3).
+        const libId = 'as_rmit_' + filename;
+        if (!state.assetLibrary.some(a => a && a.id === libId)) {
+          state.assetLibrary.push({
+            id: libId,
+            name: filename.substring(0, filename.lastIndexOf('.')) || filename,
+            kind: 'element', iconType: 'image', folderId: 'af_rmit', readOnly: true,
+            elements: [{ id: 'el_' + libId, type: 'image', name: filename,
+                         assetId: imgId, width: 120, height: 90, x: 0, y: 0 }]
+          });
+        }
+      });
+      return items.length;
+    }
+
     // Process raw file buffer
     async function processProjectFile(buffer) {
       loader.style.opacity = '1';
@@ -1849,7 +1941,15 @@
         
         // Save state globally
         window.state = loadedState;
-        
+
+        // Stock image library must be in place BEFORE the first render, or
+        // version rows that reference stock art by filename paint broken.
+        // No-op for files that already carry it (see needsStockLibrary).
+        if (needsStockLibrary()) {
+          loaderSubtitle.textContent = 'Loading image library';
+          await attachRmitAssets();
+        }
+
         loaderSubtitle.textContent = 'Rendering canvases';
         externalAds = [];
         if (extLoopTimer) { clearInterval(extLoopTimer); extLoopTimer = null; }

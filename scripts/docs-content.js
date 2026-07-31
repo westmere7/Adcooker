@@ -789,6 +789,13 @@ document.getElementById('menu-help-documentation').addEventListener('click', ope
 
 const CHANGELOG_DATA = [
   {
+    version: 'v0.34.7',
+    date: 'July 2026 — Engine v2.19',
+    items: [
+      'Fixed Missing Images on Data Versions in the Preview Portal: opening a file and switching to any data version showed a broken image, while the file\'s default version looked correct. Same cause as the Batch portal fix in v0.34.5, which was only applied to that one page: data sheets reference stock art by filename (e.g. "2026_Health.jpg"), and the preview page had no copy of the RMIT stock library to match those names against, so the name fell through to a bare relative path that resolved to nothing. The portal now loads the stock library before the first render. Unlike the Batch portal it only does so when the file actually needs it — a normal project already carries its own library, so share-link reviewers no longer download the stock set for nothing.'
+    ]
+  },
+  {
     version: 'v0.34.6',
     date: 'July 2026 — Engine v2.19',
     items: [
