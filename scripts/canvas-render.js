@@ -8,6 +8,10 @@ const linkControlEl = document.getElementById('link-control');
 const propsEl = document.getElementById('props');
 const canvasesListEl = document.getElementById('canvases-list');
 
+// Hover preview (toolbar-import.js owns the toggle + hover wiring; render() reads
+// this). Kept OUT of `state` on purpose — it's a transient view mode, so there's
+// nothing to strip from autosave snapshots or the saved .flow blob.
+let hoverPreviewActive = false;
 
 // setupTextLineBgs() moved to render-runtime.js (shared with preview.html portal).
 
@@ -408,7 +412,13 @@ function render(skipProps = false) {
   workspaceEl.innerHTML = '';
   const active = getActiveCanvas();
 
-  if (state.isPreviewMode) {
+  // Hover preview renders the SAME iframes as full preview so what you see is
+  // byte-identical to the export — it just doesn't touch the camera or the
+  // chrome (no preview-active, no zoom-to-fit, panels stay put). Deliberately
+  // NOT folded into state.isPreviewMode: that flag also resets the active tool,
+  // hides the rulers and drives the full-preview control bar, none of which
+  // should happen from a mouse-over.
+  if (state.isPreviewMode || hoverPreviewActive) {
     state.canvases.forEach(c => workspaceEl.appendChild(previewFrameNode(c)));
   } else {
     state.canvases.forEach(c => workspaceEl.appendChild(canvasFrameNode(c)));
@@ -465,7 +475,9 @@ function render(skipProps = false) {
   // Catch-all autosave trigger: render() runs after virtually every state change
   // (element edits, project settings, theme, etc.). Debounced + suspended during the
   // initial restore, so this is cheap and won't fire spuriously on boot.
-  scheduleAutosave();
+  // Hover preview changes nothing in state, so skip it — otherwise every mouse-over
+  // of the Full preview button would flash the save indicator for an identical write.
+  if (!hoverPreviewActive) scheduleAutosave();
 }
 
 // One-time-per-load migration for the shrunken board. Older projects (and the

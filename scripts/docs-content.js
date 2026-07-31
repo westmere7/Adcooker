@@ -211,6 +211,22 @@ const DOCS_SECTIONS = [
         <p><b>Frame duration follows the animations.</b> If you drag an animation past the end of the frame, the frame's duration extends to fit and a notice tells you. Pull it back in and the duration shrinks again, but never below whatever it was before the timeline extended it. The stretch of track beyond the frame's end is shaded so you can see when you're over.</p>
         <p><b>Settings (⚙).</b> Choose the grid step (0.1s – 0.5s) and toggle <b>Show all elements</b>. Moving to a <i>coarser</i> grid re-snaps every animation timing on the current canvas and frame, so Adflow asks first.</p>
       `},
+      { id: 'previewing', title: 'Previewing your ad', body: `
+        <p>There are three ways to watch an ad play, in ascending order of fidelity to what actually ships.</p>
+        <ul>
+          <li><b>Timeline ▶ Play</b> (or <span class="kbd">Space</span>) — replays the <i>current frame</i> of the <i>active canvas</i>, in place on the editor canvas. Fast, and it stays inside one frame; it never advances to the next.</li>
+          <li><b>Hover preview</b> — the small toggle joined to the right of <b>Full preview</b>. Switch it on, then simply point at <b>Full preview</b> and every canvas starts playing at once, immediately, through the whole frame sequence. Point away and the editor canvases come back.</li>
+          <li><b>Full preview</b> — clicking the button. Hides the panels, zooms to fit every canvas, and gives you the preview control bar (frame selector, Replay all, Download all, data-version stepper). <span class="kbd">Esc</span> returns you to exactly the view you left.</li>
+        </ul>
+        <p><b>Hover preview in detail.</b> It builds the same iframes full preview and the exported ad use, so it is not an approximation — animations, frame transitions, durations, loop behaviour and data-merge content are all the real thing. What it deliberately does <i>not</i> do is move anything: your zoom, scroll position, panels, timeline and selection all stay exactly where they are, and it never goes fullscreen. That makes it the quickest way to check timing across every size without losing your place on the board — useful when you're iterating on one animation and want to see its effect on all sizes between edits.</p>
+        <ul>
+          <li>Pointing at the <b>toggle itself</b> never starts a preview — only the Full preview button does.</li>
+          <li>Clicking <b>Full preview</b> while a hover preview is running still opens the real full preview as normal.</li>
+          <li>It stands down automatically if you press a key or switch tabs, and it won't start mid-drag, while you're editing text, or when you're already in a preview.</li>
+          <li>The toggle remembers whether it's armed between sessions.</li>
+        </ul>
+        <p>Beyond these, the <b>Preview Portal</b> is a separate page for sharing a review surface with people who don't use the editor — see <a href="#" data-doc-sec="portals" data-doc-sub="preview-portal" style="color:var(--text-accent); font-weight: 500;">Portals</a>.</p>
+      `},
       { id: 'frame-transitions', title: 'Frame transitions', body: `
         <p>Set how each frame enters: <b>Fade</b>, <b>Slide</b> (4 directions), <b>Swipe</b> (4 directions — a directional wipe that reveals the next frame), <b>Zoom in</b> / <b>Zoom out</b>. Slide and Swipe also offer an <b>Add Fade</b> toggle and adjustable duration.</p>
         <p>A transition can play on any frame that something actually enters from: a later frame, or <i>any</i> frame — including a lone single frame — when Loop is on. It is greyed out only for a single static frame with Loop off.</p>
@@ -811,6 +827,13 @@ function renderDocsPanel(bg, activeSecId, activeSubId) {
 document.getElementById('menu-help-documentation').addEventListener('click', openDocumentation);
 
 const CHANGELOG_DATA = [
+  {
+    version: 'v0.36.1',
+    date: 'August 2026 — Engine v2.19',
+    items: [
+      'Hover Preview Toggle: a small toggle sits joined to the right of the Full preview button. Switch it on and simply pointing at Full preview plays every canvas at once, immediately, using the same iframes the real preview and the exported ad use — so what you see is what ships. It plays strictly in place: the camera, zoom and scroll position do not move, the panels and timeline stay where they are, and it never goes fullscreen, so you can check timing on all sizes without losing your spot on the board. Point away and the editor canvases come straight back. Pointing at the toggle itself never starts a preview, clicking Full preview still opens the real full preview, and the toggle remembers whether it is armed between sessions.',
+    ],
+  },
   {
     version: 'v0.36.0',
     date: 'August 2026 — Engine v2.19',

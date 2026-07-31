@@ -1561,6 +1561,110 @@ document.getElementById('btn-preview').addEventListener('click', () => {
 });
 
 // ----------------------------------------------------------------------------
+// Hover preview
+// ----------------------------------------------------------------------------
+// A small toggle beside "Full preview". Armed, it plays every canvas the instant
+// you point at the Full preview button — the same export iframes full preview
+// uses, but strictly in place: no zoom-to-fit, no scroll, no panel hiding, no
+// fullscreen. Point away and the editor canvases come straight back.
+//
+// The flag itself lives in canvas-render.js (`hoverPreviewActive`) because
+// render() reads it; only the arming preference is persisted.
+const HOVER_PREVIEW_LS_KEY = 'hover-preview-armed';
+let hoverPreviewArmed = localStorage.getItem(HOVER_PREVIEW_LS_KEY) === 'true';
+let hoverPreviewLeaveTimer = null;
+
+function syncHoverPreviewToggle() {
+  const btn = document.getElementById('btn-hover-preview');
+  if (!btn) return;
+  btn.classList.toggle('active', hoverPreviewArmed);
+  btn.setAttribute('aria-pressed', hoverPreviewArmed ? 'true' : 'false');
+  btn.title = hoverPreviewArmed
+    ? 'Hover preview is ON — pointing at Full preview plays all canvases in place. Click to turn off.'
+    : 'Hover preview — play all canvases in place when you point at Full preview';
+}
+
+// Rebuilding every canvas as an iframe is the expensive part, so bail out early
+// on anything that means a hover preview would be wrong or wasted: already in a
+// real preview, mid-drag, or editing text (where losing the live node would
+// swallow the edit).
+function canHoverPreview() {
+  return hoverPreviewArmed
+    && !state.isPreviewMode
+    && !state.singlePreviewId
+    && !state.editingElementId
+    && !state.isDragging
+    && !document.body.classList.contains('preview-active');
+}
+
+function setHoverPreviewPlayingClass(on) {
+  const wrap = document.getElementById('preview-btn-wrap');
+  if (wrap) wrap.classList.toggle('hover-preview-playing', on);
+}
+
+function startHoverPreview() {
+  if (hoverPreviewLeaveTimer) { clearTimeout(hoverPreviewLeaveTimer); hoverPreviewLeaveTimer = null; }
+  if (hoverPreviewActive || !canHoverPreview()) return;
+  hoverPreviewActive = true;
+  setHoverPreviewPlayingClass(true);
+  // render(true) skips the properties panel — nothing about the selection has
+  // changed, and re-rendering it would blow away focus in an open input.
+  render(true);
+}
+
+function stopHoverPreview(immediate = false) {
+  if (hoverPreviewLeaveTimer) { clearTimeout(hoverPreviewLeaveTimer); hoverPreviewLeaveTimer = null; }
+  if (!hoverPreviewActive) return;
+  const finish = () => {
+    hoverPreviewLeaveTimer = null;
+    if (!hoverPreviewActive) return;
+    hoverPreviewActive = false;
+    setHoverPreviewPlayingClass(false);
+    render(true);
+  };
+  // Small grace period: the pointer crosses a 4px gap between the button and the
+  // toggle, and without this the preview would tear down and rebuild every time.
+  if (immediate) finish();
+  else hoverPreviewLeaveTimer = setTimeout(finish, 140);
+}
+
+(function setupHoverPreview() {
+  const wrap = document.getElementById('preview-btn-wrap');
+  const btn = document.getElementById('btn-preview');
+  const toggle = document.getElementById('btn-hover-preview');
+  if (!wrap || !btn || !toggle) return;
+
+  syncHoverPreviewToggle();
+
+  toggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    hoverPreviewArmed = !hoverPreviewArmed;
+    localStorage.setItem(HOVER_PREVIEW_LS_KEY, hoverPreviewArmed ? 'true' : 'false');
+    syncHoverPreviewToggle();
+    if (!hoverPreviewArmed) stopHoverPreview(true);
+    showCanvasNotification(
+      hoverPreviewArmed ? 'Hover preview on — point at Full preview to play in place' : 'Hover preview off',
+      { type: hoverPreviewArmed ? 'success' : 'info' });
+  });
+
+  // Only the Full preview button arms the preview — pointing at the toggle must
+  // never start one, so it gets its own immediate teardown instead.
+  btn.addEventListener('mouseenter', startHoverPreview);
+  btn.addEventListener('mouseleave', () => stopHoverPreview());
+  toggle.addEventListener('mouseenter', () => stopHoverPreview(true));
+
+  // Clicking through to the real full preview must not leave the hover render in
+  // place — full preview does its own camera animation and re-render.
+  btn.addEventListener('mousedown', () => stopHoverPreview(true));
+
+  // Any keypress means the user has moved on from pointing at the button.
+  window.addEventListener('keydown', () => { if (hoverPreviewActive) stopHoverPreview(true); });
+  // A hidden tab freezes the iframes' animations; tear down so returning doesn't
+  // show a stalled half-played preview.
+  document.addEventListener('visibilitychange', () => { if (document.hidden) stopHoverPreview(true); });
+})();
+
+// ----------------------------------------------------------------------------
 // Frame controls — horizontal scroll + fade hints
 // ----------------------------------------------------------------------------
 // When the top bar is too narrow to show every frame control, the row splits
