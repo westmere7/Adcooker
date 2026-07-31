@@ -1,6 +1,9 @@
 RMIT Adflow - Version & Changelog History
 
-v0.34.7 (Current) - July 2026 — Engine v2.19
+v0.34.8 (Current) - July 2026 — Engine v2.19
+- Drop a Photo Onto a Masked Image to Replace It: dragging an image file from your computer, or an image out of the Assets panel, onto a photo inside a mask group now replaces that photo — as it always has for an unmasked one. Previously the drop was simply ignored and you had to unmask the shape, swap the photo, then re-apply the mask. The cause: a mask shape sits directly on top of the image it clips and stays clickable so you can still move and resize it, so a drop aimed at the visible masked photo landed on the shape instead, and a shape isn't something a photo can replace. Adflow now looks through to the image underneath. The mask, its position and its size are all left untouched — only the photo changes. Dragging one image on the canvas onto a masked one works the same way, and an image can't be dropped onto its own mask to replace itself.
+
+v0.34.7 - July 2026 — Engine v2.19
 - Fixed Missing Images on Data Versions in the Preview Portal: opening a file and switching to any data version showed a broken image, while the file's default version looked correct. Same cause as the Batch portal fix in v0.34.5, which was only applied to that one page: data sheets reference stock art by filename (e.g. "2026_Health.jpg"), and the preview page had no copy of the RMIT stock library to match those names against, so the name fell through to a bare relative path that resolved to nothing. The portal now loads the stock library before the first render. Unlike the Batch portal it only does so when the file actually needs it — a normal project already carries its own library, so share-link reviewers no longer download the stock set for nothing.
 - Developer docs: corrected the Element schema in README.md and knowledge_base.md, which documented dynamic-data opt-ins as dmText/dmColor/dmBg/dmImage flags. Those don't exist anywhere in the code — the real shape is a nested el.dynamic map, and the merge stays inert without it even when a column is mapped.
 

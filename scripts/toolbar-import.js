@@ -649,8 +649,10 @@ canvasArea.addEventListener('dragover', (e) => {
   let targetPlaceholderId = null;
   if (targetElNode) {
     const found = findElementById(targetElNode.dataset.id);
-    if (found && found.element.type === 'image') {
-      targetPlaceholderId = found.element.id;
+    if (found) {
+      // Accepts a masked photo too: the hit may be the mask shape on top of it.
+      const hit = resolvePhotoDropTarget(found.canvas, found.element);
+      if (hit) targetPlaceholderId = hit.id;
     }
   }
 

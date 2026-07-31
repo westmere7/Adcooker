@@ -153,6 +153,7 @@ const DOCS_SECTIONS = [
           <li><b>Independent Animation:</b> Mask shapes carry their own independent entry transitions and effects separate from the image they mask. Hovering animation presets previews the mask or image accurately.</li>
           <li><b>Layer Prefixes:</b> Mask layers display a <span style="color: var(--text-accent);">[mask]</span> prefix, and target images display a <span style="color: var(--text-accent); opacity: 0.7;">[masked]</span> prefix in the Layers panel.</li>
           <li><b>Link Group Restraint:</b> A mask is a per-canvas effect and cannot be linked across canvases. The <a href="#" data-doc-sec="multi-canvas" data-doc-sub="live-link-mode" style="color:var(--text-accent); font-weight: 500;">Live-Link mode</a> and Dynamic Data panels will display a concise warning when selecting a mask layer.</li>
+          <li><b>Swap the Photo Without Unmasking:</b> Drop an image file from your computer, or drag one out of the Assets panel, straight onto the masked photo — Adflow looks through the mask shape to the image beneath and replaces just the photo. The mask's shape, position and size are untouched, so there's no need to unmask, swap and re-apply. Dragging another image already on the canvas onto it does the same.</li>
         </ul>
       `},
       { id: 'color-picker', title: 'Color picker & gradients', body: `
@@ -788,6 +789,13 @@ function renderDocsPanel(bg, activeSecId, activeSubId) {
 document.getElementById('menu-help-documentation').addEventListener('click', openDocumentation);
 
 const CHANGELOG_DATA = [
+  {
+    version: 'v0.34.8',
+    date: 'July 2026 — Engine v2.19',
+    items: [
+      'Drop a Photo Onto a Masked Image to Replace It: dragging an image file from your computer, or an image out of the Assets panel, onto a photo inside a mask group now replaces that photo — as it always has for an unmasked one. Previously the drop was simply ignored and you had to unmask the shape, swap the photo, then re-apply the mask. The cause: a mask shape sits directly on top of the image it clips and stays clickable so you can still move and resize it, so a drop aimed at the visible masked photo landed on the shape instead, and a shape isn\'t something a photo can replace. Adflow now looks through to the image underneath. The mask, its position and its size are all left untouched — only the photo changes. Dragging one image on the canvas onto a masked one works the same way, and an image can\'t be dropped onto its own mask to replace itself.'
+    ]
+  },
   {
     version: 'v0.34.7',
     date: 'July 2026 — Engine v2.19',

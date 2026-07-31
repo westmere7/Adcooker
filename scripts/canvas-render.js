@@ -1610,6 +1610,23 @@ function findImageBeneath(c, maskEl) {
 }
 // findMaskAbove() moved to render-runtime.js (shared with preview.html portal).
 
+// Which image a dropped photo should replace, given the element actually hit by
+// document.elementsFromPoint. A mask shape sits directly above the image it
+// clips and deliberately stays hit-testable so it can be moved/resized (see the
+// `.el-mask` branch when building element nodes), so a drop aimed at the visible
+// masked photo lands on the SHAPE, whose type isn't 'image' — which used to
+// abort the replace entirely. Retarget to the image beneath.
+//
+// Positional lookup, not maskTargetId: that field is absent on legacy (v0.16.26)
+// masks, so findImageBeneath's convention is the only one that covers every
+// project. Returns null when the hit can't accept a photo.
+function resolvePhotoDropTarget(c, el) {
+  if (!el) return null;
+  if (el.type === 'image') return el;
+  if (isActiveMask(el)) return findImageBeneath(c, el);
+  return null;
+}
+
 function sanitizeMasks(c) {
   if (!c || !c.elements) return;
   c.elements.forEach(el => {

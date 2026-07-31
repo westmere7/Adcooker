@@ -159,8 +159,14 @@ function onElementMouseDown(e, el, canvasCtx) {
         .find(elNode => elNode && !targets.some(t => t.id === elNode.dataset.id));
       if (targetElNode) {
         const found = findElementById(targetElNode.dataset.id);
-        if (found && found.element.type === 'image' && found.element.id !== targets[0].id) {
-          targetPlaceholderId = found.element.id;
+        if (found) {
+          // Accepts a masked photo too (hit may be the mask shape above it).
+          // The id check also stops a masked image being dropped onto itself,
+          // since its own mask sits under the cursor at the start of the drag.
+          const hit = resolvePhotoDropTarget(found.canvas, found.element);
+          if (hit && hit.id !== targets[0].id) {
+            targetPlaceholderId = hit.id;
+          }
         }
       }
     }
