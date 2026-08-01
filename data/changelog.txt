@@ -1,6 +1,9 @@
 RMIT Adflow - Version & Changelog History
 
-v0.39.1 (Current) - August 2026 — Engine v2.19
+v0.39.2 (Current) - August 2026 — Engine v2.19
+- Documentation Screenshots Removed: the 27 images added in v0.39.0, and their captions, have been taken back out of the manual pending replacements. The written documentation is unchanged and complete on its own. The capture tool (scripts/build-docs-screenshots.mjs), the images it produced in data/docs, and the figure styling all remain in place, so dropping new screenshots back in is a matter of re-adding the figure blocks.
+
+v0.39.1 - August 2026 — Engine v2.19
 - Every Control Now Explains Itself on Hover: a sweep of the whole interface found 100 controls that said nothing when you pointed at them, and another 90 in dialogs that only open in particular circumstances. All of them now carry a tooltip, and the tooltips say something the label does not — what the control affects, what happens if you switch it off, or the keyboard shortcut. Covered: every right-click menu item and submenu on both the layer and canvas menus, the Settings dialog including all thirteen themes and its four tabs, Auto-Resize and its engine settings, the validation checks and their tabs, Data and Versions, the sign-in gate, the cloud and space dialogs, the share flow, the export dialog, frame transitions, and both portals.
 - Three Places Were Silent by Omission Rather Than Design: the animation Duration and Delay fields were the only numeric properties without hover text, because the one builder that makes them never read the tooltip map the others use — the descriptions had existed all along. The preset dropdowns (entrance, exit, FX, direction, logo variant) were passed a description that was only ever shown inside the open popup, never on the closed control. And every Settings row already had explanatory text underneath it that was not also offered on hover. All three now use what was already written.
 
