@@ -305,7 +305,7 @@ const DOCS_SECTIONS = [
           <li><b>Some layers</b> — select them, right-click, <b>Distribute</b>.</li>
           <li><b>The whole frame</b> — right-click the canvas and choose <b>Distribute / Sync → Across Canvases…</b>, which opens the panel on its own tab. No selecting required, and you can set the options and pick which canvases to send to before running it.</li>
         </ul>
-        <p><b>The arrangement travels with it.</b> The selection moves as one piece: the spacing between layers is kept and the whole composition is centred on each target canvas, which is usually a different shape from the one you designed on. Stacking order comes across too, so the copies sit in the same order as the source. Nudging them into place on each size afterwards is expected — the point is that you're adjusting a layout rather than rebuilding one.</p>
+        <p><b>The arrangement travels with it, resized to fit.</b> The selection moves as one piece and is scaled by the ratio of the two canvases' diagonals, so a layout built at 300&times;250 arrives smaller on a leaderboard and larger on a skyscraper. One factor drives positions, sizes, font sizes and the gaps between layers, so aspect ratios and the arrangement are preserved exactly, and the composition is centred on each target. Nothing is ever left off-canvas: the factor is capped so the layout fits, and anything that would still sit outside is pulled back in — element groups moving as one so their internal composition is never disturbed. Stacking order comes across too, so the copies sit in the same order as the source. Nudging them into place on each size afterwards is expected — the point is that you're adjusting a layout rather than rebuilding one.</p>
         <p><b>What gets replaced.</b> If a target canvas already holds a layer that corresponds to one you're sending — same link group, or failing that the same name and type — that layer is replaced. Anything else on that canvas is left exactly as it was. When something is going to be replaced, Adflow tells you what and how many before it does it, and the whole thing is a single undo step.</p>
         <p><b>From the canvas menu, Always Top and Always Bottom layers stay put.</b> They already appear on every frame, and they're usually brand furniture positioned to suit each banner's shape — recentring the RMIT logo as part of a composition would move it on every size at once. Distribute them deliberately by selecting them if you need to.</p>
 
@@ -856,6 +856,24 @@ function renderDocsPanel(bg, activeSecId, activeSubId) {
 document.getElementById('menu-help-documentation').addEventListener('click', openDocumentation);
 
 const CHANGELOG_DATA = [
+  {
+    version: 'v0.42.1',
+    date: 'August 2026 — Engine v2.19',
+    items: [
+      'Double-Click a Canvas\'s Size Label to Zoom to It: the size shown above each canvas on the board is now a shortcut. Double-clicking it makes that canvas active and zooms it to fit, exactly as clicking the canvas in the Canvases panel does, so you can jump between sizes without reaching for the panel. It responds to a double-click rather than a single one because a single press on the header already begins dragging the canvas around the board.',
+      'Clicking a Canvas in the Canvases Panel Now Clears the Old Selection: it cleared the selected layer but left the multi-layer selection pointing at the canvas you just came from. Harmless in practice, since those ids only ever resolve against the active canvas, but it meant the panel click and the new double-click could not share the same behaviour without one of them being wrong.',
+    ],
+  },
+  {
+    version: 'v0.42.0',
+    date: 'August 2026 — Engine v2.19',
+    items: [
+      'Distribute Now Scales to the Target Canvas: layers arrived at their original pixel size regardless of where they landed, so a 300x250 layout sent to a leaderboard hung off both ends and the same layout on a skyscraper looked lost. The whole composition is now scaled by the ratio of the two canvases\' DIAGONALS. Diagonal rather than width or height alone because banner sets change aspect wildly — 300x250 to 728x90 is far wider and much shorter, and either axis on its own gives a nonsense factor. One uniform factor drives positions and sizes together, so every aspect ratio is kept and the arrangement is preserved exactly.',
+      'Sizes, Type and Spacing All Scale Together: width and height, font size and the auto-size ceiling, corner radius, stroke width and button padding are all multiplied by the same factor, and the gaps between layers scale with them. Text that kept its old size inside a box scaled to two thirds simply overflowed it, so type had to travel with the geometry.',
+      'Nothing Lands Off-Canvas Any More: the factor is capped so the scaled composition still fits inside the target with a small margin, which on its own keeps everything on screen; a final pass then catches anything that would still sit outside and pulls it back in. A unit that fits is pulled entirely inside rather than left as a grabbable sliver.',
+      'Group Composition Is Never Disturbed: the on-canvas pass works on rigid units — every layer sharing an element group moves by the same amount, so a group\'s internal arrangement survives untouched. Where a group is genuinely too large for a canvas to hold, it is guaranteed a reachable edge rather than being broken apart, since keeping the composition matters more and selecting any member selects the whole group.',
+    ],
+  },
   {
     version: 'v0.41.1',
     date: 'August 2026 — Engine v2.19',

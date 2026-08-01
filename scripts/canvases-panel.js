@@ -137,6 +137,12 @@ function renderCanvasesList() {
       state.activeCanvasId = c.id;
       state.selectedElementId = null;
       state.editingElementId = null;
+      // layerSelection was left pointing at the OLD canvas's layers, which is
+      // inconsistent with selectedElementId being cleared right above. Harmless
+      // in practice (ids resolve against the active canvas) but it meant this and
+      // the identical double-click on a canvas's size label could not be the same
+      // code path without one of them being wrong.
+      state.layerSelection = [];
       zoomToCanvas(c);
     });
     canvasesListEl.appendChild(div);

@@ -882,6 +882,93 @@ function selectionBoundsOf(els) {
   return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
 }
 
+// How much to scale a composition when it moves from one canvas to another.
+//
+// Base factor is the ratio of the canvas DIAGONALS, which behaves sensibly
+// across the aspect changes these banner sets involve: a 300x250 layout landing
+// on a 160x600 skyscraper grows a little, and on a 728x90 leaderboard it shrinks.
+// Width- or height-only ratios give absurd factors in exactly those cases.
+//
+// Then capped so the scaled composition still fits inside the target with a
+// margin. Without the cap the diagonal factor alone can enlarge a layout past a
+// short canvas's height and push the outer layers off it entirely.
+const DISTRIBUTE_EDGE_PAD = 4;
+
+function distributeScaleFor(sourceCanvas, targetCanvas, bounds) {
+  const srcDiag = Math.hypot(sourceCanvas.width || 1, sourceCanvas.height || 1) || 1;
+  const tgtDiag = Math.hypot(targetCanvas.width || 1, targetCanvas.height || 1) || 1;
+  let k = tgtDiag / srcDiag;
+
+  const availW = Math.max(1, (targetCanvas.width || 1) - DISTRIBUTE_EDGE_PAD * 2);
+  const availH = Math.max(1, (targetCanvas.height || 1) - DISTRIBUTE_EDGE_PAD * 2);
+  if (bounds.w > 0) k = Math.min(k, availW / bounds.w);
+  if (bounds.h > 0) k = Math.min(k, availH / bounds.h);
+
+  // Never collapse a layout to nothing, however extreme the pair of canvases.
+  return Math.max(0.05, k);
+}
+
+// Resize one layer by the factor, keeping its aspect ratio. Type-specific sizes
+// ride along: text that keeps its old font size inside a box scaled to 60% just
+// overflows, so fontSize (and the auto-size ceiling) scale with the geometry.
+function scaleElementBy(el, k) {
+  if (!el || !(k > 0) || k === 1) return;
+  const sc = (v, min) => Math.max(min, Math.round(v * k));
+  if (typeof el.width === 'number') el.width = sc(el.width, 1);
+  if (typeof el.height === 'number') el.height = sc(el.height, 1);
+  if (typeof el.fontSize === 'number') el.fontSize = sc(el.fontSize, 6);
+  if (typeof el.maxFontSize === 'number') el.maxFontSize = sc(el.maxFontSize, 6);
+  if (typeof el.radius === 'number') el.radius = Math.max(0, Math.round(el.radius * k));
+  if (typeof el.strokeWidth === 'number' && el.strokeWidth > 0) el.strokeWidth = sc(el.strokeWidth, 1);
+  if (typeof el.paddingLR === 'number') el.paddingLR = Math.max(0, Math.round(el.paddingLR * k));
+  if (typeof el.paddingTB === 'number') el.paddingTB = Math.max(0, Math.round(el.paddingTB * k));
+}
+
+// Shift anything that landed completely off the canvas back until a sliver of it
+// is reachable. Works on rigid units: layers sharing a groupId move together by
+// the same delta, so a group's internal composition is untouched.
+function nudgeUnitsOnCanvas(els, targetCanvas) {
+  if (!Array.isArray(els) || !els.length || !targetCanvas) return 0;
+  const units = new Map();
+  els.forEach((el, i) => {
+    const key = el.groupId ? 'g:' + el.groupId : 'e:' + i;
+    if (!units.has(key)) units.set(key, []);
+    units.get(key).push(el);
+  });
+
+  let moved = 0;
+  units.forEach(unit => {
+    const b = selectionBoundsOf(unit);
+    // Keep at least this much of the unit on-canvas on each axis — capped by the
+    // unit's own size so a 6px layer isn't dragged 16px inward.
+    const needX = Math.min(16, Math.max(1, b.w));
+    const needY = Math.min(16, Math.max(1, b.h));
+    let dx = 0, dy = 0;
+
+    // A unit that FITS gets pulled entirely inside — no reason to settle for a
+    // grabbable sliver when the whole thing can be on-screen. A unit too big to
+    // fit (a wide group on a narrow canvas) can only be guaranteed the sliver,
+    // because pulling it further would mean breaking it apart, and a group's
+    // composition is never disturbed.
+    if (b.w <= targetCanvas.width) {
+      if (b.x < 0) dx = -b.x;
+      else if (b.x + b.w > targetCanvas.width) dx = targetCanvas.width - (b.x + b.w);
+    } else if (b.x + b.w < needX) dx = needX - (b.x + b.w);
+    else if (b.x > targetCanvas.width - needX) dx = (targetCanvas.width - needX) - b.x;
+
+    if (b.h <= targetCanvas.height) {
+      if (b.y < 0) dy = -b.y;
+      else if (b.y + b.h > targetCanvas.height) dy = targetCanvas.height - (b.y + b.h);
+    } else if (b.y + b.h < needY) dy = needY - (b.y + b.h);
+    else if (b.y > targetCanvas.height - needY) dy = (targetCanvas.height - needY) - b.y;
+    if (!dx && !dy) return;
+    dx = Math.round(dx); dy = Math.round(dy);
+    unit.forEach(el => { el.x = (el.x || 0) + dx; el.y = (el.y || 0) + dy; });
+    moved++;
+  });
+  return moved;
+}
+
 // The layers a distribute would overwrite on one target canvas, in the order
 // the selection lists them. Each target layer is claimed at most once.
 function distributeConflictsFor(targetCanvas, sel) {
@@ -960,9 +1047,14 @@ async function distributeElements(sel, opts = {}) {
       tc.elements = tc.elements.filter(el => !doomed.has(el.id));
     }
 
-    // Move the selection as one piece: centre its bounding box on the target.
-    const dx = Math.round((tc.width - b.w) / 2) - b.x;
-    const dy = Math.round((tc.height - b.h) / 2) - b.y;
+    // Scale the whole composition by the ratio of the canvas DIAGONALS. Diagonal
+    // rather than width or height alone because banners change aspect wildly —
+    // 300x250 to 728x90 is far wider and much shorter, and either single axis on
+    // its own gives a nonsense factor. One uniform factor for both positions and
+    // sizes keeps every aspect ratio intact and the arrangement exact.
+    const k = distributeScaleFor(c, tc, b);
+    const originX = Math.round((tc.width - b.w * k) / 2);
+    const originY = Math.round((tc.height - b.h * k) / 2);
 
     const idMap = new Map();
     const gidMap = new Map();
@@ -970,8 +1062,11 @@ async function distributeElements(sel, opts = {}) {
       const clone = JSON.parse(JSON.stringify(s));
       clone.id = uid();
       idMap.set(s.id, clone.id);
-      clone.x = Math.round((s.x || 0) + dx);
-      clone.y = Math.round((s.y || 0) + dy);
+      // Position from the offset WITHIN the selection, scaled — so every gap
+      // between layers changes by the same factor as the layers themselves.
+      clone.x = Math.round(originX + ((s.x || 0) - b.x) * k);
+      clone.y = Math.round(originY + ((s.y || 0) - b.y) * k);
+      scaleElementBy(clone, k);
       if (clone.persistent === false) clone.frameId = state.activeFrameId;
       // Element groups are looked up within a canvas, so each canvas gets its
       // own id for the same grouping — the composition survives, the canvases
@@ -996,6 +1091,11 @@ async function distributeElements(sel, opts = {}) {
     });
     // insertAtGroupEnd drops each layer at the end of its own tier+frame band,
     // so laying them down in selection order reproduces the source stacking.
+    // Safety net: nothing may end up entirely off-canvas, or there is no way to
+    // grab it back. Nudged per RIGID UNIT — an element group moves as one, so its
+    // internal composition is never disturbed. Units overlapping each other is
+    // acceptable; unreachable layers are not.
+    nudgeUnitsOnCanvas(clones, tc);
     clones.forEach(cl => insertAtGroupEnd(tc.elements, cl));
   });
 

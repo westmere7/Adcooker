@@ -1020,7 +1020,7 @@ function canvasFrameNode(c) {
   const header = document.createElement('div');
   header.className = 'canvas-header';
   header.innerHTML = `
-    <span class="dim" style="font-weight:600; color:var(--text-bright); display:${state.showCanvasSizes !== false ? 'inline' : 'none'};">${c.width} × ${c.height}</span>
+    <span class="dim canvas-size-label" title="Double-click to make this the active canvas and zoom it to fit" style="font-weight:600; color:var(--text-bright); cursor:pointer; display:${state.showCanvasSizes !== false ? 'inline' : 'none'};">${c.width} × ${c.height}</span>
   `;
   if (!isSinglePreview) {
     const autoAlignBtn = document.createElement('button');
@@ -1047,6 +1047,21 @@ function canvasFrameNode(c) {
     if (state.activeTool === 'zoom') return;
     if (e.target.closest('.canvas-auto-align-btn')) return;
     onCanvasHeaderDrag(e, c);
+  });
+
+  // Double-clicking the size label does exactly what clicking the canvas in the
+  // Canvases panel does — activate it and zoom it to fit. Same behaviour, reached
+  // from the board instead of the panel. Double-click rather than single because
+  // a single press on the header already begins a canvas drag.
+  const sizeLabel = header.querySelector('.canvas-size-label');
+  if (sizeLabel) sizeLabel.addEventListener('dblclick', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    state.activeCanvasId = c.id;
+    state.selectedElementId = null;
+    state.editingElementId = null;
+    state.layerSelection = [];
+    zoomToCanvas(c);
   });
   frame.appendChild(header);
 
