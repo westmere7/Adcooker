@@ -698,13 +698,13 @@ function renderLinkControl() {
     };
   }
 
+  // Routes through the same Distribute & Link as the right-click menu, so the
+  // whole selection travels as one composition and conflicts get a prompt.
+  // It used to call autoAddAndLink on the FIRST selected element only, which
+  // silently ignored the rest of the selection.
   const btnAutoAdd = document.getElementById('lnk-btn-autoadd');
   if (btnAutoAdd) {
-    btnAutoAdd.onclick = () => {
-      if (selectedElements.length > 0) {
-        autoAddAndLink(selectedElements[0]);
-      }
-    };
+    btnAutoAdd.onclick = () => { distributeSelection({ link: true }); };
   }
 
   const chkSelectedOnly = document.getElementById('lnk-opt-selected-only');

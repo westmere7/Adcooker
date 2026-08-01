@@ -659,23 +659,16 @@ function autoAddAndLink(srcEl, skipNotify = false) {
         clone.frameId = state.activeFrameId;
       }
       clone.linkGroupId = gid;
-      
-      // Check Canvas Sync options to decide what settings to maintain on duplication
-      const syncVisibility = localStorage.getItem('sync-layers-visibility') !== 'false';
-      const syncLock = localStorage.getItem('sync-layers-lock') !== 'false';
-      const syncPersistent = localStorage.getItem('sync-layers-persistent') !== 'false';
-      
-      if (!syncLock) {
-        clone.locked = false;
-      }
-      if (!syncVisibility) {
-        clone.hidden = false;
-      }
-      if (!syncPersistent) {
-        delete clone.role;
-      }
-      
-      // Center the element no matter where the original element is
+
+      // A straight copy: hidden, locked and role all come across. These three
+      // used to be read out of the old Sync Across Canvases dialog's saved
+      // checkboxes, which no longer exist — the dialog is gone and those
+      // settings had become invisible switches on this behaviour.
+      //
+      // Centring one element at a time is only correct because this path
+      // handles ONE layer with no counterpart. Distributing a whole selection
+      // goes through distributeSelection(), which moves the set as one piece so
+      // the arrangement survives.
       const cloneW = clone.width || 0;
       const cloneH = clone.height || 0;
       clone.x = Math.round((c.width - cloneW) / 2);
@@ -848,3 +841,206 @@ function computeHighlightLinkGroupId() {
   return state.linkGroups[gid] ? gid : null;
 }
 
+
+// ---------------------------------------------------------------------------
+// Distribute / Distribute & Link
+// ---------------------------------------------------------------------------
+// Copy the current selection onto every other canvas, on the same frame,
+// keeping the selection's internal composition. This replaced the old "Sync
+// Across Canvases" dialog, which could only re-order layers that were ALREADY
+// linked and so did nothing at all until something else had created the groups.
+//
+//   Distribute        copies the layers across. Never adds or removes a link
+//                     group — a copy inherits the group of the counterpart it
+//                     replaced, and otherwise has none.
+//   Distribute & Link the same copy, then links each layer to its counterpart
+//                     on every canvas (autoAddAndLink does the linking half).
+
+// Two layers on different canvases are the same logical layer when they share a
+// link group; failing that, fall back to the matcher autoAddAndLink already
+// uses — same type, same mask state, same base name.
+function correspondsAcrossCanvases(srcEl, el) {
+  if (!srcEl || !el) return false;
+  if (srcEl.linkGroupId && el.linkGroupId) return srcEl.linkGroupId === el.linkGroupId;
+  return el.type === srcEl.type
+    && !!el.isMask === !!srcEl.isMask
+    && baseLayerLabel(el) === baseLayerLabel(srcEl);
+}
+
+// Bounding box of a set of layers, used to move the selection as ONE piece.
+// The old behaviour centred every clone individually, which piled a whole
+// composition onto the same point and destroyed the arrangement.
+function selectionBoundsOf(els) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  els.forEach(el => {
+    const x = el.x || 0, y = el.y || 0;
+    minX = Math.min(minX, x); minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x + (el.width || 0));
+    maxY = Math.max(maxY, y + (el.height || 0));
+  });
+  if (!isFinite(minX)) return { x: 0, y: 0, w: 0, h: 0 };
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+}
+
+// The layers a distribute would overwrite on one target canvas, in the order
+// the selection lists them. Each target layer is claimed at most once.
+function distributeConflictsFor(targetCanvas, sel) {
+  const taken = new Set();
+  const hits = [];
+  sel.forEach(s => {
+    const m = targetCanvas.elements.find(el =>
+      !taken.has(el.id) && correspondsAcrossCanvases(s, el));
+    if (m) { taken.add(m.id); hits.push(m); }
+  });
+  return hits;
+}
+
+// Distribute an explicit list of layers. `sel` must be in canvas array order —
+// that order is what the copies are laid down in.
+//   opts.link            also link each layer to its counterpart on every canvas
+//   opts.what            noun for the confirmation dialog and the toast
+//   opts.targetIds       restrict to these canvases (default: every other one)
+//   opts.carryVisibility keep each layer's hidden state (default true)
+//   opts.carryLock       keep each layer's locked state (default true)
+//   opts.carryRole       keep a hand-assigned role (default true)
+async function distributeElements(sel, opts = {}) {
+  const link = !!opts.link;
+  const what = opts.what || 'layer';
+  const carryVisibility = opts.carryVisibility !== false;
+  const carryLock = opts.carryLock !== false;
+  const carryRole = opts.carryRole !== false;
+  const c = getActiveCanvas();
+  if (!c || !Array.isArray(sel) || !sel.length) return false;
+
+  let targets = state.canvases.filter(x => x.id !== c.id);
+  if (!targets.length) {
+    showCanvasNotification('Nothing to distribute to — this is the only canvas.', { type: 'warning' });
+    return false;
+  }
+  if (Array.isArray(opts.targetIds)) {
+    const wanted = new Set(opts.targetIds);
+    targets = targets.filter(x => wanted.has(x.id));
+    if (!targets.length) {
+      showCanvasNotification('No target canvases selected.', { type: 'warning' });
+      return false;
+    }
+  }
+
+  const plan = targets.map(tc => ({ canvas: tc, conflicts: distributeConflictsFor(tc, sel) }));
+  const conflictTotal = plan.reduce((n, p) => n + p.conflicts.length, 0);
+
+  if (conflictTotal > 0) {
+    const affected = plan.filter(p => p.conflicts.length);
+    const names = [...new Set(affected.flatMap(p => p.conflicts.map(e => baseLayerLabel(e))))];
+    const shown = names.slice(0, 6).map(n => `<b>${n}</b>`).join(', ');
+    const more = names.length > 6 ? `, and ${names.length - 6} more` : '';
+    const msg =
+      `<p style="margin:0 0 10px;">${conflictTotal} matching layer${conflictTotal > 1 ? 's' : ''} on ` +
+      `<b>${affected.length} other canvas${affected.length > 1 ? 'es' : ''}</b> will be replaced: ${shown}${more}.</p>` +
+      `<p style="margin:0; color:var(--text-muted); font-size:12px;">Anything else on those canvases is left alone. This can be undone.</p>`;
+    const ok = (typeof showAdflowConfirm === 'function')
+      ? await showAdflowConfirm(msg, link ? 'Distribute & Link' : 'Distribute')
+      : confirm(`${conflictTotal} matching layer(s) on ${affected.length} canvas(es) will be replaced. Continue?`);
+    if (!ok) return false;
+  }
+
+  const b = selectionBoundsOf(sel);
+
+  plan.forEach(({ canvas: tc, conflicts }) => {
+    // A replaced counterpart hands its link-group membership to the copy, so a
+    // plain Distribute can never silently drop a canvas out of a group it was
+    // already in.
+    const inheritedGroup = new Map();
+    conflicts.forEach(el => {
+      const src = sel.find(s => correspondsAcrossCanvases(s, el));
+      if (src && el.linkGroupId) inheritedGroup.set(src.id, el.linkGroupId);
+    });
+    if (conflicts.length) {
+      const doomed = new Set(conflicts.map(el => el.id));
+      tc.elements = tc.elements.filter(el => !doomed.has(el.id));
+    }
+
+    // Move the selection as one piece: centre its bounding box on the target.
+    const dx = Math.round((tc.width - b.w) / 2) - b.x;
+    const dy = Math.round((tc.height - b.h) / 2) - b.y;
+
+    const idMap = new Map();
+    const gidMap = new Map();
+    const clones = sel.map(s => {
+      const clone = JSON.parse(JSON.stringify(s));
+      clone.id = uid();
+      idMap.set(s.id, clone.id);
+      clone.x = Math.round((s.x || 0) + dx);
+      clone.y = Math.round((s.y || 0) + dy);
+      if (clone.persistent === false) clone.frameId = state.activeFrameId;
+      // Element groups are looked up within a canvas, so each canvas gets its
+      // own id for the same grouping — the composition survives, the canvases
+      // stay independent.
+      if (s.groupId) {
+        if (!gidMap.has(s.groupId)) gidMap.set(s.groupId, uid());
+        clone.groupId = gidMap.get(s.groupId);
+      }
+      if (!carryVisibility) clone.hidden = false;
+      if (!carryLock) clone.locked = false;
+      // Drop roleAuto with role, or a hand-locked role survives as a lock with
+      // nothing to lock and the automatic assignment skips the copy.
+      if (!carryRole) { delete clone.role; delete clone.roleAuto; }
+      const inherited = inheritedGroup.get(s.id);
+      if (inherited) clone.linkGroupId = inherited;
+      else delete clone.linkGroupId;
+      return clone;
+    });
+    // Repair references that point inside the batch (a mask stores its image's id).
+    clones.forEach(cl => {
+      if (cl.maskTargetId && idMap.has(cl.maskTargetId)) cl.maskTargetId = idMap.get(cl.maskTargetId);
+    });
+    // insertAtGroupEnd drops each layer at the end of its own tier+frame band,
+    // so laying them down in selection order reproduces the source stacking.
+    clones.forEach(cl => insertAtGroupEnd(tc.elements, cl));
+  });
+
+  if (link) {
+    // Every canvas now holds a counterpart, so this only does the linking half.
+    sel.forEach(el => autoAddAndLink(el, true));
+  }
+
+  if (typeof cleanupLinkGroups === 'function') cleanupLinkGroups();
+  pushHistory();
+  render();
+
+  const l = `${sel.length} ${what}${sel.length > 1 ? 's' : ''}`;
+  const t = `${targets.length} canvas${targets.length > 1 ? 'es' : ''}`;
+  const replaced = conflictTotal ? `, replacing ${conflictTotal}` : '';
+  showCanvasNotification(
+    link ? `Distributed & linked ${l} to ${t}${replaced}.` : `Distributed ${l} to ${t}${replaced}.`,
+    { type: 'success' });
+  return true;
+}
+
+// Right-click a layer (or several) → Distribute / Distribute & Link.
+function distributeSelection(opts = {}) {
+  const c = getActiveCanvas();
+  if (!c) return Promise.resolve(false);
+  const ids = (state.layerSelection && state.layerSelection.length)
+    ? state.layerSelection
+    : (state.selectedElementId ? [state.selectedElementId] : []);
+  return distributeElements(c.elements.filter(el => ids.includes(el.id)), opts);
+}
+
+// Right-click the canvas → Distribute Frame. Sends everything on the frame you
+// are looking at, so you don't have to select it all first.
+//
+// Always Top / Always Bottom layers are deliberately left out: they belong to
+// every frame, they are usually brand furniture placed to suit each canvas
+// size, and re-centring them as part of a composition would shove the logo and
+// CRICOS line out of position on every canvas at once.
+function distributeActiveFrame(opts = {}) {
+  const c = getActiveCanvas();
+  if (!c) return Promise.resolve(false);
+  const els = c.elements.filter(el => el.persistent === false && el.frameId === state.activeFrameId);
+  if (!els.length) {
+    showCanvasNotification('Nothing to distribute — this frame has no layers of its own.', { type: 'warning' });
+    return Promise.resolve(false);
+  }
+  return distributeElements(els, opts);
+}

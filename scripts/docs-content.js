@@ -172,6 +172,8 @@ const DOCS_SECTIONS = [
           <li>Linear and radial gradients with multi-stop editing.</li>
           <li>Native eyedropper on Chromium browsers.</li>
         </ul>
+        <p><b>Saved Palette.</b> Every picker carries the same palette, shared across the whole project. Click <b>+</b> to add the current colour, click a swatch to apply it, right-click to remove it. It starts with eight defaults (white, black, RMIT navy, RMIT red, and four accents) and holds up to 16. Saved gradients sit in their own row above it. Both are stored on the project and travel with the <code>.flow</code> file, so a project opens with the palette it was built with.</p>
+        <p><b>Everywhere means everywhere.</b> Every colour control in Adflow opens this picker — element fills and strokes, text and button colours, canvas background, <b>File → New Project</b>'s default background, and <b>File → Settings → Default Canvas Background</b>. None of them fall back to the browser's own colour dialog, which has no palette, no gradients and doesn't follow your theme. Controls that can't accept a gradient (stroke colour, and the two default-background settings) simply hide the Gradient tab.</p>
       `},
     ]
   },
@@ -189,6 +191,18 @@ const DOCS_SECTIONS = [
         <p>Add frames using the frame controls. Each frame has its own duration (seconds). Toggle global <b>Loop</b> to repeat the sequence loop.</p>
         <p><b>Skip frame:</b> mark a frame as skipped to hide it in preview/export (max 1 skipped frame).</p>
         <p><b>Single-frame loops:</b> a one-frame ad with Loop on still re-animates — the exported runtime restarts the frame each cycle, replaying every entrance (and the frame transition, if you set one). Useful for animated email signatures and similar always-on placements.</p>
+        <p><b>Deleting a frame</b> (the <b>−</b> button, in the top bar or under any canvas) takes that frame's layers with it. Frames are project-wide, so this happens on <i>every</i> canvas at once — if you'd lose anything, Adflow asks first and tells you how many layers on how many canvases. Layers set to Always Top or Always Bottom survive, because they belong to every frame rather than to one. A frame with nothing of its own is removed without a prompt, and any deletion can be undone.</p>
+      `},
+      { id: 'frame-sync', title: 'Frame Sync', body: `
+        <p><b>Frame Sync</b> copies one frame's layer stack into other frames <i>of the same canvas</i> — the frame-to-frame counterpart of <a href="#" data-doc-sec="link-groups" data-doc-sub="distribute" style="color:var(--text-accent); font-weight: 500;">Distribute</a>, which works canvas to canvas. Open it from the ⟳ button in the Layers panel header, or right-click the canvas → <b>Distribute / Sync → Across Frames…</b> — the two tabs of that one panel are the two directions layers can travel.</p>
+        <p>Pick the <b>Source Frame</b> at the top; the canvas jumps to it as you choose, so you can see what you're about to copy. Only that frame's own layers travel — Always Top and Always Bottom layers already appear on every frame, so copying them would just duplicate them. <b>Stack order always comes across</b>, because this copies rather than rearranges.</p>
+        <ul>
+          <li><b>Carry Over</b> — <b>Visibility State</b> and <b>Lock State</b> bring each layer's hidden/locked flags along; switch either off and the copies arrive visible or unlocked. <b>Manual Role Assignments</b> carries a role you set by hand; automatic roles are worked out afresh from the layer either way, so this only matters for roles you've overridden.</li>
+          <li><b>Break Link Group</b> — on by default, and worth leaving on. Link groups pair a layer with its counterparts on <i>other canvases</i>, which normally hold the same content; frames normally hold different content. Leaving it off means the copy joins the source's group, so a group ends up with two members on one canvas.</li>
+          <li><b>Replace existing layers</b> — on by default. Each target frame is emptied first, so it ends up matching the source exactly and re-running the sync changes nothing the second time. Switch it off to keep what's already in those frames: the copies land <i>on top of</i> the existing layers, inside their own tier. Handy for building several frames from a shared base — but running it again then stacks another copy on top.</li>
+          <li><b>Target Frames</b> — all other frames, or tick individual ones. A frame is never copied onto itself.</li>
+        </ul>
+        <p>The confirmation names the real numbers — <i>"Copied 3 layers to 2 frames, replacing 2 existing layers"</i> — and tells you when there was nothing to copy. The whole operation is one undo step.</p>
       `},
       { id: 'timeline', title: 'Timeline (sequencer)', body: `
         <p>The <b>Timeline</b> sits along the bottom of the workspace and lays out the animations of the <b>active canvas and frame</b>. Click its header bar to expand or collapse it — the state is remembered between sessions. The header also shows which canvas and frame you're looking at, the frame's duration, and the current grid step.</p>
@@ -284,6 +298,20 @@ const DOCS_SECTIONS = [
       `},
       { id: 'manual-push', title: 'Manual push', body: `
         <p>Live-link off? Use <b>Push changes to group</b> in the right-click menu (or the side-panel button) to broadcast on demand.</p>
+      `},
+      { id: 'distribute', title: 'Distribute across canvases', body: `
+        <p><b>Distribute</b> copies layers from the canvas you're working on to every other canvas, on the frame you're looking at. It's how a layout you've built at one size gets to all the others.</p>
+        <ul>
+          <li><b>Some layers</b> — select them, right-click, <b>Distribute</b>.</li>
+          <li><b>The whole frame</b> — right-click the canvas and choose <b>Distribute / Sync → Across Canvases…</b>, which opens the panel on its own tab. No selecting required, and you can set the options and pick which canvases to send to before running it.</li>
+        </ul>
+        <p><b>The arrangement travels with it.</b> The selection moves as one piece: the spacing between layers is kept and the whole composition is centred on each target canvas, which is usually a different shape from the one you designed on. Stacking order comes across too, so the copies sit in the same order as the source. Nudging them into place on each size afterwards is expected — the point is that you're adjusting a layout rather than rebuilding one.</p>
+        <p><b>What gets replaced.</b> If a target canvas already holds a layer that corresponds to one you're sending — same link group, or failing that the same name and type — that layer is replaced. Anything else on that canvas is left exactly as it was. When something is going to be replaced, Adflow tells you what and how many before it does it, and the whole thing is a single undo step.</p>
+        <p><b>From the canvas menu, Always Top and Always Bottom layers stay put.</b> They already appear on every frame, and they're usually brand furniture positioned to suit each banner's shape — recentring the RMIT logo as part of a composition would move it on every size at once. Distribute them deliberately by selecting them if you need to.</p>
+
+        <h4 style="margin: 16px 0 6px; font-size: 12px; color: var(--text-bright);">Distribute &amp; Link</h4>
+        <p>Same copy, and then each layer is linked to its counterpart on every canvas — so editing the headline on one size updates it everywhere, per the group's <a href="#" data-doc-sec="link-groups" data-doc-sub="sync-properties" style="color:var(--text-accent); font-weight: 500;">sync properties</a>. This is the normal way to start a multi-size project: build one size, Distribute &amp; Link, then adjust each canvas.</p>
+        <p>Plain <b>Distribute</b> never adds or removes a link group. If it replaces a layer that was in one, the copy takes over that membership, so a canvas can't quietly drop out of a group it already belonged to.</p>
       `},
     ]
   },
@@ -483,6 +511,7 @@ const DOCS_SECTIONS = [
         </ul>
         <p>Each banner card carries its own <b>Restart</b> and <b>Download HTML5</b> buttons; <b>Download All (.zip)</b> in the header packages every visible size at once.</p>
         <p><b>Share links</b> open this same page pointed at a snapshot in the cloud — see <a href="#" data-doc-sec="cloud-spaces" data-doc-sub="cloud-projects" style="color:var(--text-accent); font-weight: 500;">Cloud &amp; Spaces</a>. When a link is open, <b>Update Preview</b> re-fetches the latest snapshot. An expired link now says so and still lets you open a file instead of dead-ending.</p>
+        <p><b>Is this the latest?</b> Saving the project to the cloud also refreshes any live share link's snapshot, so a reviewer's existing link keeps showing your current work. The line under the project name says which they are looking at: <i>Shared on …</i> when nothing has changed since the link was made, or <i>Updated …</i> when a newer save has landed — hover that for the original share date.</p>
       `},
       { id: 'external-ads', title: 'Reviewing non-Adflow HTML5 ads', body: `
         <p>The Preview Portal can also review a <b>standalone HTML5 ad built outside Adflow</b> — anything supplied as a zip containing an <code>index.html</code> plus its assets. Use <b>Open HTML5 Ad (.zip)…</b>, or drop the zips on the page.</p>
@@ -827,6 +856,80 @@ function renderDocsPanel(bg, activeSecId, activeSubId) {
 document.getElementById('menu-help-documentation').addEventListener('click', openDocumentation);
 
 const CHANGELOG_DATA = [
+  {
+    version: 'v0.38.1',
+    date: 'August 2026 — Engine v2.19',
+    items: [
+      'Distribute / Sync, Reorganised: the canvas right-click menu now names the two directions work actually travels — Distribute / Sync ▸ Across Frames… and Across Canvases… — and both open the same panel on their own tab. Across Frames copies this frame\'s layer stack to other frames of this canvas; Across Canvases copies this frame\'s layers to your other canvases. The settings that were previously split between a dialog and a pair of menu items now sit together in one place.',
+      'The Across Canvases Tab Restores Real Control: Carry Over decides whether each copy keeps its hidden state, its locked state and any role you set by hand. Link to counterparts turns the run into a Distribute & Link, and the button says which one you are about to get. Target Canvases lets you pick individual canvases instead of all of them — a capability that existed in the old Sync Across Canvases dialog and had no replacement until now. Every option is remembered between sessions.',
+      'Three Settings Came Back Into View: Visibility, Lock and Manual Roles used to be read out of the old dialog\'s saved checkboxes by the distribute code, so after that dialog was removed they were invisible switches with nothing to change them. They are now proper options on the Across Canvases tab.',
+      'The quick paths are unchanged: right-click a layer or a selection for Distribute and Distribute & Link, which act immediately on what you picked. The panel is for when you want to choose the options or the targets first.',
+    ],
+  },
+  {
+    version: 'v0.38.0',
+    date: 'August 2026 — Engine v2.19',
+    items: [
+      'Distribute, Promoted Out of the Link Group Submenu: right-click a layer and you now get Distribute and Distribute & Link as plain menu items. Distribute copies the selection to every other canvas, on the frame you are looking at. Distribute & Link does the same and then links each layer to its counterpart, so later edits travel between them. Copying a layout to the other sizes is routine work that had nothing to do with linking, and it was buried two levels deep in a Link Group submenu.',
+      'Distribute Keeps the Arrangement: it used to centre every copied layer individually, so distributing a headline, a subhead and a button dropped all three on the exact same point and destroyed the layout you had just built. The selection now travels as one piece — the relative spacing between layers is preserved and the whole composition is centred on each target canvas. Stacking order comes across too, so the copies sit in the same order as the source.',
+      'Distribute from the Canvas Menu: right-click the canvas and choose Distribute Frame to Canvases to send everything on the current frame at once, without selecting it all first. Always Top and Always Bottom layers are deliberately left behind — they appear on every frame already, they are usually brand furniture positioned to suit each size, and re-centring them as part of a composition would shove the logo and CRICOS line out of place on every canvas at once.',
+      'Distribute Only Replaces What Corresponds: if a target canvas already holds a matching layer — same link group, or failing that the same name and type — it is replaced and everything else on that canvas is left alone. When anything is going to be replaced, Adflow says what and how many before doing it. Plain Distribute never adds or removes a link group: a copy inherits the group of the counterpart it replaced, so a canvas cannot silently drop out of a group it was already in.',
+      'Removed "Sync Across Canvases": it could only re-order layers that were already in a link group, which meant it did nothing at all until something else had created them — and it reported success anyway. Everything it did is now covered: link groups keep properties in step, and Distribute lays layers down in the source\'s stacking order. The dialog it lived in is single-purpose again and titled Frame Sync.',
+      'Fixed Distribute & Link Ignoring Most of Your Selection: the button in the Link Groups panel passed only the FIRST selected layer to the distribute routine, so selecting four layers and pressing it distributed one. It now sends the whole selection.',
+      'Distributed copies get their own internal references: an element group copied to another canvas is re-grouped there rather than sharing the source\'s group id, and a copied mask points at its own copied image instead of back at the original.',
+    ],
+  },
+  {
+    version: 'v0.37.1',
+    date: 'August 2026 — Engine v2.19',
+    items: [
+      'Deleting a Frame Now Asks First: the "-" button removed a frame instantly, taking every layer on that frame with it — and because the frame list is project-wide, that meant every canvas at once. One click could quietly destroy a dozen layers across six sizes. It now asks, and it names the damage: "Deleting Frame 2 also deletes the 3 layers that live on it across 2 canvases." A frame holding nothing of its own still deletes immediately, with no prompt to click through. The note in the dialog points out that Always Top and Always Bottom layers are unaffected, since those belong to every frame rather than to any one of them, and that the deletion can be undone.',
+      'Both "-" buttons behave the same. The one in the top bar and the one under each canvas were separate copies of the same logic and could drift apart; they now share a single implementation, so the confirmation applies wherever you delete from.',
+    ],
+  },
+  {
+    version: 'v0.37.0',
+    date: 'August 2026 — Engine v2.19',
+    items: [
+      'Sync Across Frames — Replace or Stack: a new "Replace existing layers" toggle decides what happens to the frames you are copying into. On (the default, and what this tab has always silently done) each target frame is emptied first, so it ends up matching the source exactly and running the sync twice changes nothing the second time. Off, the target frames keep their own layers and the copies land on top of them, inside their own tier — so you can build a frame up from a shared base rather than overwriting it. A line under the toggle spells out which of the two you are about to get.',
+      'Removed the Dead "Stacking Order" Option from Sync Across Frames: the checkbox has never done anything. That tab copies the stack rather than re-ordering layers that already exist, so order always comes across; the setting was read on the canvas tab and simply ignored here. The tab description now says the order always comes across as-is.',
+      'Renamed "Persistent Tiers & Roles" to "Manual Role Assignments" on the frames tab: the old name promised two things it could not deliver. Tiers cannot travel, because only frame-scoped layers are copied — Always Top and Always Bottom layers already appear on every frame. And an automatic role is worked out afresh from the layer itself on the next render whether it was copied or not. A role you set by hand is the only part this option can actually carry, so that is what it now says.',
+      'Sync Across Frames Reports What It Actually Did: it used to announce "Copied frame layer stack to 2 frames" no matter what happened, including when the source frame had nothing in it. It now names the real numbers — "Copied 3 layers to 2 frames, replacing 2 existing layers" — and tells you plainly when there was nothing to copy.',
+      'Fixed Copied Masks Pointing Back at the Original Image: when a frame containing a masked image was copied, the copied mask still referenced the source frame\'s image by id. It happened to look right because a repair pass re-pairs masks by position on every render, but the data was wrong. Copies now have their internal references remapped as a batch, so a copied mask points at its own copied image.',
+      'Fixed Layers Silently Vanishing on a Frame Sync: the copy rebuilt the layer list from exactly three tiers — Always Bottom, normal, Always Top — so any layer whose tier value was none of those was dropped without a word. Adflow itself only ever writes those three, so this needed an imported or hand-edited project to trigger, but the loss was silent and permanent. Unrecognised tiers now travel in the normal band instead of being discarded, and the layer count is guaranteed to survive the operation.',
+      'A frame can no longer be copied onto itself, which with "Replace existing layers" on would have emptied the source and rebuilt it, and with it off would have doubled every layer in it.',
+    ],
+  },
+  {
+    version: 'v0.36.5',
+    date: 'August 2026 — Engine v2.19',
+    items: [
+      'Renamed "Frame Sync" to "Layer Sync": the dialog holds two tabs, one that syncs across canvases and one that syncs across frames, so naming the whole thing after frames described only half of it. The dialog header and the canvas right-click submenu now read Layer Sync, and the Layers panel button says so too. The two tabs keep the names they already had, Sync Across Canvases and Sync Across Frames, so nothing you already know how to find has moved.',
+    ],
+  },
+  {
+    version: 'v0.36.4',
+    date: 'August 2026 — Engine v2.19',
+    items: [
+      'Preview Links Now Say When They Were Last Updated: a share link points at a snapshot, but every cloud save from the editor mirrors itself into that snapshot — so reviewers holding an old link have been seeing today\'s work under a line reading "Shared on Aug 1". That is actively misleading: it invites someone to review what they believe is Monday\'s version. The line now leads with the update when the snapshot is newer than the link — "Updated Aug 3, 12:49 PM by nguyentuandanh.7" — and keeps the original share date in its tooltip, along with a note that this is a newer save than the link they were sent. A link whose project has not been touched since sharing reads exactly as before. A one-minute grace period stops the act of sharing (which saves a snapshot moments after a save) from immediately reporting itself as an update.',
+    ],
+  },
+  {
+    version: 'v0.36.3',
+    date: 'August 2026 — Engine v2.19',
+    items: [
+      'Save and Discard on the Colour Picker: the picker now has a footer with Discard and Save. Colours still apply live as you drag the wheel or type a hex, so you judge them against the real ad — but you are no longer committed to them. Discard puts back whatever the property held when the picker opened, including gradients, and leaves nothing behind in the undo history. Save keeps the colour and records one undo step for the whole session with the picker, not one per movement of the wheel. Esc behaves as Discard. Clicking away still keeps the colour, as it always has: the change is visibly applied while the picker is open, so silently rolling it back on a stray click would be worse than committing it.',
+      'Fixed a Colour Picker That Closed Itself Mid-Edit: the picker opened from a dialog rather than from a layer — File → New Project\'s background, and File → Settings → Default Canvas Background — shut itself the instant you changed anything. Every edit live-previews, live preview redraws the app, and the redraw ran a check that closes the picker when the selected layer has no such property. A dialog\'s colour does not belong to any layer, so that check closed it every time. Those keys are now exempt, and the picker stays open until you Save or Discard.',
+    ],
+  },
+  {
+    version: 'v0.36.2',
+    date: 'August 2026 — Engine v2.19',
+    items: [
+      'Fixed the Colour Picker\'s Saved Palette Never Loading: on a fresh install the palette row came up empty and the picker threw as it opened, because the code that seeds the eight default swatches ran before the app\'s state existed and failed silently on every single boot — leaving both the saved palette and the saved gradients undefined. It only went unnoticed because opening a project that already carried a palette papered over it. The seeding now runs once the app is up, and again defensively whenever a picker opens, so it can no longer depend on script load order. Existing projects are untouched: it only fills in what is missing and never overwrites a palette you have built.',
+      'Every Colour Control Now Uses Adflow\'s Own Picker: the Default Canvas Background setting in File → Settings was still opening the browser\'s built-in colour dialog — no saved palette, no hex field, no theme, and a different look on every operating system. It is now the same swatch-and-hex control the rest of the app uses, opening the full picker with your saved palette. That was the last one: no colour control anywhere in Adflow falls back to the native dialog now. The Gradient tab stays hidden for it, as it does for stroke colour, since a default background takes a solid colour only.',
+    ],
+  },
   {
     version: 'v0.36.1',
     date: 'August 2026 — Engine v2.19',

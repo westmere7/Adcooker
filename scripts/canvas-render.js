@@ -1553,22 +1553,13 @@ function canvasFrameNode(c) {
       pushHistory();
       render();
     });
+    // Same removal path as the top bar's "-" (removeActiveFrame in project-io.js),
+    // including the confirmation when the frame still holds layers. This used to
+    // be a duplicate of that handler and the two could drift.
     const remBtn = footer.querySelector('.btn-remove-frame-inline');
     if (remBtn) remBtn.addEventListener('mousedown', (e) => {
       e.stopPropagation();
-      if (state.frames.length <= 1) return;
-      const idx = state.frames.findIndex(f => f.id === state.activeFrameId);
-      state.frames.splice(idx, 1);
-      state.activeFrameId = state.frames[Math.max(0, idx - 1)].id;
-      if (state.frames.length === 1) {
-        state.frames[0].skip = false;
-      }
-      state.canvases.forEach(cv => {
-        cv.elements = cv.elements.filter(el => el.persistent !== false || state.frames.some(f => f.id === el.frameId));
-      });
-      deselectNonPersistentLayers();
-      pushHistory();
-      render();
+      removeActiveFrame();
     });
   }
 

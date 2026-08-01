@@ -26,6 +26,8 @@
 // ============================================================================
 let iroPicker = null;
 let currentCpKey = null;
+// Value the current property held when the picker opened — Discard's restore point.
+let cpOpenValue = null;
 let cpIsGradient = false;
 // Each stop carries color (hex), opacity (0-100), pos (0-100) and mid (0..1
 // — the normalised position of the *transition midpoint* in the gap to the
@@ -274,15 +276,29 @@ function cpRemoveStop(idx) {
   emitColorUpdate();
 }
 
-if (!state.savedPalette) {
-  state.savedPalette = ['#ffffff', '#000000', '#000054', '#e61e2a', '#00bcd4', '#4caf50', '#ff9800', '#f44336'];
-}
+// Seeds the saved palette and saved gradients onto `state`.
+//
+// This used to run as bare top-level code. index.html loads this file BEFORE
+// core-state.js, so `state` did not exist yet and the whole block threw
+// `ReferenceError: state is not defined` on every boot — leaving both
+// state.savedPalette and state.savedGradients undefined, so the picker's
+// swatch row came up empty and renderPalettes() threw on .forEach. (The rest
+// of the file survived only because function declarations hoist.) A project
+// loaded from a .flow that already carried a palette masked the bug.
+//
+// Deferring it to a function called from every entry point makes it immune to
+// load order. The `if (!...)` guards are still what matters: a project loaded
+// from disk brings its own palette, and this must never overwrite it.
+const CP_DEFAULT_PALETTE = ['#ffffff', '#000000', '#000054', '#e61e2a', '#00bcd4', '#4caf50', '#ff9800', '#f44336'];
 
-// Saved gradients live alongside savedPalette in state, so they're
-// included in the project save/load blob (state is serialised whole via
-// buildFlowBlob in script.js). Each entry is {angle, stops:[...]}.
-if (!state.savedGradients) {
-  state.savedGradients = [];
+function cpEnsurePaletteState() {
+  if (typeof state === 'undefined' || !state) return false;
+  if (!state.savedPalette) state.savedPalette = CP_DEFAULT_PALETTE.slice();
+  // Saved gradients live alongside savedPalette in state, so they're
+  // included in the project save/load blob (state is serialised whole via
+  // buildFlowBlob in script.js). Each entry is {angle, stops:[...]}.
+  if (!state.savedGradients) state.savedGradients = [];
+  return true;
 }
 
 // Build a quick CSS preview string for a saved-gradient swatch — fixed
@@ -473,17 +489,39 @@ function initColorPicker() {
     });
   });
 
+  // Save / Discard. Edits are live the whole time the picker is open — these
+  // decide whether they stick.
+  const saveBtn = document.getElementById('cp-save');
+  const discardBtn = document.getElementById('cp-discard');
+  if (saveBtn) saveBtn.addEventListener('click', () => closeColorPicker(true));
+  if (discardBtn) discardBtn.addEventListener('click', () => closeColorPicker(false));
+
+  // Esc discards, matching the Discard button. Captured so it beats the global
+  // Esc handler (which would otherwise clear the selection behind the picker).
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || modal.style.display !== 'flex') return;
+    e.stopPropagation();
+    e.preventDefault();
+    closeColorPicker(false);
+  }, true);
+
+  // Clicking away commits, as it always has — the colour is visibly applied
+  // while the picker is open, so silently undoing it here would be a trap.
   document.addEventListener('mousedown', (e) => {
-    if (modal.style.display === 'flex' && !modal.contains(e.target) && !e.target.closest('.cp-trigger')) {
-      closeColorPicker();
-    }
+    if (modal.style.display !== 'flex' || modal.contains(e.target)) return;
+    // e.target isn't always an Element (document, text nodes), and .closest would
+    // throw — which used to abort the handler and leave the picker stuck open.
+    const onTrigger = e.target && typeof e.target.closest === 'function' && e.target.closest('.cp-trigger');
+    if (!onTrigger) closeColorPicker(true);
   });
 }
 
 function renderPalettes() {
   const container = document.getElementById('cp-swatches');
+  if (!container) return;
+  cpEnsurePaletteState();
   container.innerHTML = '';
-  state.savedPalette.forEach(hex => {
+  (state.savedPalette || []).forEach(hex => {
     const s = document.createElement('div');
     s.className = 'cp-swatch';
     s.style.background = hex;
@@ -552,23 +590,21 @@ function updateCurrentColor(hex) {
   emitColorUpdate();
 }
 
-function emitColorUpdate() {
-  if (!currentCpKey) return;
-  let val = '';
-  if (cpIsGradient) {
-    val = cpBuildGradient();
-  } else {
-    val = iroPicker.color.hexString;
-  }
-
-  const input = document.querySelector(`input[type="text"][data-k="${currentCpKey}"]`);
+// Writes a value out to whatever owns the property: the (sometimes hidden) hex
+// field carrying data-k, whose 'input' handler performs the real edit, plus the
+// swatch button's own appearance. Split out of emitColorUpdate so Discard can
+// push the ORIGINAL value back through the exact same path the live edits took
+// — no separate revert path to drift out of sync.
+function cpApplyValue(key, val) {
+  if (!key || val === undefined || val === null) return;
+  const input = document.querySelector(`input[type="text"][data-k="${key}"]`);
   if (input) {
-    input.value = val.replace(/^#/, '');
+    input.value = String(val).replace(/^#/, '');
     input.dispatchEvent(new Event('input'));
   }
-  const trigger = document.querySelector(`.cp-trigger[data-k="${currentCpKey}"]`);
+  const trigger = document.querySelector(`.cp-trigger[data-k="${key}"]`);
   if (trigger) {
-    if (currentCpKey === 'strokeColor') {
+    if (key === 'strokeColor') {
       trigger.style.background = 'transparent';
       trigger.style.boxShadow = `inset 0 0 0 4px ${val}`;
     } else {
@@ -578,14 +614,26 @@ function emitColorUpdate() {
   }
 }
 
+function emitColorUpdate() {
+  if (!currentCpKey) return;
+  const val = cpIsGradient ? cpBuildGradient() : iroPicker.color.hexString;
+  cpApplyValue(currentCpKey, val);
+}
+
 function openColorPicker(btn, key, initialValue) {
+  cpEnsurePaletteState();
   initColorPicker();
   currentCpKey = key;
+  // Remember what the property held on open so Discard can put it back. Captured
+  // before anything is touched, and only for a genuine value — reopening on a
+  // property with no colour set leaves nothing to restore, so Discard just closes.
+  cpOpenValue = (initialValue === undefined || initialValue === null || initialValue === '')
+    ? null : String(initialValue);
   const modal = document.getElementById('color-picker-modal');
 
   const gradientTab = document.querySelector('.cp-tab[data-tab="gradient"]');
   const gradPaletteSection = document.getElementById('cp-gradient-palette-section');
-  if (key === 'strokeColor' || key === 'np-bg') {
+  if (key === 'strokeColor' || key === 'np-bg' || key === 'set-default-bg') {
     gradientTab.style.display = 'none';
     if (gradPaletteSection) gradPaletteSection.style.display = 'none';
   } else {
@@ -593,7 +641,7 @@ function openColorPicker(btn, key, initialValue) {
     if (gradPaletteSection) gradPaletteSection.style.display = '';
   }
 
-  if (initialValue && initialValue.includes('gradient') && key !== 'strokeColor' && key !== 'np-bg') {
+  if (initialValue && initialValue.includes('gradient') && key !== 'strokeColor' && key !== 'np-bg' && key !== 'set-default-bg') {
     cpIsGradient = true;
     document.querySelector('.cp-tab[data-tab="gradient"]').click();
     const parsed = cpParseGradient(initialValue);
@@ -627,14 +675,37 @@ function openColorPicker(btn, key, initialValue) {
   modal.style.left = left + 'px';
 }
 
-function closeColorPicker() {
+// commit=true keeps the live-previewed colour and records one undo step for the
+// whole session with the picker (that's why history is pushed here and not on
+// every drag of the colour wheel). commit=false puts the opening value back
+// first, and then there is nothing worth an undo entry.
+function closeColorPicker(commit = true) {
+  const key = currentCpKey;
+  const openValue = cpOpenValue;
   document.getElementById('color-picker-modal').style.display = 'none';
   currentCpKey = null;
-  pushHistory();
+  cpOpenValue = null;
+  if (commit) {
+    pushHistory();
+    return;
+  }
+  if (key && openValue !== null) cpApplyValue(key, openValue);
 }
+
+// Keys owned by a dialog rather than by whatever is selected on the canvas.
+// There is no element to read them back off, so the selection-sync below must
+// leave them entirely alone.
+const CP_DIALOG_KEYS = new Set(['np-bg', 'set-default-bg']);
 
 function syncColorPickerWithSelection(el, c) {
   if (document.getElementById('color-picker-modal').style.display !== 'flex' || !currentCpKey) return;
+
+  // Without this, a dialog-owned picker shut itself the moment anything called
+  // render(): renderProps() lands here, el['set-default-bg'] is undefined, and
+  // the "selection no longer has this property" branch closed the picker. The
+  // Settings dialog live-previews on every keystroke, so its picker slammed shut
+  // on the first edit and Discard had nothing left to restore.
+  if (CP_DIALOG_KEYS.has(currentCpKey)) return;
 
   let val;
   if (currentCpKey === 'canvas-bg' && c) {

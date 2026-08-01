@@ -444,6 +444,11 @@ async function loadProjectFromState(loadedState) {
   delete state.previewUrl;
   delete state.previewExpiry;
   delete state.previewSharePath;
+  // Cleared then restored by the Object.assign below if the file carries one,
+  // exactly like the share metadata above — the preview portal's "Updated ..."
+  // line depends on this travelling inside the .flow.
+  delete state.cloudSavedAt;
+  delete state.cloudSavedBy;
 
   Object.assign(state, loadedState);
   delete state.isTemplate;
@@ -575,6 +580,11 @@ async function loadProjectFromBlob(file, customProjectName, existingProgress = n
     delete state.previewUrl;
     delete state.previewExpiry;
     delete state.previewSharePath;
+    // Cleared then restored by the Object.assign below if the file carries one,
+    // exactly like the share metadata above — the preview portal's "Updated ..."
+    // line depends on this travelling inside the .flow.
+    delete state.cloudSavedAt;
+    delete state.cloudSavedBy;
     Object.assign(state, loadedState);
     delete state.isTemplate; // Always ensure isTemplate is removed at runtime
   
@@ -689,9 +699,42 @@ document.getElementById('btn-add-frame').addEventListener('click', () => {
   render();
 });
 
-document.getElementById('btn-remove-frame').addEventListener('click', () => {
-  if (state.frames.length <= 1) return;
+// Deleting a frame takes its layers with it, on EVERY canvas — the frame list is
+// project-wide, so removing frame 2 destroys frame 2's layers in all six sizes at
+// once. Always Top / Always Bottom layers are untouched; they belong to no frame.
+// Returns a summary so the caller can warn before doing it.
+function frameRemovalImpact(frameId) {
+  const canvases = (state.canvases || []).filter(c =>
+    (c.elements || []).some(e => e.persistent === false && e.frameId === frameId));
+  const layers = canvases.reduce((n, c) =>
+    n + c.elements.filter(e => e.persistent === false && e.frameId === frameId).length, 0);
+  return { layers, canvases: canvases.length };
+}
+
+// The one implementation behind both "-" buttons (top bar and the per-canvas
+// footer), which were previously duplicated line for line.
+async function removeActiveFrame() {
+  if (!state.frames || state.frames.length <= 1) return false;
   const idx = state.frames.findIndex(f => f.id === state.activeFrameId);
+  if (idx < 0) return false;
+
+  const doomedId = state.frames[idx].id;
+  const { layers, canvases } = frameRemovalImpact(doomedId);
+  if (layers > 0) {
+    const where = canvases > 1 ? ` across <b>${canvases} canvases</b>` : '';
+    const plural = layers > 1 ? 's' : '';
+    const verb = layers > 1 ? 'live' : 'lives';
+    const msg =
+      `<p style="margin:0 0 10px;">Deleting <b>Frame ${idx + 1}</b> also deletes the ` +
+      `<b>${layers} layer${plural}</b> that ${verb} on it${where}.</p>` +
+      `<p style="margin:0; color:var(--text-muted); font-size:12px;">Layers set to Always Top or ` +
+      `Always Bottom are not affected — they belong to every frame. This can be undone.</p>`;
+    const ok = (typeof showAdflowConfirm === 'function')
+      ? await showAdflowConfirm(msg, 'Delete Frame')
+      : confirm(`Deleting Frame ${idx + 1} also deletes ${layers} layer(s) on it. Continue?`);
+    if (!ok) return false;
+  }
+
   state.frames.splice(idx, 1);
   state.activeFrameId = state.frames[Math.max(0, idx - 1)].id;
   if (state.frames.length === 1) {
@@ -705,7 +748,10 @@ document.getElementById('btn-remove-frame').addEventListener('click', () => {
   deselectNonPersistentLayers();
   pushHistory();
   render();
-});
+  return true;
+}
+
+document.getElementById('btn-remove-frame').addEventListener('click', () => { removeActiveFrame(); });
 document.getElementById('btn-skip-frame').addEventListener('click', () => {
   const currentFrame = state.frames.find(f => f.id === state.activeFrameId);
   if (currentFrame) {

@@ -346,6 +346,21 @@ document.addEventListener('contextmenu', (e) => {
       return findImageBeneath(c, mask) === img ? { mask, img } : null;
     })();
 
+    // Distribute is a top-level action, not something buried in the Link Group
+    // submenu: copying a layout to the other sizes is a routine job that has
+    // nothing to do with linking. It works on ANY selection, so it sits outside
+    // the category gate below. "& Link" needs a linkable category, so it is
+    // emitted with the link section.
+    const otherCanvasCount = (state.canvases || []).length - 1;
+    if (otherCanvasCount > 0 && state.layerSelection && state.layerSelection.length) {
+      const n = state.layerSelection.length;
+      html += `<div class="ctx-divider"></div>`;
+      html += `<div class="ctx-item" id="ctx-distribute" style="white-space:nowrap;" title="Copy ${n === 1 ? 'this layer' : 'these ' + n + ' layers'} to the other ${otherCanvasCount} canvas${otherCanvasCount > 1 ? 'es' : ''}, on this frame, keeping the arrangement.">Distribute</div>`;
+      if (cat && (sameCat || maskPairSelected)) {
+        html += `<div class="ctx-item" id="ctx-distribute-link" style="white-space:nowrap;" title="Distribute, then link each layer to its counterpart on every canvas so edits travel between them.">Distribute &amp; Link</div>`;
+      }
+    }
+
     if (cat && (sameCat || maskPairSelected)) {
       const linkedEl = c.elements.filter(x => state.layerSelection.includes(x.id));
       const groupIds = [...new Set(linkedEl.map(x => x.linkGroupId).filter(Boolean))];
@@ -378,8 +393,7 @@ document.addEventListener('contextmenu', (e) => {
 
       html += `
           <div class="ctx-item" id="ctx-link-autolink" style="white-space:nowrap;">Auto-Link</div>
-          <div class="ctx-item" id="ctx-link-new" style="white-space:nowrap;">Create New Group...</div>
-          <div class="ctx-item" id="ctx-link-autoadd" style="white-space:nowrap;">Distribute & Link</div>`;
+          <div class="ctx-item" id="ctx-link-new" style="white-space:nowrap;">Create New Group...</div>`;
 
       if (hasLink) {
         html += `<div class="ctx-divider"></div>`;
@@ -465,11 +479,16 @@ document.addEventListener('contextmenu', (e) => {
     html += `<div class="ctx-divider"></div>`;
 
     const syncSvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>`;
+    // Two directions work can travel from a canvas, each opening its own tab of
+    // the Distribute / Sync panel. Both act on the frame you're looking at, so
+    // nothing needs selecting first — the quick per-selection versions live on
+    // the element right-click menu.
+    const otherCount = (state.canvases || []).length - 1;
     html += `<div class="ctx-item has-submenu">
-      ${svgWrap(syncSvg, 'Frame Sync')}
+      ${svgWrap(syncSvg, 'Distribute / Sync')}
       <div class="ctx-submenu">
-        <div class="ctx-item" id="ctx-canvas-sync" style="white-space:nowrap;">Sync Across Canvases...</div>
-        <div class="ctx-item" id="ctx-frame-sync" style="white-space:nowrap;">Sync Across Frames...</div>
+        <div class="ctx-item" id="ctx-frame-sync" style="white-space:nowrap;" title="Copy this frame's layer stack to other frames on this canvas.">Across Frames...</div>
+        ${otherCount > 0 ? `<div class="ctx-item" id="ctx-canvas-distribute" style="white-space:nowrap;" title="Copy every layer on this frame to your other ${otherCount} canvas${otherCount > 1 ? 'es' : ''}, keeping the arrangement.">Across Canvases...</div>` : ''}
       </div>
     </div>`;
     html += `<div class="ctx-divider"></div>`;
@@ -708,19 +727,8 @@ document.addEventListener('contextmenu', (e) => {
       createAndLinkGroup(name.trim());
     }
   });
-  bind('ctx-link-autoadd', () => {
-    const c = getActiveCanvas();
-    if (!c || !state.layerSelection?.length) return;
-    const selectedEls = state.layerSelection.map(id => c.elements.find(x => x.id === id)).filter(Boolean);
-    if (selectedEls.length > 0) {
-      selectedEls.forEach(el => {
-        autoAddAndLink(el, true);
-      });
-      pushHistory();
-      render();
-      showCanvasNotification("Distributed & linked selected elements");
-    }
-  });
+  bind('ctx-distribute', () => { distributeSelection({ link: false }); });
+  bind('ctx-distribute-link', () => { distributeSelection({ link: true }); });
   bind('ctx-link-remove', () => {
     removeSelectionFromGroup();
   });
@@ -824,13 +832,13 @@ document.addEventListener('contextmenu', (e) => {
   });
   bind('ctx-canvas-export-html', () => { const c = getActiveCanvas(); if (c) exportCanvasAsZip(c); });
   bind('ctx-canvas-export-png', () => { const c = getActiveCanvas(); if (c) exportCanvasAsPng(c); });
-  bind('ctx-canvas-sync', (e) => {
+  bind('ctx-canvas-distribute', (e) => {
     e.stopPropagation();
-    showSyncLayersMenu(e.target, 'canvas');
+    showSyncLayersMenu(e.target, 'canvases');
   });
   bind('ctx-frame-sync', (e) => {
     e.stopPropagation();
-    showSyncLayersMenu(e.target, 'frame');
+    showSyncLayersMenu(e.target, 'frames');
   });
   bind('ctx-canvas-auto-resize', () => {
     const s = (typeof getAutoResizeSettings === 'function') ? getAutoResizeSettings() : null;
@@ -1040,7 +1048,7 @@ function initCollapsiblePanels() {
         if (parentSection.id === 'panel-section-layers' && !header.querySelector('.panel-sync-layers-btn')) {
           const syncBtn = document.createElement('button');
           syncBtn.className = 'panel-sync-layers-btn';
-          syncBtn.title = 'Sync layer order & settings to other canvases';
+          syncBtn.title = 'Distribute / Sync — copy this frame’s layers to other frames, or to your other canvases';
           syncBtn.style.cursor = 'pointer';
           syncBtn.style.display = 'inline-flex';
           syncBtn.style.alignItems = 'center';
@@ -1051,7 +1059,7 @@ function initCollapsiblePanels() {
           syncBtn.style.outline = 'none';
           syncBtn.style.color = 'var(--text-muted)';
           syncBtn.style.transition = 'color 0.15s';
-          syncBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="pointer-events: none;"><title>Sync layer order & settings to other canvases</title><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>`;
+          syncBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="pointer-events: none;"><title>Distribute / Sync</title><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>`;
           
           syncBtn.addEventListener('mouseenter', () => syncBtn.style.color = 'var(--text-bright)');
           syncBtn.addEventListener('mouseleave', () => syncBtn.style.color = 'var(--text-muted)');
@@ -1216,7 +1224,7 @@ const appSplash = (() => {
         const verEl = document.createElement('span');
         verEl.className = 'app-splash-version';
         verEl.style.cssText = 'font-size: 10px; color: var(--text-muted, #8b8f9c); border: 1px solid rgba(139, 143, 156, 0.4); padding: 2px 8px; border-radius: 10px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: inline-flex; align-items: center; justify-content: center; line-height: 1; margin-top: 2px;';
-        verEl.textContent = 'v0.36.1';
+        verEl.textContent = 'v0.38.1';
         logoEl.appendChild(verEl);
       }
     }
@@ -1394,6 +1402,12 @@ async function loadStartupTemplate(fileName, customProjectName, customCompressFo
       }
     }
   }
+  // Seed the colour picker's saved palette / gradients now that state exists and
+  // any restored project has had its chance to bring its own (the seeder only
+  // fills in what's missing). color-picker.js can't do this at load time — it is
+  // loaded before core-state.js defines `state`.
+  if (typeof cpEnsurePaletteState === 'function') cpEnsurePaletteState();
+
   appSplash.setPhase(2);
   await syncRmitAssets();
   appSplash.setPhase(3);
@@ -1627,7 +1641,14 @@ function initVersionWatch() {
   document.addEventListener('visibilitychange', onVisible);
 }
 
-function showSyncLayersMenu(anchorEl, initialTab = 'canvas') {
+// Distribute / Sync panel — two tabs for the two directions work travels:
+//
+//   Across Frames    copy this frame's stack to other frames of THIS canvas
+//   Across Canvases  copy this frame's layers to the OTHER canvases
+//
+// The quick paths stay on the right-click menus (Distribute / Distribute & Link
+// on a selection); this panel is where the options live.
+function showSyncLayersMenu(anchorEl, initialTab = 'frames') {
   const existing = document.getElementById('sync-layers-modal-bg');
   if (existing) {
     existing.remove();
@@ -1641,197 +1662,172 @@ function showSyncLayersMenu(anchorEl, initialTab = 'canvas') {
   bg.id = 'sync-layers-modal-bg';
   bg.style.zIndex = '999999';
 
-  const syncOrder = localStorage.getItem('sync-layers-order') !== 'false';
-  const syncVisibility = localStorage.getItem('sync-layers-visibility') !== 'false';
-  const syncLock = localStorage.getItem('sync-layers-lock') !== 'false';
-  const syncPersistent = localStorage.getItem('sync-layers-persistent') !== 'false';
-  const syncAllCanvases = localStorage.getItem('sync-layers-all-canvases') !== 'false';
+  const pref = (k, dflt = true) => dflt
+    ? localStorage.getItem(k) !== 'false'
+    : localStorage.getItem(k) === 'true';
 
-  const syncFramesOrder = localStorage.getItem('sync-frames-order') !== 'false';
-  const syncFramesVisibility = localStorage.getItem('sync-frames-visibility') !== 'false';
-  const syncFramesLock = localStorage.getItem('sync-frames-lock') !== 'false';
-  const syncFramesPersistent = localStorage.getItem('sync-frames-persistent') !== 'false';
-  const syncFramesBreakLink = localStorage.getItem('sync-frames-break-link') !== 'false';
-  const syncAllFrames = localStorage.getItem('sync-layers-all-frames') !== 'false';
+  const syncFramesVisibility = pref('sync-frames-visibility');
+  const syncFramesLock = pref('sync-frames-lock');
+  const syncFramesPersistent = pref('sync-frames-persistent');
+  const syncFramesBreakLink = pref('sync-frames-break-link');
+  // Defaults to ON, which is what this has always done — replacing keeps a
+  // re-run idempotent. Off stacks the copies on top of whatever is already there.
+  const syncFramesClear = pref('sync-frames-clear');
 
+  const distVisibility = pref('dist-visibility');
+  const distLock = pref('dist-lock');
+  const distRole = pref('dist-role');
+  const distLink = pref('dist-link');
+  const distAllCanvases = pref('dist-all-canvases');
+
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, m =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
   const otherCanvases = state.canvases.filter(c => c.id !== state.activeCanvasId);
-  const esc = (s) => String(s || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+  const canvasRows = otherCanvases.length
+    ? otherCanvases.map(c => `
+        <label style="display:flex; align-items:center; gap:6px; font-size:11px; cursor:pointer;" title="Toggle canvas target ${esc(c.name || (c.width + 'x' + c.height))}">
+          <input type="checkbox" class="dist-target-canvas-chk" data-id="${esc(c.id)}" checked style="margin:0;" />
+          <span>${esc(c.name || (c.width + 'x' + c.height))}</span>
+        </label>`).join('')
+    : `<div style="font-size:11px; color:var(--text-muted); font-style:italic;">No other canvases</div>`;
 
-  let canvasesListHtml = '';
-  if (otherCanvases.length > 0) {
-    canvasesListHtml = `
-      <div id="sync-canvases-selection-container" style="display: ${syncAllCanvases ? 'none' : 'flex'}; flex-direction: column; gap: 4px; max-height: 100px; overflow-y: auto; padding: 4px 6px; background: var(--bg-input); border: 1px solid var(--border-light); border-radius: 4px; margin-top: 4px;">
-        ${otherCanvases.map(c => `
-          <label style="display:flex; align-items:center; gap:6px; font-size:11px; cursor:pointer;" title="Toggle canvas target ${esc(c.name || `${c.width}x${c.height}`)}">
-            <input type="checkbox" class="sync-target-canvas-chk" data-id="${c.id}" checked style="margin:0;" />
-            <span>${esc(c.name || `${c.width}x${c.height}`)}</span>
-          </label>
-        `).join('')}
-      </div>
-    `;
-  } else {
-    canvasesListHtml = `<div style="font-size:11px; color:var(--text-muted); font-style:italic;">No other canvases</div>`;
-  }
+  const optRow = (id, checked, label, title) => `
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size: 12px; font-weight: 500;" title="${esc(title)}">
+              <input type="checkbox" id="${id}" ${checked ? 'checked' : ''} style="margin:0;" />
+              <span>${label}</span>
+            </label>`;
+  const heading = (t) => `<div style="font-size: 10px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">${t}</div>`;
+  const divider = `<div style="height:1px; background:var(--border-light); margin: 2px 0;"></div>`;
+  const tabStyle = (active) => `flex: 1; padding: 12px 0; font-size: 12px; font-weight: ${active ? 600 : 500}; border: none; border-bottom: 2px solid ${active ? 'var(--accent-base)' : 'transparent'}; background: none; color: var(--${active ? 'text-main' : 'text-muted'}); cursor: pointer; text-align: center; outline: none; transition: all 0.15s;`;
 
   bg.innerHTML = `
     <div class="modal" style="max-width:440px;">
       <div class="modal-head">
-        <h2>Frame Sync</h2>
+        <h2>Distribute / Sync</h2>
         <button class="btn" id="sync-layers-close" title="Close dialog">Close</button>
       </div>
 
-      <!-- Tab navigation -->
       <div style="display: flex; gap: 0; border-bottom: 1px solid var(--border-light); background: var(--bg-body); padding: 0 12px; flex-shrink: 0;">
-        <button id="btn-tab-canvas-sync" style="flex: 1; padding: 12px 0; font-size: 12px; font-weight: 600; border: none; border-bottom: 2px solid var(--accent-base); background: none; color: var(--text-main); cursor: pointer; text-align: center; outline: none; transition: all 0.15s;">Sync Across Canvases</button>
-        <button id="btn-tab-frame-sync" style="flex: 1; padding: 12px 0; font-size: 12px; font-weight: 500; border: none; border-bottom: 2px solid transparent; background: none; color: var(--text-muted); cursor: pointer; text-align: center; outline: none; transition: all 0.15s;">Sync Across Frames</button>
+        <button id="btn-tab-frame-sync" style="${tabStyle(initialTab !== 'canvases')}">Across Frames</button>
+        <button id="btn-tab-canvas-dist" style="${tabStyle(initialTab === 'canvases')}">Across Canvases</button>
       </div>
 
       <div class="modal-body" style="display:flex; flex-direction:column; gap:16px; padding:18px 22px; overflow-y:auto;">
-        <!-- Canvas Sync Container -->
-        <div id="container-canvas-sync" style="display: flex; flex-direction: column; gap: 14px;">
-          <div style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">
-            Match the layer order, visibility, and lock settings of the current canvas across your other canvases.
-          </div>
-          
-          <div style="display:flex; flex-direction:column; gap:8px;">
-            <div style="font-size: 10px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Sync Options</div>
-            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size: 12px; font-weight: 500;" title="Reorders linked layers in target canvases to match the active canvas stack order. Local unlinked layers remain safe on top.">
-              <input type="checkbox" id="chk-sync-order" ${syncOrder ? 'checked' : ''} style="margin:0;" />
-              <span>Stacking Order</span>
-            </label>
-            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size: 12px; font-weight: 500;" title="Synchronizes layer visibility state (hidden/visible) with the active canvas elements.">
-              <input type="checkbox" id="chk-sync-visibility" ${syncVisibility ? 'checked' : ''} style="margin:0;" />
-              <span>Visibility State</span>
-            </label>
-            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size: 12px; font-weight: 500;" title="Synchronizes layers locking status (editable/locked) to match the active canvas state.">
-              <input type="checkbox" id="chk-sync-lock" ${syncLock ? 'checked' : ''} style="margin:0;" />
-              <span>Lock State</span>
-            </label>
-            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size: 12px; font-weight: 500;" title="Synchronizes tier assignments (Always Top, Always Bottom, or Standard) and parent frames.">
-              <input type="checkbox" id="chk-sync-persistent" ${syncPersistent ? 'checked' : ''} style="margin:0;" />
-              <span>Persistent Tiers & Roles</span>
-            </label>
-          </div>
 
-          <div style="height:1px; background:var(--border-light); margin: 4px 0;"></div>
+        <!-- ============ ACROSS FRAMES ============ -->
+        <div id="container-frame-sync" style="display: ${initialTab === 'canvases' ? 'none' : 'flex'}; flex-direction: column; gap: 14px;">
+          <div style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">
+            Copy the layer stack of a selected frame to other frames on this canvas.
+            The stack order always comes across as-is.
+          </div>
 
           <div style="display:flex; flex-direction:column; gap:6px;">
-            <div style="font-size: 10px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Target Canvases</div>
-            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size: 12px; font-weight: 500;" title="Apply the sync configuration to all other canvases in the document.">
-              <input type="checkbox" id="chk-sync-all-canvases" ${syncAllCanvases ? 'checked' : ''} style="margin:0;" />
-              <span>All other canvases</span>
-            </label>
-            ${canvasesListHtml}
-          </div>
-        </div>
-
-        <!-- Frame Sync Container -->
-        <div id="container-frame-sync" style="display: none; flex-direction: column; gap: 14px;">
-          <div style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">
-            Copy the layer stack of a selected frame to other target frames on this canvas.
-          </div>
-
-          <!-- Source Frame Selector Dropdown -->
-          <div style="display:flex; flex-direction:column; gap:6px;">
-            <div style="font-size: 10px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Source Frame</div>
-            <select id="select-sync-source-frame" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:6px 8px; font-size:12px; outline:none; cursor:pointer;" title="Choose the source frame to copy layer stack from. Updates active frame on canvas in real-time.">
-              ${state.frames.map((f, i) => `
-                <option value="${f.id}" ${f.id === state.activeFrameId ? 'selected' : ''}>Frame ${i + 1}</option>
-              `).join('')}
+            ${heading('Source Frame')}
+            <select id="select-sync-source-frame" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:6px 8px; font-size:12px; outline:none; cursor:pointer;" title="Choose the source frame to copy the layer stack from. The canvas jumps to it as you choose.">
+              ${state.frames.map((f, i) => `<option value="${f.id}" ${f.id === state.activeFrameId ? 'selected' : ''}>Frame ${i + 1}</option>`).join('')}
             </select>
           </div>
 
+          <!-- No "Stacking Order" option: this COPIES the stack rather than
+               re-ordering layers that already exist, so order always travels. -->
           <div style="display:flex; flex-direction:column; gap:8px;">
-            <div style="font-size: 10px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Sync Options</div>
-            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size: 12px; font-weight: 500;" title="Copy stacking order from the active frame.">
-              <input type="checkbox" id="chk-sync-frames-order" ${syncFramesOrder ? 'checked' : ''} style="margin:0;" />
-              <span>Stacking Order</span>
-            </label>
-            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size: 12px; font-weight: 500;" title="Copy layer visibility state.">
-              <input type="checkbox" id="chk-sync-frames-visibility" ${syncFramesVisibility ? 'checked' : ''} style="margin:0;" />
-              <span>Visibility State</span>
-            </label>
-            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size: 12px; font-weight: 500;" title="Copy lock state.">
-              <input type="checkbox" id="chk-sync-frames-lock" ${syncFramesLock ? 'checked' : ''} style="margin:0;" />
-              <span>Lock State</span>
-            </label>
-            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size: 12px; font-weight: 500;" title="Copy persistent tiers and roles.">
-              <input type="checkbox" id="chk-sync-frames-persistent" ${syncFramesPersistent ? 'checked' : ''} style="margin:0;" />
-              <span>Persistent Tiers & Roles</span>
-            </label>
+            ${heading('Carry Over')}
+            ${optRow('chk-sync-frames-visibility', syncFramesVisibility, 'Visibility State', "Copy each layer's hidden/visible state. Off: every copied layer arrives visible.")}
+            ${optRow('chk-sync-frames-lock', syncFramesLock, 'Lock State', "Copy each layer's locked state. Off: every copied layer arrives unlocked.")}
+            ${optRow('chk-sync-frames-persistent', syncFramesPersistent, 'Manual Role Assignments', 'Carry over a role you assigned by hand. Automatic roles are re-derived either way.')}
           </div>
 
-          <div style="height:1px; background:var(--border-light); margin: 2px 0;"></div>
+          ${divider}
 
           <div style="display:flex; flex-direction:column; gap:8px;">
-            <div style="font-size: 10px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Link Sync Options</div>
-            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size: 12px; font-weight: 500;" title="Remove link group association on cloned layers so they edit independently of source layers.">
-              <input type="checkbox" id="chk-sync-frames-break-link" ${syncFramesBreakLink ? 'checked' : ''} style="margin:0;" />
-              <span>Break Link Group</span>
-            </label>
+            ${heading('Link Options')}
+            ${optRow('chk-sync-frames-break-link', syncFramesBreakLink, 'Break Link Group', 'Recommended. Link groups pair a layer with its counterparts on OTHER CANVASES, which usually hold the same content. Frames usually hold different content.')}
           </div>
 
-          <div style="height:1px; background:var(--border-light); margin: 4px 0;"></div>
+          ${divider}
 
           <div style="display:flex; flex-direction:column; gap:6px;">
-            <div style="font-size: 10px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Target Frames</div>
-            <div id="sync-frames-targets-wrapper">
-              <!-- Rendered dynamically -->
+            ${heading('Target Frames')}
+            ${optRow('chk-sync-frames-clear', syncFramesClear, 'Replace existing layers', "On: the target frames' own layers are removed and replaced. Off: they stay, sitting UNDER the copied layers within their own tier.")}
+            <div id="sync-frames-clear-hint" style="font-size: 11px; color: var(--text-muted); line-height: 1.45; margin: -2px 0 4px 24px;"></div>
+            <div id="sync-frames-targets-wrapper"></div>
+          </div>
+        </div>
+
+        <!-- ============ ACROSS CANVASES ============ -->
+        <div id="container-canvas-dist" style="display: ${initialTab === 'canvases' ? 'flex' : 'none'}; flex-direction: column; gap: 14px;">
+          <div style="font-size: 12px; color: var(--text-muted); line-height: 1.5;">
+            Copy every layer on this frame to your other canvases, keeping the arrangement.
+            Layers set to Always Top or Always Bottom stay where they are — they already
+            appear on every frame and are usually placed to suit each size.
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            ${heading('Carry Over')}
+            ${optRow('chk-dist-visibility', distVisibility, 'Visibility State', "Copy each layer's hidden/visible state. Off: every copy arrives visible.")}
+            ${optRow('chk-dist-lock', distLock, 'Lock State', "Copy each layer's locked state. Off: every copy arrives unlocked.")}
+            ${optRow('chk-dist-role', distRole, 'Manual Role Assignments', 'Carry over a role you assigned by hand. Automatic roles are re-derived either way.')}
+          </div>
+
+          ${divider}
+
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            ${heading('Link Options')}
+            ${optRow('chk-dist-link', distLink, 'Link to counterparts', 'Recommended for multi-size work: each copy joins a link group with its counterpart, so later edits travel between canvases. Off, the copies are independent and no groups are created.')}
+          </div>
+
+          ${divider}
+
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            ${heading('Target Canvases')}
+            ${optRow('chk-dist-all-canvases', distAllCanvases, 'All other canvases', 'Apply to every other canvas in the project.')}
+            <div id="dist-canvases-selection-container" style="display: ${distAllCanvases ? 'none' : 'flex'}; flex-direction: column; gap: 4px; max-height: 120px; overflow-y: auto; padding: 4px 6px; background: var(--bg-input); border: 1px solid var(--border-light); border-radius: 4px; margin-top: 4px;">
+              ${canvasRows}
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); line-height: 1.45; margin-top: 2px;">
+              A layer that already exists on a target — same link group, or the same name and type — is replaced. Anything else there is left alone, and you'll be asked first.
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Modal footer -->
       <div class="modal-foot">
         <button class="btn btn-sync-layers-cancel" style="padding: 6px 12px; font-size: 12px; cursor: pointer;">Cancel</button>
-        <button class="btn primary" id="btn-sync-layers-execute" style="padding: 6px 16px; font-size: 12px; font-weight: 600; background: var(--accent-base); color: var(--text-on-accent, #fff); border: none; border-radius: 4px; cursor: pointer;">Sync Across Canvases</button>
+        <button class="btn primary" id="btn-sync-layers-execute" style="padding: 6px 16px; font-size: 12px; font-weight: 600; background: var(--accent-base); color: var(--text-on-accent, #fff); border: none; border-radius: 4px; cursor: pointer;">Sync Across Frames</button>
       </div>
     </div>
   `;
 
   document.body.appendChild(bg);
 
-  // Tab buttons and containers
-  const tabCanvas = bg.querySelector('#btn-tab-canvas-sync');
-  const tabFrame = bg.querySelector('#btn-tab-frame-sync');
-  const containerCanvas = bg.querySelector('#container-canvas-sync');
-  const containerFrame = bg.querySelector('#container-frame-sync');
+  const tabFrames = bg.querySelector('#btn-tab-frame-sync');
+  const tabCanvases = bg.querySelector('#btn-tab-canvas-dist');
+  const paneFrames = bg.querySelector('#container-frame-sync');
+  const paneCanvases = bg.querySelector('#container-canvas-dist');
   const executeBtn = bg.querySelector('#btn-sync-layers-execute');
+  const chkDistLink = bg.querySelector('#chk-dist-link');
+  let activeTab = initialTab === 'canvases' ? 'canvases' : 'frames';
 
-  let activeTab = 'canvas';
-
-  tabCanvas.onclick = () => {
-    activeTab = 'canvas';
-    tabCanvas.style.borderBottomColor = 'var(--accent-base)';
-    tabCanvas.style.color = 'var(--text-main)';
-    tabCanvas.style.fontWeight = '600';
-
-    tabFrame.style.borderBottomColor = 'transparent';
-    tabFrame.style.color = 'var(--text-muted)';
-    tabFrame.style.fontWeight = '500';
-
-    containerCanvas.style.display = 'flex';
-    containerFrame.style.display = 'none';
-    executeBtn.innerText = 'Sync Across Canvases';
+  // The button says what it is about to do, including whether it will link.
+  const syncExecuteLabel = () => {
+    executeBtn.innerText = activeTab === 'frames'
+      ? 'Sync Across Frames'
+      : (chkDistLink && chkDistLink.checked ? 'Distribute & Link' : 'Distribute');
   };
 
-  tabFrame.onclick = () => {
-    activeTab = 'frame';
-    tabCanvas.style.borderBottomColor = 'transparent';
-    tabCanvas.style.color = 'var(--text-muted)';
-    tabCanvas.style.fontWeight = '500';
-
-    tabFrame.style.borderBottomColor = 'var(--accent-base)';
-    tabFrame.style.color = 'var(--text-main)';
-    tabFrame.style.fontWeight = '600';
-
-    containerCanvas.style.display = 'none';
-    containerFrame.style.display = 'flex';
-    executeBtn.innerText = 'Sync Across Frames';
+  const showTab = (which) => {
+    activeTab = which;
+    const onFrames = which === 'frames';
+    tabFrames.style.cssText = tabStyle(onFrames);
+    tabCanvases.style.cssText = tabStyle(!onFrames);
+    paneFrames.style.display = onFrames ? 'flex' : 'none';
+    paneCanvases.style.display = onFrames ? 'none' : 'flex';
+    syncExecuteLabel();
   };
+  tabFrames.onclick = () => showTab('frames');
+  tabCanvases.onclick = () => showTab('canvases');
 
-  // Helper to update target frames selection dynamically
+  // ---- Across Frames: target list -----------------------------------------
   const updateTargetFramesList = (selectedSourceId) => {
     const otherFrames = state.frames.filter(f => f.id !== selectedSourceId);
     const syncAllFrames = localStorage.getItem('sync-layers-all-frames') !== 'false';
@@ -1849,19 +1845,17 @@ function showSyncLayersMenu(anchorEl, initialTab = 'canvas') {
         <label style="display:flex; align-items:center; gap:6px; font-size:11px; cursor:pointer;" title="Toggle frame target Frame ${frameIndex + 1}">
           <input type="checkbox" class="sync-target-frame-chk" data-id="${f.id}" checked style="margin:0;" />
           <span>Frame ${frameIndex + 1}</span>
-        </label>
-      `;
+        </label>`;
     }).join('');
 
     wrapper.innerHTML = `
-      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size: 12px; font-weight: 500;" title="Apply the frame sync to all other frames.">
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size: 12px; font-weight: 500;" title="Apply to all other frames.">
         <input type="checkbox" id="chk-sync-all-frames" ${syncAllFrames ? 'checked' : ''} style="margin:0;" />
         <span>All other frames</span>
       </label>
       <div id="sync-frames-selection-container" style="display: ${syncAllFrames ? 'none' : 'flex'}; flex-direction: column; gap: 4px; max-height: 100px; overflow-y: auto; padding: 4px 6px; background: var(--bg-input); border: 1px solid var(--border-light); border-radius: 4px; margin-top: 4px;">
         ${checkboxRows}
-      </div>
-    `;
+      </div>`;
 
     const chkAllFrames = wrapper.querySelector('#chk-sync-all-frames');
     const containerFramesSelection = wrapper.querySelector('#sync-frames-selection-container');
@@ -1872,18 +1866,8 @@ function showSyncLayersMenu(anchorEl, initialTab = 'canvas') {
       };
     }
   };
-
-  // Populate target frames list initially
   updateTargetFramesList(state.activeFrameId);
 
-  // Set initial active tab state
-  if (initialTab === 'frame') {
-    tabFrame.onclick();
-  } else {
-    tabCanvas.onclick();
-  }
-
-  // Source Frame Selector dynamic preview
   const selectSourceFrame = bg.querySelector('#select-sync-source-frame');
   if (selectSourceFrame) {
     selectSourceFrame.onchange = (e) => {
@@ -1894,31 +1878,52 @@ function showSyncLayersMenu(anchorEl, initialTab = 'canvas') {
     };
   }
 
-  // Canvas Options Change listeners
-  const chkAllCanvases = bg.querySelector('#chk-sync-all-canvases');
-  const containerSelection = bg.querySelector('#sync-canvases-selection-container');
-  if (chkAllCanvases && containerSelection) {
-    chkAllCanvases.onchange = () => {
-      containerSelection.style.display = chkAllCanvases.checked ? 'none' : 'flex';
-      localStorage.setItem('sync-layers-all-canvases', chkAllCanvases.checked ? 'true' : 'false');
+  const remember = (id, key, after) => {
+    const el = bg.querySelector('#' + id);
+    if (!el) return;
+    el.onchange = (e) => {
+      localStorage.setItem(key, e.target.checked ? 'true' : 'false');
+      if (after) after(e.target.checked);
+    };
+  };
+  remember('chk-sync-frames-visibility', 'sync-frames-visibility');
+  remember('chk-sync-frames-lock', 'sync-frames-lock');
+  remember('chk-sync-frames-break-link', 'sync-frames-break-link');
+  remember('chk-sync-frames-persistent', 'sync-frames-persistent');
+  remember('chk-dist-visibility', 'dist-visibility');
+  remember('chk-dist-lock', 'dist-lock');
+  remember('chk-dist-role', 'dist-role');
+  remember('chk-dist-link', 'dist-link', syncExecuteLabel);
+
+  // Replace-vs-stack. The hint spells out what the target frames will actually
+  // look like afterwards, because "replace" is destructive and "stack" silently
+  // piles up on a second run — neither is obvious from a checkbox label alone.
+  const chkFramesClear = bg.querySelector('#chk-sync-frames-clear');
+  const framesClearHint = bg.querySelector('#sync-frames-clear-hint');
+  const updateFramesClearHint = () => {
+    if (!framesClearHint || !chkFramesClear) return;
+    framesClearHint.textContent = chkFramesClear.checked
+      ? 'Each target frame is emptied first, so it ends up matching the source frame exactly.'
+      : 'Target frames keep their own layers; the copies land on top of them, within their own tier.';
+  };
+  if (chkFramesClear) {
+    updateFramesClearHint();
+    chkFramesClear.onchange = (e) => {
+      localStorage.setItem('sync-frames-clear', e.target.checked ? 'true' : 'false');
+      updateFramesClearHint();
     };
   }
 
-  bg.querySelector('#chk-sync-order').onchange = (e) => localStorage.setItem('sync-layers-order', e.target.checked ? 'true' : 'false');
-  bg.querySelector('#chk-sync-visibility').onchange = (e) => localStorage.setItem('sync-layers-visibility', e.target.checked ? 'true' : 'false');
-  bg.querySelector('#chk-sync-lock').onchange = (e) => localStorage.setItem('sync-layers-lock', e.target.checked ? 'true' : 'false');
-  bg.querySelector('#chk-sync-persistent').onchange = (e) => localStorage.setItem('sync-layers-persistent', e.target.checked ? 'true' : 'false');
+  const chkDistAll = bg.querySelector('#chk-dist-all-canvases');
+  const distSelection = bg.querySelector('#dist-canvases-selection-container');
+  if (chkDistAll && distSelection) {
+    chkDistAll.onchange = () => {
+      distSelection.style.display = chkDistAll.checked ? 'none' : 'flex';
+      localStorage.setItem('dist-all-canvases', chkDistAll.checked ? 'true' : 'false');
+    };
+  }
 
-  bg.querySelector('#chk-sync-frames-order').onchange = (e) => localStorage.setItem('sync-frames-order', e.target.checked ? 'true' : 'false');
-  bg.querySelector('#chk-sync-frames-visibility').onchange = (e) => localStorage.setItem('sync-frames-visibility', e.target.checked ? 'true' : 'false');
-  bg.querySelector('#chk-sync-frames-lock').onchange = (e) => localStorage.setItem('sync-frames-lock', e.target.checked ? 'true' : 'false');
-  bg.querySelector('#chk-sync-frames-break-link').onchange = (e) => localStorage.setItem('sync-frames-break-link', e.target.checked ? 'true' : 'false');
-  bg.querySelector('#chk-sync-frames-persistent').onchange = (e) => {
-    localStorage.setItem('sync-frames-persistent', e.target.checked ? 'true' : 'false');
-    localStorage.setItem('sync-layers-maintain-settings', e.target.checked ? 'true' : 'false');
-  };
-
-  // Close and Cancel triggers
+  // ---- close / cancel ------------------------------------------------------
   const closeModal = (restore = true) => {
     if (restore && state.activeFrameId !== originalActiveFrameId) {
       state.activeFrameId = originalActiveFrameId;
@@ -1928,81 +1933,73 @@ function showSyncLayersMenu(anchorEl, initialTab = 'canvas') {
   };
 
   bg.querySelector('#sync-layers-close').onclick = () => closeModal(true);
-  bg.querySelectorAll('.btn-sync-layers-cancel').forEach(btn => {
-    btn.onclick = () => closeModal(true);
-  });
+  bg.querySelectorAll('.btn-sync-layers-cancel').forEach(btn => { btn.onclick = () => closeModal(true); });
+  bg.onclick = (e) => { if (e.target === bg) closeModal(true); };
 
-  bg.onclick = (e) => {
-    if (e.target === bg) closeModal(true);
-  };
-
-  // Execute Action
   executeBtn.onclick = () => {
     const sourceC = getActiveCanvas();
-    if (!sourceC) {
+    if (!sourceC) { closeModal(true); return; }
+
+    if (activeTab === 'canvases') {
+      const isAll = chkDistAll ? chkDistAll.checked : true;
+      const targetIds = isAll
+        ? undefined
+        : Array.from(bg.querySelectorAll('.dist-target-canvas-chk:checked')).map(chk => chk.dataset.id);
+      const opts = {
+        link: chkDistLink ? chkDistLink.checked : false,
+        carryVisibility: bg.querySelector('#chk-dist-visibility').checked,
+        carryLock: bg.querySelector('#chk-dist-lock').checked,
+        carryRole: bg.querySelector('#chk-dist-role').checked,
+      };
+      if (targetIds) opts.targetIds = targetIds;
+      // Close first: distribute may raise its own confirmation, and stacking a
+      // second dialog behind this one reads as the panel having hung.
+      closeModal(false);
+      distributeActiveFrame(opts);
+      return;
+    }
+
+    const chkAllFrames = bg.querySelector('#chk-sync-all-frames');
+    const isAll = chkAllFrames ? chkAllFrames.checked : true;
+    const currentSourceId = state.activeFrameId;
+    const otherFrames = state.frames.filter(f => f.id !== currentSourceId);
+    const targetFrameIds = isAll
+      ? otherFrames.map(f => f.id)
+      : Array.from(bg.querySelectorAll('.sync-target-frame-chk:checked')).map(chk => parseInt(chk.dataset.id, 10));
+
+    if (targetFrameIds.length === 0) {
+      showCanvasNotification('No target frames selected.', { type: 'warning' });
       closeModal(true);
       return;
     }
 
-    if (activeTab === 'canvas') {
-      const settings = {
-        syncOrder: bg.querySelector('#chk-sync-order').checked,
-        syncVisibility: bg.querySelector('#chk-sync-visibility').checked,
-        syncLock: bg.querySelector('#chk-sync-lock').checked,
-        syncPersistent: bg.querySelector('#chk-sync-persistent').checked,
-      };
+    const settings = {
+      syncVisibility: bg.querySelector('#chk-sync-frames-visibility').checked,
+      syncLock: bg.querySelector('#chk-sync-frames-lock').checked,
+      syncPersistent: bg.querySelector('#chk-sync-frames-persistent').checked,
+      breakLink: bg.querySelector('#chk-sync-frames-break-link').checked,
+      clearTargets: chkFramesClear ? chkFramesClear.checked : true,
+    };
 
-      const isAll = chkAllCanvases ? chkAllCanvases.checked : true;
-      let targets = [];
-      if (isAll) {
-        targets = state.canvases.filter(c => c.id !== sourceC.id);
-      } else {
-        const selectedIds = Array.from(bg.querySelectorAll('.sync-target-canvas-chk:checked')).map(chk => chk.dataset.id);
-        targets = state.canvases.filter(c => selectedIds.includes(c.id));
-      }
-
-      if (targets.length === 0) {
-        showCanvasNotification('No target canvases selected.', { type: 'warning' });
-        closeModal(true);
-        return;
-      }
-
-      executeLayersSync(sourceC, targets, settings);
-      closeModal(false);
-      showCanvasNotification(`Synchronized layers to ${targets.length} canvas${targets.length > 1 ? 'es' : ''}.`, { type: 'success' });
+    const res = executeFrameSync(sourceC, targetFrameIds, settings);
+    closeModal(false);
+    // Report what actually happened. Copying an empty frame used to claim
+    // success just as loudly as copying a full one.
+    if (!res || !res.frames) {
+      showCanvasNotification('Nothing to copy — no target frames.', { type: 'warning' });
+    } else if (!res.layers) {
+      showCanvasNotification('Nothing to copy — the source frame has no layers of its own.', { type: 'warning' });
     } else {
-      const chkAllFrames = bg.querySelector('#chk-sync-all-frames');
-      const isAll = chkAllFrames ? chkAllFrames.checked : true;
-
-      const currentSourceId = state.activeFrameId;
-      const otherFrames = state.frames.filter(f => f.id !== currentSourceId);
-
-      let targetFrameIds = [];
-      if (isAll) {
-        targetFrameIds = otherFrames.map(f => f.id);
-      } else {
-        targetFrameIds = Array.from(bg.querySelectorAll('.sync-target-frame-chk:checked')).map(chk => parseInt(chk.dataset.id, 10));
-      }
-
-      if (targetFrameIds.length === 0) {
-        showCanvasNotification('No target frames selected.', { type: 'warning' });
-        closeModal(true);
-        return;
-      }
-
-      const settings = {
-        syncOrder: bg.querySelector('#chk-sync-frames-order').checked,
-        syncVisibility: bg.querySelector('#chk-sync-frames-visibility').checked,
-        syncLock: bg.querySelector('#chk-sync-frames-lock').checked,
-        syncPersistent: bg.querySelector('#chk-sync-frames-persistent').checked,
-        breakLink: bg.querySelector('#chk-sync-frames-break-link').checked,
-      };
-
-      executeFrameSync(sourceC, targetFrameIds, settings);
-      closeModal(false);
-      showCanvasNotification(`Copied frame layer stack to ${targetFrameIds.length} frame${targetFrameIds.length > 1 ? 's' : ''}.`, { type: 'success' });
+      const l = `${res.layers} layer${res.layers > 1 ? 's' : ''}`;
+      const f = `${res.frames} frame${res.frames > 1 ? 's' : ''}`;
+      showCanvasNotification(
+        res.cleared ? `Copied ${l} to ${f}, replacing ${res.cleared} existing layer${res.cleared > 1 ? 's' : ''}.`
+                    : `Copied ${l} to ${f}.`,
+        { type: 'success' });
     }
   };
+
+  showTab(activeTab);
 
   const outsideClickListener = (e) => {
     if (!bg.contains(e.target) && !anchorEl.contains(e.target)) {
@@ -2013,138 +2010,105 @@ function showSyncLayersMenu(anchorEl, initialTab = 'canvas') {
   document.addEventListener('click', outsideClickListener, true);
 }
 
-function executeLayersSync(sourceC, targets, settings) {
-  let changed = false;
-
-  const sourceLinkedMap = {};
-  sourceC.elements.forEach((el, index) => {
-    if (el.linkGroupId) {
-      sourceLinkedMap[el.linkGroupId] = { el, index };
-    }
-  });
-
-  targets.forEach(targetC => {
-    const targetLinked = [];
-    const targetCanvasSpecific = [];
-
-    targetC.elements.forEach(el => {
-      if (el.linkGroupId && sourceLinkedMap[el.linkGroupId]) {
-        targetLinked.push(el);
-      } else {
-        targetCanvasSpecific.push(el);
-      }
-    });
-
-    if (targetLinked.length === 0) return;
-
-    changed = true;
-
-    targetLinked.forEach(tEl => {
-      const sEl = sourceLinkedMap[tEl.linkGroupId].el;
-
-      if (settings.syncVisibility) {
-        tEl.hidden = sEl.hidden;
-      }
-      if (settings.syncLock) {
-        tEl.locked = sEl.locked;
-      }
-      if (settings.syncPersistent) {
-        tEl.persistent = sEl.persistent;
-        if (sEl.persistent === false) {
-          tEl.frameId = sEl.frameId;
-        }
-      }
-    });
-
-    if (settings.syncOrder) {
-      targetLinked.sort((a, b) => {
-        return sourceLinkedMap[a.linkGroupId].index - sourceLinkedMap[b.linkGroupId].index;
-      });
-
-      const bottomLinked = targetLinked.filter(el => el.persistent === 'bottom');
-      const bottomSpecific = targetCanvasSpecific.filter(el => el.persistent === 'bottom');
-
-      const midLinked = targetLinked.filter(el => el.persistent === false);
-      const midSpecific = targetCanvasSpecific.filter(el => el.persistent === false);
-
-      const topLinked = targetLinked.filter(el => el.persistent === 'top');
-      const topSpecific = targetCanvasSpecific.filter(el => el.persistent === 'top');
-
-      targetC.elements = [
-        ...bottomLinked,
-        ...bottomSpecific,
-        ...midLinked,
-        ...midSpecific,
-        ...topLinked,
-        ...topSpecific
-      ];
-    } else {
-      const bottomEls = targetC.elements.filter(el => el.persistent === 'bottom');
-      const midEls = targetC.elements.filter(el => el.persistent === false);
-      const topEls = targetC.elements.filter(el => el.persistent === 'top');
-      targetC.elements = [...bottomEls, ...midEls, ...topEls];
-    }
-  });
-
-  if (changed) {
-    pushHistory();
-    render();
-  }
+// Which stacking band an element belongs to. `persistent` is a three-value
+// enum ('bottom' | false | 'top'), but a hand-edited or imported .flow can
+// carry something else — those ride in the middle band rather than being
+// dropped. The old bottom/mid/top filter trio silently DELETED anything that
+// matched none of the three.
+function frameSyncBandOf(el) {
+  if (el.persistent === 'bottom') return 0;
+  if (el.persistent === 'top') return 2;
+  return 1;
 }
 
+// Re-assemble a layer list into bottom → middle → top, preserving the relative
+// order inside each band. Total in === total out, always.
+function frameSyncReband(elements) {
+  const bands = [[], [], []];
+  elements.forEach(el => bands[frameSyncBandOf(el)].push(el));
+  return [...bands[0], ...bands[1], ...bands[2]];
+}
+
+// Copy the source frame's own layers into other frames of the same canvas.
+//
+// This COPIES rather than matches: every target gets fresh clones, so stack
+// order always comes across and there is no "sync order" choice to make. Only
+// frame-scoped layers take part — anything on the Always Top / Always Bottom
+// tiers already shows on every frame, so cloning it would just duplicate it.
+//
+// settings:
+//   syncVisibility  keep each layer's hidden state, else copies arrive visible
+//   syncLock        keep each layer's locked state, else copies arrive unlocked
+//   syncPersistent  keep each layer's auto-resize role, else it is re-derived
+//   breakLink       drop linkGroupId on the copies (default; see the modal)
+//   clearTargets    empty each target frame first, else copies stack ON TOP of
+//                   whatever is already there, inside their own band
+//
+// Returns { layers, frames, cleared } so the caller can report honestly.
+// `layers` is the size of the stack that was copied — NOT layers × frames,
+// which is the number the user never sees in any one frame.
 function executeFrameSync(canvas, targetFrameIds, settings) {
-  if (!canvas || !targetFrameIds || targetFrameIds.length === 0) return;
+  const result = { layers: 0, frames: 0, cleared: 0 };
+  if (!canvas || !Array.isArray(targetFrameIds) || targetFrameIds.length === 0) return result;
 
-  const activeFrameId = state.activeFrameId;
+  const sourceFrameId = state.activeFrameId;
+  // Never copy a frame onto itself — with clearTargets that would wipe the
+  // source and re-add it, and without it, it would double the frame.
+  const knownFrameIds = new Set((state.frames || []).map(f => f.id));
+  const targets = [...new Set(targetFrameIds)].filter(id => id !== sourceFrameId && knownFrameIds.has(id));
+  if (targets.length === 0) return result;
 
-  // 1. Get elements to clone: el.persistent === false && el.frameId === activeFrameId
-  const sourceElements = canvas.elements.filter(el => el.persistent === false && el.frameId === activeFrameId);
+  const sourceElements = canvas.elements.filter(el => el.persistent === false && el.frameId === sourceFrameId);
+  if (sourceElements.length === 0) {
+    result.frames = targets.length;
+    return result;
+  }
+  result.layers = sourceElements.length;
 
-  // 2. Clear target frame elements, and add cloned elements
-  let newElements = canvas.elements.filter(el => {
-    if (el.persistent !== false) return true;
-    if (!targetFrameIds.includes(el.frameId)) return true;
-    return false;
-  });
+  const targetSet = new Set(targets);
+  let kept;
+  if (settings.clearTargets) {
+    const before = canvas.elements.length;
+    kept = canvas.elements.filter(el => !(el.persistent === false && targetSet.has(el.frameId)));
+    result.cleared = before - kept.length;
+  } else {
+    kept = canvas.elements.slice();
+  }
 
-  targetFrameIds.forEach(targetFrameId => {
+  targets.forEach(targetFrameId => {
+    // Clone as a batch, then repair references WITHIN the batch: a mask stores
+    // its image's id in maskTargetId, and left unremapped every copied mask
+    // would point back at the source frame's image.
+    const idMap = new Map();
     const clones = sourceElements.map(srcEl => {
       const clone = JSON.parse(JSON.stringify(srcEl));
       clone.id = uid();
       clone.frameId = targetFrameId;
-      
-      // If syncLock is false, clear locked state
-      if (!settings.syncLock) {
-        clone.locked = false;
-      }
-      // If syncVisibility is false, clear hidden state
-      if (!settings.syncVisibility) {
-        clone.hidden = false;
-      }
-      // If syncPersistent is false, clear role
-      if (!settings.syncPersistent) {
-        delete clone.role;
-      }
-      // If breakLink is true, clear linkGroupId
-      if (settings.breakLink) {
-        delete clone.linkGroupId;
-      }
+      idMap.set(srcEl.id, clone.id);
+      if (!settings.syncLock) clone.locked = false;
+      if (!settings.syncVisibility) clone.hidden = false;
+      // Drop roleAuto alongside role, or a hand-locked role would survive as a
+      // lock with nothing to lock and ensureRolesAssigned would skip the copy.
+      if (!settings.syncPersistent) { delete clone.role; delete clone.roleAuto; }
+      if (settings.breakLink) delete clone.linkGroupId;
       return clone;
     });
+    clones.forEach(clone => {
+      if (clone.maskTargetId && idMap.has(clone.maskTargetId)) {
+        clone.maskTargetId = idMap.get(clone.maskTargetId);
+      }
+    });
 
-    const bottomEls = newElements.filter(el => el.persistent === 'bottom');
-    const midEls = newElements.filter(el => el.persistent === false);
-    const topEls = newElements.filter(el => el.persistent === 'top');
-
-    newElements = [
-      ...bottomEls,
-      ...midEls,
-      ...clones,
-      ...topEls
-    ];
+    // Copies go LAST within the middle band, i.e. on top of anything the target
+    // frame already had (array order is bottom-to-top). Rebanding after the
+    // append keeps Always Top / Always Bottom layers where they belong.
+    kept = frameSyncReband([...kept, ...clones]);
+    result.frames += 1;
   });
 
-  canvas.elements = newElements;
+  canvas.elements = kept;
+  if (typeof ensureRolesAssigned === 'function') ensureRolesAssigned(canvas);
   pushHistory();
   render();
+  return result;
 }

@@ -3880,6 +3880,50 @@ body.theme-rmit-navy {
 
     }
 
+    /* Save / Discard footer. Mirrors .cp-header's divider so the picker reads as
+       header → body → footer, and stays inside the modal's overflow:hidden
+       rounding. */
+    .cp-foot {
+      display: flex;
+      gap: 8px;
+      padding: 10px 16px 12px;
+      border-top: 1px solid var(--border-light);
+      background: var(--bg-panel, var(--bg-input));
+    }
+
+    .cp-foot-btn {
+      flex: 1;
+      padding: 7px 0;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: inherit;
+      letter-spacing: .03em;
+      border-radius: 5px;
+      cursor: pointer;
+      border: 1px solid var(--border-light);
+      background: var(--bg-btn);
+      color: var(--text-main);
+      transition: all .12s;
+    }
+
+    .cp-foot-btn:hover {
+      background: var(--border-light);
+      border-color: var(--border-btn);
+      color: var(--text-bright);
+    }
+
+    .cp-foot-primary {
+      background: var(--accent-base);
+      border-color: var(--accent-base);
+      color: var(--text-on-accent);
+    }
+
+    .cp-foot-primary:hover {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+      color: var(--text-on-accent);
+    }
+
     .cp-row {
 
       display: flex;

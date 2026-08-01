@@ -18,7 +18,7 @@
        themes, buttons and dialogs instead of maintaining a parallel look.
        Loaded BEFORE the page-specific block below so the portal's own layout
        rules can still override where they must. -->
-  <link rel="stylesheet" href="styles.css?v=0.36.1" />
+  <link rel="stylesheet" href="styles.css?v=0.38.1" />
 
   <style>
     /* This page's layout was written against its own palette names. Rather than
@@ -904,12 +904,12 @@
   <!-- LOAD WORKSPACE ENGINE SCRIPTS
        ?v= is bumped with each release (same as index.html) so reviewers'
        browsers never pair stale engine scripts with new inline portal code. -->
-  <script src="scripts/render-runtime.js?v=0.36.1"></script>
-  <script src="scripts/auto-arrange-config.js?v=0.36.1"></script>
-  <script src="scripts/auto-resize-engine.js?v=0.36.1"></script>
-  <script src="scripts/data-merge.js?v=0.36.1"></script>
-  <script src="scripts/font-subset.js?v=0.36.1"></script>
-  <script src="scripts/export-pipeline.js?v=0.36.1"></script>
+  <script src="scripts/render-runtime.js?v=0.38.1"></script>
+  <script src="scripts/auto-arrange-config.js?v=0.38.1"></script>
+  <script src="scripts/auto-resize-engine.js?v=0.38.1"></script>
+  <script src="scripts/data-merge.js?v=0.38.1"></script>
+  <script src="scripts/font-subset.js?v=0.38.1"></script>
+  <script src="scripts/export-pipeline.js?v=0.38.1"></script>
 
   <!-- MAIN PREVIEW ENGINE PORTAL -->
   <script>
@@ -1712,42 +1712,62 @@
         downloadAllBtn.style.display = (state.canvases && state.canvases.length > 0) ? 'inline-flex' : 'none';
       }
       
+      // Share meta line.
+      //
+      // A share link points at a frozen snapshot, BUT every cloud save from the
+      // editor mirrors itself into that same snapshot (pushCloudProject in
+      // auth-ui.js), so what a reviewer sees can be newer than the link they
+      // were sent. Saying "Shared on <link date>" in that case is wrong — it
+      // reads as "this is the version from Monday" when it is in fact today's.
+      // So when the snapshot carries a cloud-save stamp later than the share,
+      // the line leads with the update instead, and keeps the original share
+      // date in the tooltip.
       const shareMetaEl = document.getElementById('preview-share-meta');
       if (shareMetaEl) {
         const params = new URLSearchParams(window.location.search);
         const urlBy = params.get('by');
-        const urlAt = params.get('at');
-        
-        let username = '';
-        let formattedDate = '';
-        
+        const urlAtRaw = parseInt(params.get('at'), 10);
+        const urlAt = isNaN(urlAtRaw) ? null : urlAtRaw;
+
+        const fmt = (ts) => new Date(ts).toLocaleString('en-US', {
+          month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true
+        });
+        const nameOf = (s) => String(s || '').split('@')[0] || 'Unknown';
+
+        // The link's own params win for WHO shared and WHEN, because they were
+        // baked at link-creation time and a later save can't rewrite them.
+        let sharedBy = '';
+        let sharedAt = null;
         if (urlBy && urlAt) {
-          username = urlBy;
-          const ts = parseInt(urlAt);
-          if (!isNaN(ts)) {
-            formattedDate = new Date(ts).toLocaleString('en-US', {
-              month: 'short',
-              day: 'numeric',
-              hour: 'numeric',
-              minute: '2-digit',
-              hour12: true
-            });
-          }
+          sharedBy = urlBy;
+          sharedAt = urlAt;
         } else if (state.previewSharedBy && state.previewSharedAt) {
-          username = state.previewSharedBy.split('@')[0] || 'Unknown';
-          formattedDate = new Date(state.previewSharedAt).toLocaleString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true
-          });
+          sharedBy = nameOf(state.previewSharedBy);
+          sharedAt = state.previewSharedAt;
         }
-        
-        if (username && formattedDate) {
-          shareMetaEl.textContent = `Shared on ${formattedDate} by ${username}`;
+
+        const savedAt = Number(state.cloudSavedAt) || null;
+        // 60s of slack: sharing itself builds a snapshot moments after a save,
+        // and that must not read as "updated since you were sent this".
+        const isUpdated = !!(savedAt && sharedAt && savedAt > sharedAt + 60000);
+
+        if (isUpdated) {
+          const updatedBy = nameOf(state.cloudSavedBy) || sharedBy;
+          shareMetaEl.textContent = `Updated ${fmt(savedAt)} by ${updatedBy}`;
+          shareMetaEl.title = sharedAt
+            ? `This preview reflects a newer save than the link you were sent.\nOriginally shared ${fmt(sharedAt)}${sharedBy ? ' by ' + sharedBy : ''}.`
+            : 'This preview reflects a newer save than the link you were sent.';
+        } else if (sharedBy && sharedAt) {
+          shareMetaEl.textContent = `Shared on ${fmt(sharedAt)} by ${sharedBy}`;
+          shareMetaEl.title = '';
+        } else if (savedAt) {
+          // No share metadata at all (an older link, or a file opened directly)
+          // but the project still knows when it was last saved to the cloud.
+          shareMetaEl.textContent = `Updated ${fmt(savedAt)}${state.cloudSavedBy ? ' by ' + nameOf(state.cloudSavedBy) : ''}`;
+          shareMetaEl.title = '';
         } else {
           shareMetaEl.textContent = '';
+          shareMetaEl.title = '';
         }
       }
       

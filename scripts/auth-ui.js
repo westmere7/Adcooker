@@ -681,15 +681,33 @@ async function pushCurrentProjectToCloud(opts = {}) {
   }
 
   setCloudSaveStatus('saving');
+  // Stamp the push BEFORE building the blob so the timestamp travels inside it.
+  // A live share link is mirrored from this same blob (see below), so this is
+  // what lets the preview portal tell a reviewer that what they're looking at
+  // is newer than the link they were sent.
+  const prevCloudSavedAt = state.cloudSavedAt;
+  const prevCloudSavedBy = state.cloudSavedBy;
+  state.cloudSavedAt = Date.now();
+  state.cloudSavedBy = u.email || '';
   let built;
   try { built = await buildFlowBlob(); }
-  catch (e) { setCloudSaveStatus('error'); throw e; }
+  catch (e) {
+    state.cloudSavedAt = prevCloudSavedAt;
+    state.cloudSavedBy = prevCloudSavedBy;
+    setCloudSaveStatus('error');
+    throw e;
+  }
   const { blob } = built;
   // Storage path uses state.projectId (a real UUID guaranteed above), so the
   // path is stable across pushes of the same project.
   const path = spaceId ? `spaces/${spaceId}/${state.projectId}.flow` : `${u.id}/${state.projectId}.flow`;
   const { error: upErr } = await sb.storage.from('projects').upload(path, blob, PROJECT_BLOB_UPLOAD_OPTS);
-  if (upErr) { setCloudSaveStatus('error'); throw upErr; }
+  if (upErr) {
+    state.cloudSavedAt = prevCloudSavedAt;
+    state.cloudSavedBy = prevCloudSavedBy;
+    setCloudSaveStatus('error');
+    throw upErr;
+  }
   // Upsert by id — the same UUID is used as both the row id and the storage
   // filename, so updates land on the same record on every push.
   const { data: existing } = await sb.from('projects').select('id').eq('id', state.projectId).maybeSingle();

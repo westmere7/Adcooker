@@ -61,6 +61,10 @@ async function createNewProject({ name, presetIndices, sizeLimitKb, bgColor, cli
   delete state.previewUrl;
   delete state.previewExpiry;
   delete state.previewSharePath;
+  // Same reasoning for the cloud-save stamp: a brand-new project has never been
+  // pushed, so it must not inherit the last project's "Updated ..." line.
+  delete state.cloudSavedAt;
+  delete state.cloudSavedBy;
   state.clickTag = (clickTag || 'https://www.rmit.edu.au/').trim();
   state.adSizeLimit = Math.max(1, parseInt(sizeLimitKb, 10) || 150);
   state.defaultBg = bg;
@@ -1955,7 +1959,7 @@ document.getElementById('menu-help-shortcuts').addEventListener('click', () => {
 
 
 function checkVersionUpdate() {
-  const currentVersion = 'v0.36.1';
+  const currentVersion = 'v0.38.1';
   const lastSeen = localStorage.getItem('last-seen-version');
   
   if (!lastSeen) {
@@ -2006,7 +2010,7 @@ function checkVersionUpdate() {
 
 
 document.getElementById('menu-about').addEventListener('click', () => {
-  const currentVersion = 'v0.36.1';
+  const currentVersion = 'v0.38.1';
   const body = `
       <div style="font-size:13px; line-height:1.75; color:var(--text-main); font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
         <p style="margin: 0 0 16px 0;"><strong>RMIT Adflow</strong> is a specialized, lightweight HTML5 display advertisement creation and automation platform. Designed to eliminate the overhead and complexities of legacy ad builders, Adflow offers a fast, precise, and visual environment for building, validating, and exporting high-performance advertising creatives.</p>
@@ -2181,7 +2185,7 @@ function openSettings() {
           <div class="modal-head" style="border-bottom:1px solid var(--border-light); background:var(--bg-panel); flex-shrink:0;">
             <div style="display:flex; align-items:center; gap:12px; flex:1;">
               <h2 style="margin:0; font-size:14px; font-weight:600; color:var(--text-bright);">Settings</h2>
-              <span style="font-size:11px; color:var(--text-muted);">v0.36.1</span>
+              <span style="font-size:11px; color:var(--text-muted);">v0.38.1</span>
               <button id="settings-changelog" class="btn" style="padding:4px 8px; font-size:10px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; cursor:pointer;">Changelog</button>
             </div>
             <button class="btn" id="settings-close">Close</button>
@@ -2217,8 +2221,11 @@ function openSettings() {
                   </div>
                   <div style="display:flex; align-items:center; gap:12px; font-size:12px; color:var(--text-main);">
                     <span style="flex:1;">Default Canvas Background:</span>
-                    <input type="color" id="set-default-bg" value="${tempSettings.defaultBg}" style="width:65px; height:24px; padding:0; border:1px solid var(--border-light); background:none; border-radius:4px; cursor:pointer;" />
-                    <span id="default-bg-preview" style="color:var(--text-muted); font-size:11px; font-family:monospace; width:60px;">${tempSettings.defaultBg}</span>
+                    <!-- Adflow's own picker (swatch + hex), same pattern as the New
+                         Project dialog — not the browser's native colour input, which
+                         has no saved palette, no gradients and no theme. -->
+                    <button class="cp-trigger" data-k="set-default-bg" id="set-default-bg" title="Choose the default canvas background colour" style="width:44px; height:24px; padding:0; border:1px solid var(--border-light); border-radius:4px; background:${tempSettings.defaultBg}; cursor:pointer; outline:none; flex-shrink:0;"></button>
+                    <input type="text" id="set-default-bg-hex" data-k="set-default-bg" value="${String(tempSettings.defaultBg || '').replace(/^#/, '').toUpperCase()}" maxlength="6" title="Hex colour code for the default canvas background" style="width:76px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:3px 8px; font-family:monospace; font-size:11px; outline:none; text-transform:uppercase;" />
                   </div>
                   <div style="display:flex; align-items:center; gap:12px; font-size:12px; color:var(--text-main);">
                     <span style="flex:1;">Startup Template preference:</span>
@@ -2517,12 +2524,31 @@ function openSettings() {
     applyPreview();
   });
 
-  bg.querySelector('#set-default-bg').addEventListener('input', (e) => {
-    tempSettings.defaultBg = e.target.value;
-    const label = bg.querySelector('#default-bg-preview');
-    if (label) label.textContent = tempSettings.defaultBg;
-    applyPreview();
-  });
+  // Default canvas background — Adflow's picker, wired the same way as the New
+  // Project dialog: the swatch opens the picker, and the picker writes back
+  // through the hex field (emitColorUpdate targets [data-k] and fires 'input').
+  const defBgSwatch = bg.querySelector('#set-default-bg');
+  const defBgHex = bg.querySelector('#set-default-bg-hex');
+  if (defBgSwatch && defBgHex) {
+    defBgSwatch.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (typeof openColorPicker === 'function') {
+        openColorPicker(defBgSwatch, 'set-default-bg', '#' + defBgHex.value);
+      }
+    });
+    defBgHex.addEventListener('input', () => {
+      const v = defBgHex.value.replace(/[^0-9a-fA-F]/g, '');
+      if (v.length !== 6) return;
+      tempSettings.defaultBg = '#' + v.toLowerCase();
+      defBgSwatch.style.background = tempSettings.defaultBg;
+      applyPreview();
+    });
+    // Typing a partial hex leaves the field mid-edit; normalise on blur so it can
+    // never be committed as something like "0F1".
+    defBgHex.addEventListener('blur', () => {
+      defBgHex.value = String(tempSettings.defaultBg || '').replace(/^#/, '').toUpperCase();
+    });
+  }
 
   const selectStartupMode = bg.querySelector('#set-startup-mode');
   if (selectStartupMode) {
