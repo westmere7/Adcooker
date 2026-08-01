@@ -251,17 +251,17 @@ function renderAuthChip() {
     const list = spacesState.list();
     const cur = spacesState.currentId();
     const spaceRows = list.map(s => `
-      <div class="dropdown-item" data-space-id="${s.id}" style="display:flex; align-items:center; gap:6px; ${s.id === cur ? 'color:var(--accent-base); font-weight:600;' : ''}">
+      <div class="dropdown-item${s.id === cur ? ' dropdown-item-current' : ''}" data-space-id="${s.id}" style="display:flex; align-items:center; gap:6px;">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 7l9-4 9 4-9 4-9-4z"/></svg>
         <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${(s.name || '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</span>
-        ${s.id === cur ? '<span style="font-size:9px; color:var(--text-muted);">CURRENT</span>' : ''}
+        ${s.id === cur ? '<span class="dropdown-current-badge">CURRENT</span>' : ''}
       </div>`).join('');
     menu.innerHTML = `
       <div style="padding:6px 14px; font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600;">Workspace</div>
-      <div class="dropdown-item" data-space-id="" style="display:flex; align-items:center; gap:6px; ${cur === null ? 'color:var(--accent-base); font-weight:600;' : ''}">
+      <div class="dropdown-item${cur === null ? ' dropdown-item-current' : ''}" data-space-id="" style="display:flex; align-items:center; gap:6px;">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="8" r="3.5"/><path d="M5 21c0-4 3-7 7-7s7 3 7 7"/></svg>
         <span style="flex:1;">Personal</span>
-        ${cur === null ? '<span style="font-size:9px; color:var(--text-muted);">CURRENT</span>' : ''}
+        ${cur === null ? '<span class="dropdown-current-badge">CURRENT</span>' : ''}
       </div>
       ${spaceRows}
       <div class="dropdown-divider"></div>

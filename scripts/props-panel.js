@@ -2082,6 +2082,12 @@ function renderProps() {
     'Helvetica Neue LT Pro': ['300', '400', '500']
   };
   const getWeightsForFont = (fnt) => fontWeights[fnt] || ['100', '200', '300', '400', '500', '600', '700', '800', '900'];
+  // Weight a font should land on when it is newly selected, regardless of what
+  // the layer was set to before. Museo is the RMIT display face and 700 is the
+  // weight it is meant to be used at; without this, switching from Helvetica 400
+  // snapped to Museo 300 (nearest available), which is far too light for a
+  // headline and had to be corrected by hand every time.
+  const FONT_DEFAULT_WEIGHT = { 'Museo': '700' };
   // When a font is switched to one that lacks the element's current weight, the
   // stored weight stays out-of-range: the dropdown can't select it (so it shows
   // the first option) while the browser renders the nearest available face — the
@@ -3173,7 +3179,14 @@ function checkButtonFontSizeWarning(el) {
       const affected = (state.layerSelection && state.layerSelection.length > 1 && c)
         ? c.elements.filter(e => state.layerSelection.includes(e.id))
         : [el];
-      affected.forEach(reconcileWeightForFont);
+      affected.forEach(targetEl => {
+        if (!targetEl || (targetEl.type !== 'text' && targetEl.type !== 'button')) return;
+        const preferred = FONT_DEFAULT_WEIGHT[targetEl.fontFamily];
+        // A font with an opinionated default takes it outright; everything else
+        // just keeps its weight in range.
+        if (preferred) targetEl.weight = preferred;
+        else reconcileWeightForFont(targetEl);
+      });
     }
     if ((k === 'width' || k === 'height') && (el.type === 'button' || (state.layerSelection && state.layerSelection.length > 1 && c && c.elements.filter(e => state.layerSelection.includes(e.id)).some(selEl => selEl.type === 'button')))) {
       const autoHugInp = propsEl.querySelector('input[data-k="autoHug"]');

@@ -183,7 +183,8 @@ function makeElement(type) {
   // actually animates until the user picks one, but the sections are shown.
   const base = { id: uid(), x: 20, y: 20, width: 120, height: 40, animType: 'none', animDuration: 1.0, animDelay: 0.0, effectType: 'none', inEnabled: true, fxEnabled: true, frameId: fId, persistent: false };
   switch (type) {
-    case 'text': return { ...base, type, text: 'Your headline', fontSize: 22, color: '#ffffff', weight: '400', fontFamily: 'Helvetica Neue LT Pro', width: 220, height: 32 };
+    // Museo 700 is the RMIT display face, and matches the button default.
+    case 'text': return { ...base, type, text: 'Your headline', fontSize: 22, color: '#ffffff', weight: '700', fontFamily: 'Museo', width: 220, height: 32 };
     case 'rect': return { ...base, type, color: '#7c5cff', width: 120, height: 80, radius: 8 };
     case 'circle': return { ...base, type, color: '#22d3ee', width: 80, height: 80 };
     case 'line': return { ...base, type, color: '#ffffff', width: 160, height: 3, opacity: 100 };

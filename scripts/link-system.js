@@ -710,7 +710,7 @@ function pushGroupChanges() {
 async function deleteGroupAndElements(gid) {
   if (!gid || !state.linkGroups[gid]) return;
   const gName = state.linkGroups[gid].name;
-  if (!(await showAdflowConfirm(`Are you sure you want to delete the link group "${gName}" AND delete all elements belonging to it across all canvases?`))) {
+  if (!(await showAdflowConfirm(`Are you sure you want to remove the link group "${gName}" AND delete every element belonging to it, across all canvases?`, 'Remove Link & All Elements'))) {
     return;
   }
   delete state.linkGroups[gid];
@@ -1043,4 +1043,60 @@ function distributeActiveFrame(opts = {}) {
     return Promise.resolve(false);
   }
   return distributeElements(els, opts);
+}
+
+// Delete every other member of a link group, keeping the layers you have
+// selected. The group itself goes with them — a group needs at least two
+// members to mean anything, and cleanupLinkGroups() prunes what is left — so
+// the survivors end up as ordinary unlinked layers.
+//
+// This is the middle ground between the two options either side of it in the
+// menu: "Remove Link" deletes nothing, "Delete Group & Elements" deletes
+// everything. Members are not necessarily copies of one another — Auto-Link
+// pairs layers that were built separately and merely share a name and type —
+// so the wording avoids implying they are.
+async function deleteOthersInGroup(gid, keepIds) {
+  if (!gid || !state.linkGroups || !state.linkGroups[gid]) return false;
+  const keep = new Set(keepIds || []);
+
+  const doomed = [];
+  state.canvases.forEach(cv => {
+    cv.elements.forEach(el => {
+      if (el.linkGroupId === gid && !keep.has(el.id)) doomed.push({ canvas: cv, el });
+    });
+  });
+
+  const gName = state.linkGroups[gid].name;
+  if (!doomed.length) {
+    showCanvasNotification(`"${gName}" has no other members to delete.`, { type: 'warning' });
+    return false;
+  }
+
+  const canvasCount = new Set(doomed.map(d => d.canvas.id)).size;
+  const msg =
+    `<p style="margin:0 0 10px;">Delete the other <b>${doomed.length} layer${doomed.length > 1 ? 's' : ''}</b> in ` +
+    `<b>${gName}</b>, across <b>${canvasCount} canvas${canvasCount > 1 ? 'es' : ''}</b>?</p>` +
+    `<p style="margin:0; color:var(--text-muted); font-size:12px;">What you have selected stays where it is and ` +
+    `becomes an ordinary unlinked layer. The group is removed. This can be undone.</p>`;
+  const ok = (typeof showAdflowConfirm === 'function')
+    ? await showAdflowConfirm(msg, 'Remove Link & Other Elements')
+    : confirm(`Delete the other ${doomed.length} layer(s) in "${gName}"?`);
+  if (!ok) return false;
+
+  const doomedIds = new Set(doomed.map(d => d.el.id));
+  state.canvases.forEach(cv => {
+    cv.elements = cv.elements.filter(el => !doomedIds.has(el.id));
+  });
+  // The survivors keep no membership: a one-member group syncs with nothing.
+  state.canvases.forEach(cv => cv.elements.forEach(el => {
+    if (el.linkGroupId === gid) delete el.linkGroupId;
+  }));
+  delete state.linkGroups[gid];
+
+  if (typeof cleanupLinkGroups === 'function') cleanupLinkGroups();
+  pushHistory();
+  render();
+  showCanvasNotification(
+    `Deleted ${doomed.length} layer${doomed.length > 1 ? 's' : ''} from "${gName}".`, { type: 'success' });
+  return true;
 }

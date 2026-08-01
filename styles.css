@@ -925,6 +925,25 @@ body.theme-rmit-navy {
 
 
 
+    /* The row you are already on. Marked with a tinted background and a bright
+       label rather than accent-coloured TEXT, which was the bug: accent text on
+       the accent hover background rendered the workspace name invisible. */
+    .dropdown-item.dropdown-item-current {
+      background: var(--accent-dark);
+      color: var(--text-bright);
+      font-weight: 600;
+    }
+
+    /* Inherits the row's colour, so it stays legible on the plain, current and
+       hover backgrounds alike — it was hard-coded to --text-muted before. */
+    .dropdown-current-badge {
+      font-size: 9px;
+      letter-spacing: .04em;
+      color: currentColor;
+      opacity: .7;
+      flex-shrink: 0;
+    }
+
     .dropdown-item:hover {
 
       background: var(--accent-base);
@@ -3535,10 +3554,98 @@ body.theme-rmit-navy {
       font-weight: 500;
     }
 
+    /* Link section — everything that acts on the OTHER canvases, kept together.
+       A hairline accent rule on the left and a barely-there tint: enough to read
+       as one block, not enough to shout. A solid accent fill was tried first and
+       looked like a banner sitting in the middle of the menu. */
+    .ctx-section-link {
+      margin: 3px 0;
+      padding: 1px 0 2px;
+      border-left: 2px solid var(--accent-base);
+      background: rgba(255, 255, 255, 0.028);
+    }
+
+    .ctx-section-head {
+      padding: 6px 12px 3px;
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Rows keep the menu's own weight and colour; the band does the grouping. */
+    .ctx-section-link .ctx-item:hover {
+      background: var(--accent-base);
+      color: var(--text-bright);
+    }
+
+    .ctx-toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Hollow ring when off, filled accent when on — states the mode without a
+       badge. It used to prefix a tick only when on, so "off" and "not a toggle"
+       looked identical. */
+    .ctx-toggle-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      background: transparent;
+      box-shadow: inset 0 0 0 1.5px currentColor;
+      opacity: .38;
+    }
+
+    .ctx-toggle-row.is-on .ctx-toggle-dot {
+      background: var(--accent-base);
+      box-shadow: none;
+      opacity: 1;
+    }
+
+    .ctx-toggle-row:hover.is-on .ctx-toggle-dot {
+      background: var(--text-bright);
+    }
+
+    .ctx-toggle-state {
+      margin-left: auto;
+      padding-left: 10px;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .ctx-toggle-row.is-on .ctx-toggle-state {
+      color: var(--accent-base);
+    }
+
+    .ctx-toggle-row:hover .ctx-toggle-state {
+      color: inherit;
+      opacity: .8;
+    }
+
+
     .ctx-item:hover,
     .ctx-item.highlight:hover {
       background: var(--accent-base);
       color: var(--text-bright);
+    }
+
+    /* Destructive menu items. These used to carry an INLINE color:#ef4444, which
+       beat the :hover rule above — so on the accent-purple hover background the
+       text stayed mid-red and was barely legible. As a class, hover can lighten
+       it to a red that still reads as a warning but has real contrast on purple. */
+    .ctx-item.ctx-danger {
+      color: #ef4444;
+    }
+
+    .ctx-item.ctx-danger:hover {
+      background: var(--danger-base, #dc2626);
+      color: #fff5f5;
     }
 
     .ctx-item.has-submenu {

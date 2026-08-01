@@ -229,6 +229,9 @@ document.addEventListener('contextmenu', (e) => {
   }
 
   const svgWrap = (svg, text) => `<div style="display:flex; align-items:center; gap:8px;">${svg}${text}</div>`;
+  // Group names are user-typed and go into innerHTML, so they must be escaped.
+  const ctxEsc = (s) => String(s == null ? '' : s)
+    .replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
   const brandSetsSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>`;
   const brandSvg = `<svg viewBox="0 0 578.52 556.76" fill="currentColor" style="width:14px;height:14px;"><path d="M290.78,0h-74.15v60.23h-123.75v125.78H0v184.74h92.88v125.78h123.5v60.23h65.55c152.85,0,287.74-123.5,287.74-277.62S444.14,0,290.78,0"/></svg>`;
   const textSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V5h16v2M9 19h6M12 5v14" /></svg>`;
@@ -274,7 +277,7 @@ document.addEventListener('contextmenu', (e) => {
   if (canvasItemNode) {
     html += `<div class="ctx-item" id="ctx-canvas-clone" title="Duplicate this canvas, its layers and its frames as a new size on the board">Clone Canvas</div>`;
     if (state.canvases.length > 1) {
-      html += `<div class="ctx-item" id="ctx-canvas-delete" title="Delete this canvas and everything on it. Other canvases are unaffected" style="color:#ef4444;">Delete Canvas</div>`;
+      html += `<div class="ctx-item ctx-danger" id="ctx-canvas-delete" title="Delete this canvas and everything on it. Other canvases are unaffected">Delete Canvas</div>`;
     }
   } else if (elNode) {
     const id = elNode.dataset.id;
@@ -373,11 +376,26 @@ document.addEventListener('contextmenu', (e) => {
       const hasLink = groupIds.length > 0;
 
       html += `<div class="ctx-divider"></div>`;
+      // One quiet band for everything link-related: the live-linking state, the
+      // manual push, and the group submenu. Grouped because they all act on the
+      // OTHER canvases rather than this one; kept understated because it should
+      // read as a section, not a banner. Closed after the Link Group item below.
+      const firstGroup = hasLink ? state.linkGroups[groupIds[0]] : null;
+      const isLive = firstGroup?.liveLink === true;
+      const gLabel = groupIds.length > 1
+        ? `${groupIds.length} groups`
+        : (firstGroup && firstGroup.name ? firstGroup.name : '');
+      html += `<div class="ctx-section ctx-section-link">`;
+      if (gLabel) html += `<div class="ctx-section-head">${ctxEsc(gLabel)}</div>`;
       if (hasLink) {
-        const firstGroup = state.linkGroups[groupIds[0]];
-        const isLive = firstGroup?.liveLink === true;
-        html += `<div class="ctx-item" id="ctx-link-toggle-live">${isLive ? '✓ Live Linking' : 'Live Linking'}</div>`;
-        html += `<div class="ctx-item highlight" id="ctx-link-push" style="white-space:nowrap;">Push Changes to Group</div>`;
+        html += `<div class="ctx-item ctx-toggle-row${isLive ? ' is-on' : ''}" id="ctx-link-toggle-live" title="${isLive
+          ? 'Live linking is on — every edit is pushed to the rest of the group as you make it. Click to turn it off.'
+          : 'Live linking is off — edits stay on this canvas until you push them. Click to turn it on.'}">
+          <span class="ctx-toggle-dot"></span>
+          <span>Live Linking</span>
+          <span class="ctx-toggle-state">${isLive ? 'On' : 'Off'}</span>
+        </div>`;
+        html += `<div class="ctx-item" id="ctx-link-push" style="white-space:nowrap;" title="Send this layer${'’'}s current properties to every other member of the group now">Push Changes to Group</div>`;
       }
       html += `<div class="ctx-item has-submenu" title="Link this layer to its counterparts on other canvases so edits travel between them">Link Group
         <div class="ctx-submenu">`;
@@ -403,10 +421,15 @@ document.addEventListener('contextmenu', (e) => {
 
       if (hasLink) {
         html += `<div class="ctx-divider"></div>`;
-        html += `<div class="ctx-item" id="ctx-link-remove" style="color:#ef4444; white-space:nowrap;">Remove Link</div>`;
-        html += `<div class="ctx-item" id="ctx-link-delete-all" style="color:#ef4444; white-space:nowrap;">Delete Group & Elements</div>`;
+        // Three escalating options. The middle one is deliberately worded so it
+        // cannot be mistaken for the one below it at a glance — they sit
+        // adjacent, both red, and one keeps your layer while the other doesn't.
+        html += `<div class="ctx-item ctx-danger" id="ctx-link-remove" style="white-space:nowrap;" title="Take the selected layers out of the group. Nothing is deleted anywhere">Unlink selected</div>`;
+        html += `<div class="ctx-item ctx-danger" id="ctx-link-delete-others" style="white-space:nowrap;" title="Unlink the selected layers and delete the group&#39;s OTHER layers on every canvas. What you have selected stays put as an ordinary unlinked layer">Remove Link &amp; other elements</div>`;
+        html += `<div class="ctx-item ctx-danger" id="ctx-link-delete-all" style="white-space:nowrap;" title="Remove the group and delete EVERY layer in it, on every canvas, including the ones you have selected">Remove Link &amp; all elements</div>`;
       }
-      html += `</div></div>`;
+      // Closes the submenu, the Link Group item, and the link section around them.
+      html += `</div></div></div>`;
     }
 
     // "Use as mask" — only for rect/circle/pixel shapes, only when not on a
@@ -434,14 +457,14 @@ document.addEventListener('contextmenu', (e) => {
         <div class="ctx-submenu">
           <div class="ctx-item" id="ctx-define-placement" style="white-space:nowrap;">Define default placement</div>`;
       if (c.layoutOverrides && c.layoutOverrides[activeEl.role]) {
-        html += `<div class="ctx-item" id="ctx-clear-override" style="color:#ef4444; white-space:nowrap;">Clear placement override</div>`;
+        html += `<div class="ctx-item ctx-danger" id="ctx-clear-override" style="white-space:nowrap;">Clear placement override</div>`;
       }
       html += `</div></div>`;
     }
     html += `<div class="ctx-divider"></div>`;
     html += addElementsMenuHTML;
     html += `<div class="ctx-divider"></div>`;
-    html += `<div class="ctx-item" id="ctx-delete" title="Delete the selected layers from this canvas (Del)" style="color:#ef4444">Delete</div>`;
+    html += `<div class="ctx-item ctx-danger" id="ctx-delete" title="Delete the selected layers from this canvas (Del)">Delete</div>`;
   } else if (canvasNode) {
     state.activeCanvasId = canvasNode.parentElement.dataset.canvasId;
     state.selectedElementId = null;
@@ -500,7 +523,7 @@ document.addEventListener('contextmenu', (e) => {
     html += `<div class="ctx-divider"></div>`;
     html += `<div class="ctx-item" id="ctx-canvas-clone" title="Duplicate this canvas, its layers and its frames as a new size on the board">Clone Canvas</div>`;
     if (state.canvases.length > 1) {
-      html += `<div class="ctx-item" id="ctx-canvas-delete" title="Delete this canvas and everything on it. Other canvases are unaffected" style="color:#ef4444;">Delete Canvas</div>`;
+      html += `<div class="ctx-item ctx-danger" id="ctx-canvas-delete" title="Delete this canvas and everything on it. Other canvases are unaffected">Delete Canvas</div>`;
     }
     html += `<div class="ctx-divider"></div>`;
     html += `<div class="ctx-item" id="ctx-canvas-bg-color" title="Set the background colour behind this canvas&#39;s layers">Change canvas BG color</div>`;
@@ -511,7 +534,7 @@ document.addEventListener('contextmenu', (e) => {
       </div>
     </div>`;
     html += `<div class="ctx-divider"></div>`;
-    html += `<div class="ctx-item has-submenu" title="Remove layers in bulk. This cannot be undone by closing the menu" style="color:#ef4444">Clear all
+    html += `<div class="ctx-item has-submenu ctx-danger" title="Remove layers in bulk. This cannot be undone by closing the menu">Clear all
       <div class="ctx-submenu">
         <div class="ctx-item" id="ctx-clear-current"    style="white-space:nowrap;">Current canvas</div>
         <div class="ctx-item" id="ctx-clear-others"     style="white-space:nowrap;">Other canvases</div>
@@ -758,6 +781,22 @@ document.addEventListener('contextmenu', (e) => {
   });
   bind('ctx-link-push', () => {
     pushGroupChanges();
+  });
+  bind('ctx-link-delete-others', async () => {
+    const c = getActiveCanvas();
+    if (!c || !state.layerSelection?.length) return;
+    // Every group represented in the selection, same as delete-all below: a mask
+    // pair spans two groups, and thinning only one of them would leave the other
+    // half of the pair sitting on canvases its partner no longer exists on.
+    const gids = [...new Set(
+      c.elements
+        .filter(x => state.layerSelection.includes(x.id))
+        .map(x => x.linkGroupId)
+        .filter(gid => gid && state.linkGroups?.[gid])
+    )];
+    for (const gid of gids) {
+      await deleteOthersInGroup(gid, state.layerSelection);
+    }
   });
   bind('ctx-link-delete-all', async () => {
     const c = getActiveCanvas();
@@ -1230,7 +1269,7 @@ const appSplash = (() => {
         const verEl = document.createElement('span');
         verEl.className = 'app-splash-version';
         verEl.style.cssText = 'font-size: 10px; color: var(--text-muted, #8b8f9c); border: 1px solid rgba(139, 143, 156, 0.4); padding: 2px 8px; border-radius: 10px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: inline-flex; align-items: center; justify-content: center; line-height: 1; margin-top: 2px;';
-        verEl.textContent = 'v0.39.2';
+        verEl.textContent = 'v0.41.1';
         logoEl.appendChild(verEl);
       }
     }
