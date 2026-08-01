@@ -663,8 +663,13 @@ function customSelect(key, options, currentVal, title, isFrameTrans = false, fra
   const borderStyle = isMainPreset ? 'border: 1.5px solid var(--accent-base);' : 'border: 1px solid var(--border-light);';
   const extraTriggerClass = isMainPreset ? 'preset-select-trigger' : '';
 
+  // `title` was only ever used inside the popup; the closed control itself said
+  // nothing on hover. Putting it on the container means every one of these
+  // dropdowns — entrance, exit, FX, direction, logo variant — explains itself.
+  const containerTitle = title ? ` title="${String(title).replace(/"/g, '&quot;')}"` : '';
+
   return `
-    <div class="custom-select-container ${isFrameTrans ? 'frame-trans-select' : ''}" ${dataKeyAttr} ${containerIdHtml} style="position: relative; width: 100%;">
+    <div class="custom-select-container ${isFrameTrans ? 'frame-trans-select' : ''}" ${dataKeyAttr} ${containerIdHtml}${containerTitle} style="position: relative; width: 100%;">
       <button class="custom-select-trigger ${extraTriggerClass}" title="${title}" style="width: 100%; display: flex; justify-content: space-between; align-items: center; background: var(--bg-input); ${borderStyle} color: var(--text-main); border-radius: 6px; padding: 4px 6px; font-size: 11px; height: 24px; text-align: left; cursor: pointer; outline: none; min-width: 0;">
         <span class="custom-select-label" style="display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; white-space: nowrap; flex: 1;">
           ${currentOpt.img ? `<img src="${currentOpt.img}" style="max-height: 16px; max-width: 36px; object-fit: contain; flex-shrink: 0; background: #475569; padding: 2px 3px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.15);" />` : ''}
@@ -727,7 +732,7 @@ function getFrameTransitionHtml(currentFrame) {
   }).join('');
 
   const durVal = currentFrame.transitionDuration !== undefined ? currentFrame.transitionDuration : 0.5;
-  const durHtml = `<div class="prop-row" style="margin:0;"><label>Duration (s)</label><input type="number" step="0.1" id="frame-trans-duration" value="${durVal}" min="0.1" /></div>`;
+  const durHtml = `<div class="prop-row" style="margin:0;"><label>Duration (s)</label><input type="number" step="0.1" id="frame-trans-duration" title="How long this frame takes to arrive, in seconds" value="${durVal}" min="0.1" /></div>`;
 
   const showFade = ['slide', 'push', 'swipe', 'zoom', 'split', 'iris', 'blur', 'corner-fold'].includes(activePreset);
   const showFeather = false;
@@ -742,7 +747,7 @@ function getFrameTransitionHtml(currentFrame) {
 
     fadeToggleHtml = `
       <div class="checkbox-row" style="height:24px; align-items:center; margin-top:14px; ${fadeOpacityStyle}">
-        <input type="checkbox" id="frame-trans-fade" ${resolvedFade ? 'checked' : ''} ${fadeDisabledAttr} />
+        <input type="checkbox" id="frame-trans-fade" title="Fade the frame in as it moves, as well as sliding or wiping it" ${resolvedFade ? 'checked' : ''} ${fadeDisabledAttr} />
         <label for="frame-trans-fade" style="cursor:pointer; font-size:11px; white-space:nowrap;">Fade</label>
       </div>
     `;
@@ -752,7 +757,7 @@ function getFrameTransitionHtml(currentFrame) {
     const resolvedFeather = !!currentFrame.transitionFeather;
     featherToggleHtml = `
       <div class="checkbox-row" style="height:24px; align-items:center; margin-top:14px;">
-        <input type="checkbox" id="frame-trans-feather" ${resolvedFeather ? 'checked' : ''} />
+        <input type="checkbox" id="frame-trans-feather" title="Soften the leading edge of the wipe, in pixels" ${resolvedFeather ? 'checked' : ''} />
         <label for="frame-trans-feather" style="cursor:pointer; font-size:11px; white-space:nowrap;">Feather</label>
       </div>
     `;
@@ -774,7 +779,7 @@ function getFrameTransitionHtml(currentFrame) {
   const excludePersHtml = `
     <div class="prop-row" style="margin-bottom:8px;">
       <div class="checkbox-row" style="height:24px; align-items:center;">
-        <input type="checkbox" id="frame-trans-exclude-persistent" ${excludePersVal ? 'checked' : ''} />
+        <input type="checkbox" id="frame-trans-exclude-persistent" title="Hold Always Top and Always Bottom layers still while the frame transitions around them" ${excludePersVal ? 'checked' : ''} />
         <label for="frame-trans-exclude-persistent" style="cursor:pointer; font-size:11px;" title="Exclude persistent layers from frame transitions">Exclude persistent layers</label>
       </div>
     </div>
@@ -788,7 +793,7 @@ function getFrameTransitionHtml(currentFrame) {
       const hasBounce = !!currentFrame.transitionBounce;
       bounceHtml = `
         <div class="checkbox-row" style="height:24px; align-items:center; margin-top:14px;">
-          <input type="checkbox" id="frame-trans-bounce" ${hasBounce ? 'checked' : ''} />
+          <input type="checkbox" id="frame-trans-bounce" title="Overshoot slightly and settle back, instead of stopping dead" ${hasBounce ? 'checked' : ''} />
           <label for="frame-trans-bounce" style="cursor:pointer; font-size:11px; white-space:nowrap;">Bounce</label>
         </div>
       `;
@@ -819,10 +824,10 @@ function getFrameTransitionHtml(currentFrame) {
         <div class="prop-grid-2">
           <div style="display:flex; flex-direction:column; gap:4px;">
             <label>Zoom From (%)</label>
-            <input type="number" min="0" max="500" id="frame-trans-zoom-from" value="${zfVal}" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:4px 6px; font-size:11px; height:24px; outline:none;" />
+            <input type="number" min="0" max="500" id="frame-trans-zoom-from" title="Scale the frame starts at, as a percentage of its final size" value="${zfVal}" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:4px 6px; font-size:11px; height:24px; outline:none;" />
           </div>
           <div class="checkbox-row" style="height:24px; align-items:center; margin-top:14px;">
-            <input type="checkbox" id="frame-trans-bounce" ${hasBounce ? 'checked' : ''} />
+            <input type="checkbox" id="frame-trans-bounce" title="Overshoot slightly and settle back, instead of stopping dead" ${hasBounce ? 'checked' : ''} />
             <label for="frame-trans-bounce" style="cursor:pointer; font-size:11px; white-space:nowrap;">Bounce</label>
           </div>
         </div>
@@ -864,11 +869,11 @@ function getFrameTransitionHtml(currentFrame) {
         <div class="prop-grid-2">
           <div style="display:flex; flex-direction:column; gap:4px;">
             <label>Blur Amount (px)</label>
-            <input type="number" min="0" max="100" id="frame-trans-blur-amount" value="${blurAmount}" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:4px 6px; font-size:11px; height:24px; outline:none;" />
+            <input type="number" min="0" max="100" id="frame-trans-blur-amount" title="How heavy the blur is at the start of the transition, in pixels" value="${blurAmount}" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:4px 6px; font-size:11px; height:24px; outline:none;" />
           </div>
           <div style="display:flex; flex-direction:column; gap:4px;">
             <label>Scale Blend (%)</label>
-            <input type="number" min="10" max="500" id="frame-trans-blur-scale" value="${blurScale}" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:4px 6px; font-size:11px; height:24px; outline:none;" />
+            <input type="number" min="10" max="500" id="frame-trans-blur-scale" title="How much the frame is scaled up while blurred" value="${blurScale}" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:4px 6px; font-size:11px; height:24px; outline:none;" />
           </div>
         </div>
       </div>
@@ -2098,7 +2103,7 @@ function renderProps() {
 
   if (el.type === 'text') {
     const textDisabled = isFieldDisabled('text');
-    f.push(`<div class="prop-row" ${textDisabled ? 'data-locked-field="true"' : ''}><label>Text</label><textarea data-k="text" rows="2" ${textDisabled ? 'disabled style="pointer-events:none;"' : ''}>${esc(dText)}</textarea></div>`);
+    f.push(`<div class="prop-row" ${textDisabled ? 'data-locked-field="true"' : ''}><label>Text</label><textarea data-k="text" rows="2" title="The copy shown on this layer. Bound to a data column when the layer is a dynamic slot" ${textDisabled ? 'disabled style="pointer-events:none;"' : ''}>${esc(dText)}</textarea></div>`);
 
     // Resolve computed size for display
     const computedFontSize = el.autoSize ? calculateAutoSize(el, dText) : (el.fontSize || 14);
@@ -2345,7 +2350,7 @@ function renderProps() {
       // Image uploaded / used: hide top button and filename, display preview container with overlay
       f.push(fileInputHtml);
       const overlayHtml = isRmitLogo ? '' : `<div class="img-preview-overlay" style="position:absolute; inset:0; background:rgba(0,0,0,0.65); display:flex; flex-direction:column; align-items:center; justify-content:center; opacity:0; transition:opacity 0.2s ease; gap:8px;">
-            <button id="overlay-browse-btn" class="btn" style="background:var(--accent-base); color:var(--text-on-accent, var(--text-bright)); border:none; border-radius:4px; padding:6px 16px; font-size:11px; font-weight:600; cursor:pointer;">Browse...</button>
+            <button id="overlay-browse-btn" title="Choose an image from your computer" class="btn" style="background:var(--accent-base); color:var(--text-on-accent, var(--text-bright)); border:none; border-radius:4px; padding:6px 16px; font-size:11px; font-weight:600; cursor:pointer;">Browse...</button>
             <span class="overlay-filename" style="color:var(--text-muted); font-size:10px; max-width:90%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${esc(el.name || '')}">${esc(el.name || '')}</span>
           </div>`;
       f.push(`<div class="prop-row">
@@ -2523,7 +2528,10 @@ function renderProps() {
     </div>`);
 
     // Seconds inputs use step=0.1 so wheel-scroll and arrow keys nudge by 0.1.
-    const secNum = (key, label, def = '') => `<div class="prop-row" style="margin:0;"><label>${label}</label><input type="number" step="0.1" data-k="${key}" value="${el[key] !== undefined ? el[key] : def}" /></div>`;
+    // Reads propTooltips like num()/txt() do — it was the one numeric builder
+    // that didn't, which is why Duration and Delay were the only animation
+    // fields with nothing on hover despite the map already describing them.
+    const secNum = (key, label, def = '') => `<div class="prop-row" style="margin:0;"><label>${label}</label><input type="number" step="0.1" data-k="${key}" value="${el[key] !== undefined ? el[key] : def}" title="${propTooltips[key] || label}" /></div>`;
 
     const isZoomLike = el.animType === 'zoom' || el.animType === 'zoom-in' || el.animType === 'pop-in';
     const isBlur = el.animType === 'blur';
@@ -2786,7 +2794,7 @@ function renderProps() {
       <label class="anim-sub-head" style="margin:0;"><svg id="fi_18562238" width="12" height="12" viewBox="0 0 100 100" style="color: var(--accent-base); flex-shrink: 0; transform: scaleX(-1);" fill="currentColor"><path d="m21.5527992 16.0015984h-16.6498918c-2.1364791 0-3.2064319 2.5830956-1.695713 4.0938129l29.9045877 29.9045887-29.9045878 29.9045868c-1.5107189 1.5107193-.4407661 4.093811 1.695713 4.093811h16.6498909c.6360168 0 1.2459831-.252655 1.695713-.7023849l31.6003047-31.6002999c.9365158-.9365158.9365158-2.4549103 0-3.3914261l-31.6003036-31.6003017c-.44973-.4497299-1.0596962-.7023868-1.6957131-.7023868z"></path><path d="m63.5015984 16.0015984h-16.6498948c-2.1364784 0-3.2064323 2.5830956-1.695713 4.0938129l29.9045868 29.9045887-29.9045868 29.9045868c-1.5107193 1.5107193-.4407654 4.093811 1.695713 4.093811h16.6498947c.636013 0 1.2459831-.252655 1.695713-.7023849l31.6003038-31.6002999c.9365158-.9365158.9365158-2.4549103 0-3.3914261l-31.6003037-31.6003017c-.4497299-.4497299-1.0597-.7023868-1.695713-.7023868z"></path></svg>OUT</label>
       <div style="display:flex; align-items:center; gap:4px;" title="${startTooltip}">
         <label for="prop-exit-start" style="font-size:9px; color:var(--text-muted); margin:0;">after</label>
-        <input type="number" step="0.1" min="0" data-k="exitStart" id="prop-exit-start" value="${exitValAfter}" style="width:45px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:2px 4px; font-size:11px; height:20px; outline:none;" />
+        <input type="number" step="0.1" min="0" data-k="exitStart" id="prop-exit-start" title="How long after the layer arrives before it begins to leave, in seconds" value="${exitValAfter}" style="width:45px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:2px 4px; font-size:11px; height:20px; outline:none;" />
         <span style="font-size:11px; color:var(--text-muted);">s</span>
       </div>
     </div>`);

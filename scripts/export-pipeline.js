@@ -2885,10 +2885,10 @@ function openExportModal() {
           <span class="exp-val-badge" data-tab="specs" data-cid="${c.id}" style="cursor:pointer;" title="${specsTitle}">${specsIcon}</span>
         </td>
         <td class="exp-td-a11y" style="padding: 6px 0; border-bottom: 1px solid var(--border-light); text-align:center;">
-          <span class="exp-val-badge" data-tab="a11y" data-cid="${c.id}" style="cursor:pointer;" title="${a11yTitle}">${a11yIcon}</span>
+          <span class="exp-val-badge" data-tab="a11y" title="Open Validation &amp; Audit on this canvas so you can fix the problem" data-cid="${c.id}" style="cursor:pointer;" title="${a11yTitle}">${a11yIcon}</span>
         </td>
         <td class="exp-td-brand" style="padding: 6px 0; border-bottom: 1px solid var(--border-light); text-align:center;">
-          <span class="exp-val-badge" data-tab="brand" data-cid="${c.id}" style="cursor:pointer;" title="${brandTitle}">${brandIcon}</span>
+          <span class="exp-val-badge" data-tab="brand" title="Open Validation &amp; Audit on this canvas so you can fix the problem" data-cid="${c.id}" style="cursor:pointer;" title="${brandTitle}">${brandIcon}</span>
         </td>
       </tr>
     `;
@@ -2912,7 +2912,7 @@ function openExportModal() {
             <span>HTML5 ZIP</span>
           </label>
           <label style="flex:1; display:flex; align-items:center; gap:6px; padding:7px 9px; background:var(--bg-input); border:1px solid var(--border-light); border-radius:4px; cursor:pointer; font-size:12px;">
-            <input type="radio" name="exp-format" value="png" style="margin:0;" />
+            <input type="radio" name="exp-format" value="png" title="Export a static PNG of each size instead of the animated HTML5 package" style="margin:0;" />
             <span>PNG</span>
           </label>
         </div>
@@ -2923,7 +2923,7 @@ function openExportModal() {
         <label style="display:block; font-size:11px; color:var(--text-muted); margin-bottom:4px; text-transform:uppercase; letter-spacing:.04em;">Data version</label>
         <div style="display:flex; flex-direction:column; gap:6px;">
           <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:12px; font-weight:600; color:var(--text-main);">
-            <input type="radio" name="exp-version-mode" value="single" checked style="margin:0;" />
+            <input type="radio" name="exp-version-mode" value="single" checked title="Export only the data version currently showing" style="margin:0;" />
             <span>Single Version</span>
           </label>
           <select id="exp-version" style="width:100%; padding:6px 8px; background:var(--bg-input); border:1px solid var(--border-light); border-radius:4px; color:var(--text-main); font-size:12px; outline:none; font-family:inherit; margin-left:18px; width:calc(100% - 18px);" title="Pick which data row to bake into the export.">
@@ -2931,7 +2931,7 @@ function openExportModal() {
           </select>
           
           <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:12px; font-weight:600; color:var(--text-main); margin-top:2px;">
-            <input type="radio" name="exp-version-mode" value="all" style="margin:0;" />
+            <input type="radio" name="exp-version-mode" value="all" title="Export every row of the data sheet, each as its own set of banners" style="margin:0;" />
             <span>All Selected Versions (${selectedCount})</span>
           </label>
         </div>
@@ -2942,7 +2942,7 @@ function openExportModal() {
 
     <div style="margin-bottom:14px; padding:8px 10px; background:var(--bg-input); border:1px solid var(--border-light); border-radius:4px;">
       <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer;">
-        <input type="checkbox" id="exp-skip-frames" checked style="margin-top:3px; flex-shrink:0;" ${flaggedFrameCount === 0 ? 'disabled' : ''} />
+        <input type="checkbox" id="exp-skip-frames" title="Leave frames marked as skipped out of the exported ad" checked style="margin-top:3px; flex-shrink:0;" ${flaggedFrameCount === 0 ? 'disabled' : ''} />
         <div style="flex:1; min-width:0;">
           <div style="font-size:12px; font-weight:600; color:var(--text-main);">Skip frames marked as skipped${flaggedFrameCount > 0 ? ` (${flaggedFrameCount} flagged)` : ''}</div>
           <div style="font-size:10.5px; color:var(--text-muted); line-height:1.4; margin-top:2px;">${flaggedFrameCount === 0 ? 'No frames are currently flagged. Toggle "Skip Frame" on the timeline to flag one.' : 'On (default): flagged frames are excluded from HTML5 exports. Off: they\'re included. PNG always exports the active frame regardless.'}</div>
@@ -3213,10 +3213,10 @@ function openExportModal() {
         res.specsTd.innerHTML = `<span class="exp-val-badge" data-tab="specs" data-cid="${res.cid}" style="cursor:pointer;" title="${res.specsTitle}">${res.specsIcon}</span>`;
       }
       if (res.a11yTd) {
-        res.a11yTd.innerHTML = `<span class="exp-val-badge" data-tab="a11y" data-cid="${res.cid}" style="cursor:pointer;" title="${res.a11yTitle}">${res.a11yIcon}</span>`;
+        res.a11yTd.innerHTML = `<span class="exp-val-badge" data-tab="a11y" title="Open Validation &amp; Audit on this canvas so you can fix the problem" data-cid="${res.cid}" style="cursor:pointer;" title="${res.a11yTitle}">${res.a11yIcon}</span>`;
       }
       if (res.brandTd) {
-        res.brandTd.innerHTML = `<span class="exp-val-badge" data-tab="brand" data-cid="${res.cid}" style="cursor:pointer;" title="${res.brandTitle}">${res.brandIcon}</span>`;
+        res.brandTd.innerHTML = `<span class="exp-val-badge" data-tab="brand" title="Open Validation &amp; Audit on this canvas so you can fix the problem" data-cid="${res.cid}" style="cursor:pointer;" title="${res.brandTitle}">${res.brandIcon}</span>`;
       }
     });
   };
@@ -3290,7 +3290,7 @@ function openExportModal() {
         <div id="batch-compress-status-text" style="font-size:13px; font-weight:500; color:#34d399;">Initializing scan...</div>
         
         <div style="margin-top:12px;">
-          <button class="btn" id="batch-compress-cancel" style="padding:6px 16px; font-size:12px; cursor:pointer;">Cancel</button>
+          <button class="btn" id="batch-compress-cancel" title="Stop compressing. Images already processed keep their new size" style="padding:6px 16px; font-size:12px; cursor:pointer;">Cancel</button>
         </div>
       </div>
     `;
@@ -3768,7 +3768,7 @@ function showExportProgressModal(onCancel) {
       </div>
       
       <div style="display:flex; justify-content:flex-end; margin-top:8px;">
-        <button id="export-progress-cancel" class="btn" style="padding: 6px 14px; font-size:11.5px; font-weight:500;">Cancel</button>
+        <button id="export-progress-cancel" title="Stop the export. Files already written are kept" class="btn" style="padding: 6px 14px; font-size:11.5px; font-weight:500;">Cancel</button>
       </div>
     </div>
   `;
@@ -3990,7 +3990,7 @@ function runAllVersionsValidator() {
       <div id="batch-val-status-text" style="font-size:13px; font-weight:500; color:var(--text-accent);">Starting audit...</div>
       
       <div style="margin-top:12px;">
-        <button class="btn" id="batch-val-cancel" style="padding:6px 16px; font-size:12px; cursor:pointer;">Cancel Audit</button>
+        <button class="btn" id="batch-val-cancel" title="Close without exporting" style="padding:6px 16px; font-size:12px; cursor:pointer;">Cancel Audit</button>
       </div>
     </div>
   `;
@@ -4123,8 +4123,8 @@ function showBatchValidatorResults(problems) {
         <div style="font-size:18px; font-weight:600; color:#10b981;">All Versions Passed!</div>
         <div style="font-size:13px; color:var(--text-muted); max-width:400px; margin:0 auto; line-height:1.5;">Every version and canvas size conforms to technical compliance rules, accessibility guidelines, and RMIT branding rules.</div>
         <div style="margin-top:10px; display:flex; gap:8px; justify-content:center;">
-          <button class="btn primary" id="batch-val-success-ok" style="padding:6px 20px; cursor:pointer; font-size:12px;">Awesome</button>
-          <button class="btn" id="btn-batch-rerun" style="
+          <button class="btn primary" id="batch-val-success-ok" title="Close" style="padding:6px 20px; cursor:pointer; font-size:12px;">Awesome</button>
+          <button class="btn" id="btn-batch-rerun" title="Run the batch again with the same settings" style="
             background: linear-gradient(135deg, rgba(20, 184, 166, 0.2), rgba(20, 184, 166, 0.05));
             border: 1px solid rgba(20, 184, 166, 0.35);
             color: #2dd4bf;
@@ -4168,7 +4168,7 @@ function showBatchValidatorResults(problems) {
               <div style="display:flex; flex-direction:column; gap:2px; flex:1;">
                 ${p.errors.map(e => `<span>• ${e}</span>`).join('')}
               </div>
-              <button class="btn btn-fix-issue" data-cid="${p.canvasId}" data-vidx="${p.versionIndex}" data-tab="specs" style="padding:2px 8px; font-size:10px; background:rgba(239, 68, 68, 0.15); border:1px solid rgba(239, 68, 68, 0.3); color:#ef4444; border-radius:4px; cursor:pointer; flex-shrink:0;">Fix</button>
+              <button class="btn btn-fix-issue" data-cid="${p.canvasId}" data-vidx="${p.versionIndex}" data-tab="specs" title="Open Validation &amp; Audit on this canvas so you can fix the problem" style="padding:2px 8px; font-size:10px; background:rgba(239, 68, 68, 0.15); border:1px solid rgba(239, 68, 68, 0.3); color:#ef4444; border-radius:4px; cursor:pointer; flex-shrink:0;">Fix</button>
             </div>
           ` : ''}
           
@@ -4178,7 +4178,7 @@ function showBatchValidatorResults(problems) {
               <div style="display:flex; flex-direction:column; gap:2px; flex:1;">
                 ${p.a11y.map(w => `<span>• ${w}</span>`).join('')}
               </div>
-              <button class="btn btn-fix-issue" data-cid="${p.canvasId}" data-vidx="${p.versionIndex}" data-tab="a11y" style="padding:2px 8px; font-size:10px; background:rgba(249, 115, 22, 0.15); border:1px solid rgba(249, 115, 22, 0.3); color:#f97316; border-radius:4px; cursor:pointer; flex-shrink:0;">Fix</button>
+              <button class="btn btn-fix-issue" data-cid="${p.canvasId}" data-vidx="${p.versionIndex}" data-tab="a11y" title="Open Validation &amp; Audit on this canvas so you can fix the problem" style="padding:2px 8px; font-size:10px; background:rgba(249, 115, 22, 0.15); border:1px solid rgba(249, 115, 22, 0.3); color:#f97316; border-radius:4px; cursor:pointer; flex-shrink:0;">Fix</button>
             </div>
           ` : ''}
           
@@ -4188,7 +4188,7 @@ function showBatchValidatorResults(problems) {
               <div style="display:flex; flex-direction:column; gap:2px; flex:1;">
                 ${p.brand.map(w => `<span>• ${w}</span>`).join('')}
               </div>
-              <button class="btn btn-fix-issue" data-cid="${p.canvasId}" data-vidx="${p.versionIndex}" data-tab="brand" style="padding:2px 8px; font-size:10px; background:rgba(249, 115, 22, 0.15); border:1px solid rgba(249, 115, 22, 0.3); color:#f97316; border-radius:4px; cursor:pointer; flex-shrink:0;">Fix</button>
+              <button class="btn btn-fix-issue" data-cid="${p.canvasId}" data-vidx="${p.versionIndex}" data-tab="brand" title="Open Validation &amp; Audit on this canvas so you can fix the problem" style="padding:2px 8px; font-size:10px; background:rgba(249, 115, 22, 0.15); border:1px solid rgba(249, 115, 22, 0.3); color:#f97316; border-radius:4px; cursor:pointer; flex-shrink:0;">Fix</button>
             </div>
           ` : ''}
         </div>

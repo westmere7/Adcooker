@@ -1,0 +1,137 @@
+{
+  "splash-signin": {
+    "w": 1600,
+    "h": 940,
+    "scale": 1
+  },
+  "editor-overview": {
+    "w": 1600,
+    "h": 940,
+    "scale": 1
+  },
+  "topbar": {
+    "w": 1582,
+    "h": 48,
+    "scale": 1.5
+  },
+  "panel-canvases": {
+    "w": 277,
+    "h": 245,
+    "scale": 2
+  },
+  "panel-add-elements": {
+    "w": 277,
+    "h": 394,
+    "scale": 2
+  },
+  "panel-layers": {
+    "w": 277,
+    "h": 125,
+    "scale": 2
+  },
+  "autoresize-buttons": {
+    "w": 253,
+    "h": 48,
+    "scale": 2
+  },
+  "frames-strip": {
+    "w": 666,
+    "h": 42,
+    "scale": 2
+  },
+  "dynamic-data-panel": {
+    "w": 277,
+    "h": 163,
+    "scale": 2
+  },
+  "props-image": {
+    "w": 289,
+    "h": 758,
+    "scale": 1.25
+  },
+  "canvas-masked": {
+    "w": 66,
+    "h": 680,
+    "scale": 1.5
+  },
+  "timeline-overview": {
+    "w": 1002,
+    "h": 75,
+    "scale": 1.5
+  },
+  "timeline-fx-isolated": {
+    "w": 1002,
+    "h": 75,
+    "scale": 1.5
+  },
+  "timeline-settings": {
+    "w": 182,
+    "h": 228,
+    "scale": 2
+  },
+  "file-menu": {
+    "w": 240,
+    "h": 651,
+    "scale": 1.5
+  },
+  "new-project-modal": {
+    "w": 504,
+    "h": 750,
+    "scale": 1.25
+  },
+  "settings-modal": {
+    "w": 844,
+    "h": 624,
+    "scale": 1.25
+  },
+  "shortcuts-modal": {
+    "w": 664,
+    "h": 750,
+    "scale": 1.1
+  },
+  "autoresize-modal": {
+    "w": 584,
+    "h": 731,
+    "scale": 1.25
+  },
+  "data-versions": {
+    "w": 1474,
+    "h": 750,
+    "scale": 1.1
+  },
+  "portal-empty": {
+    "w": 1600,
+    "h": 940,
+    "scale": 1
+  },
+  "portal-loaded": {
+    "w": 1600,
+    "h": 940,
+    "scale": 1
+  },
+  "portal-external": {
+    "w": 1600,
+    "h": 940,
+    "scale": 1
+  },
+  "portal-external-controls": {
+    "w": 299,
+    "h": 329,
+    "scale": 2
+  },
+  "batch-empty": {
+    "w": 1600,
+    "h": 940,
+    "scale": 1
+  },
+  "batch-loaded": {
+    "w": 1600,
+    "h": 940,
+    "scale": 1
+  },
+  "batch-sidebar": {
+    "w": 320,
+    "h": 844,
+    "scale": 1.5
+  }
+}

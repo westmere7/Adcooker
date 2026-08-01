@@ -142,15 +142,15 @@ function openNewProjectDialog() {
         <!-- Template mode checkbox and selection -->
         <div style="border-bottom: 1px solid var(--border-light); padding-bottom: 12px; margin-bottom: 4px; display:flex; flex-direction:column; gap:8px;">
           <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:12px; font-weight:600; color:var(--text-bright); user-select:none;" title="If checked, initializes the project with a template.">
-            <input type="checkbox" id="np-use-startup-template" ${localStorage.getItem('adflow-startup-mode') !== 'fresh' ? 'checked' : ''} style="margin:0;" />
+            <input type="checkbox" id="np-use-startup-template" title="Start from a saved template instead of an empty board. Canvas settings below come from the template" ${localStorage.getItem('adflow-startup-mode') !== 'fresh' ? 'checked' : ''} style="margin:0;" />
             <span>Use template</span>
           </label>
           <div id="np-template-container" style="display:flex; gap:8px; align-items:center;">
-            <select id="np-startup-template-select" style="flex:1; min-width:0; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:6px; padding:7px 9px; font-size:12px; outline:none; cursor:pointer;">
+            <select id="np-startup-template-select" title="Start from one of the templates found in the Startup folder" style="flex:1; min-width:0; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:6px; padding:7px 9px; font-size:12px; outline:none; cursor:pointer;">
               <!-- populated dynamically -->
             </select>
             <button class="btn" id="np-rescan-templates-btn" title="Re-scan Startup folder templates" style="padding:7px 10px; font-size:12px;">↻</button>
-            <button class="btn" id="np-browse-template-btn" style="padding:7px 12px; font-size:12px; white-space:nowrap;">Browse...</button>
+            <button class="btn" id="np-browse-template-btn" title="Choose a .flow file on your computer to start this project from" style="padding:7px 12px; font-size:12px; white-space:nowrap;">Browse...</button>
             <input type="file" id="np-local-template-file" accept=".flow" style="display:none;" />
           </div>
           <div id="np-local-template-status" style="font-size:11px; color:var(--text-accent); display:none; align-items:center; gap:6px;">
@@ -1959,7 +1959,7 @@ document.getElementById('menu-help-shortcuts').addEventListener('click', () => {
 
 
 function checkVersionUpdate() {
-  const currentVersion = 'v0.38.1';
+  const currentVersion = 'v0.39.1';
   const lastSeen = localStorage.getItem('last-seen-version');
   
   if (!lastSeen) {
@@ -1993,7 +1993,7 @@ function checkVersionUpdate() {
           ${updatesHtml}
         </div>
         <div style="display:flex; justify-content:flex-end;">
-          <button id="btn-close-update-notif" class="btn primary" style="padding:8px 16px; font-size:12px; font-weight:600; cursor:pointer;">Awesome</button>
+          <button id="btn-close-update-notif" title="Dismiss this notice" class="btn primary" style="padding:8px 16px; font-size:12px; font-weight:600; cursor:pointer;">Awesome</button>
         </div>
       </div>
     `;
@@ -2010,7 +2010,7 @@ function checkVersionUpdate() {
 
 
 document.getElementById('menu-about').addEventListener('click', () => {
-  const currentVersion = 'v0.38.1';
+  const currentVersion = 'v0.39.1';
   const body = `
       <div style="font-size:13px; line-height:1.75; color:var(--text-main); font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
         <p style="margin: 0 0 16px 0;"><strong>RMIT Adflow</strong> is a specialized, lightweight HTML5 display advertisement creation and automation platform. Designed to eliminate the overhead and complexities of legacy ad builders, Adflow offers a fast, precise, and visual environment for building, validating, and exporting high-performance advertising creatives.</p>
@@ -2036,7 +2036,7 @@ document.getElementById('menu-about').addEventListener('click', () => {
         <div style="margin-top:24px; padding-top:16px; border-top:1px solid var(--border-light); display:flex; justify-content:space-between; align-items:center;">
           <div style="display:flex; align-items:center; gap:8px;">
             <span style="font-size:11px; color:var(--text-muted);">${currentVersion}</span>
-            <button id="btn-changelog" class="btn" style="padding:6px 12px; font-size:11px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; cursor:pointer;">Version and changelog</button>
+            <button id="btn-changelog" title="See what changed in this and previous versions of Adflow" class="btn" style="padding:6px 12px; font-size:11px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; cursor:pointer;">Version and changelog</button>
           </div>
         </div>
       </div>`;
@@ -2147,7 +2147,7 @@ function openSettings() {
 
   const buildThemeGrid = (filterFn) => THEMES.filter(filterFn).map(t => {
     const active = tempSettings.theme === t.id;
-    return `<button class="settings-theme-btn${active ? ' active' : ''}" data-theme="${t.id}">${t.label}</button>`;
+    return `<button class="settings-theme-btn${active ? ' active' : ''}" data-theme="${t.id}" title="Switch the editor to the ${t.label} theme. This changes Adflow’s own interface, never your ad">${t.label}</button>`;
   }).join('');
 
   const darkThemeBtns = buildThemeGrid(t => !lightThemeIds.has(t.id));
@@ -2170,8 +2170,11 @@ function openSettings() {
     return opts.join('');
   };
 
+  // The hint renders under the label AND becomes the row's tooltip, so hovering
+  // anywhere on the row explains it. Rows without a hint fall back to the label,
+  // which at least means no control here is silent on hover.
   const row = (id, label, checked, hint = '') => `
-        <label class="settings-row" style="display:flex; align-items:flex-start; gap:10px; padding:8px 10px; border-radius:6px; cursor:pointer;">
+        <label class="settings-row" title="${String(hint || label).replace(/"/g, '&quot;')}" style="display:flex; align-items:flex-start; gap:10px; padding:8px 10px; border-radius:6px; cursor:pointer;">
           <input type="checkbox" id="${id}" ${checked ? 'checked' : ''} style="margin:2px 0 0 0;" />
           <span style="display:flex; flex-direction:column; gap:2px;">
             <span style="font-size:12px; color:var(--text-main);">${label}</span>
@@ -2185,20 +2188,20 @@ function openSettings() {
           <div class="modal-head" style="border-bottom:1px solid var(--border-light); background:var(--bg-panel); flex-shrink:0;">
             <div style="display:flex; align-items:center; gap:12px; flex:1;">
               <h2 style="margin:0; font-size:14px; font-weight:600; color:var(--text-bright);">Settings</h2>
-              <span style="font-size:11px; color:var(--text-muted);">v0.38.1</span>
-              <button id="settings-changelog" class="btn" style="padding:4px 8px; font-size:10px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; cursor:pointer;">Changelog</button>
+              <span style="font-size:11px; color:var(--text-muted);">v0.39.1</span>
+              <button id="settings-changelog" title="See what changed in this and previous versions of Adflow" class="btn" style="padding:4px 8px; font-size:10px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; cursor:pointer;">Changelog</button>
             </div>
-            <button class="btn" id="settings-close">Close</button>
+            <button class="btn" id="settings-close" title="Close without keeping any change made since the dialog opened">Close</button>
           </div>
           
           <!-- Modal Content: Vertical Navigation + Panels Container -->
           <div style="display:flex; flex:1; min-height:0;">
             <!-- Left Navigation Sidebar -->
             <div class="settings-tabs-nav-vertical">
-              <button class="settings-tab-btn-vertical active" data-tab="general">General & View</button>
-              <button class="settings-tab-btn-vertical" data-tab="snapping">Snapping & Layout</button>
-              <button class="settings-tab-btn-vertical" data-tab="validation">Validation & QC</button>
-              <button class="settings-tab-btn-vertical" data-tab="performance">History & Export</button>
+              <button class="settings-tab-btn-vertical active" data-tab="general" title="Theme, rulers, zoom step and the default canvas background">General &amp; View</button>
+              <button class="settings-tab-btn-vertical" data-tab="snapping" title="What layers snap to while you drag, and how close they have to be">Snapping &amp; Layout</button>
+              <button class="settings-tab-btn-vertical" data-tab="validation" title="Which problems the validation panel flags, and the ad weight limit it holds you to">Validation &amp; QC</button>
+              <button class="settings-tab-btn-vertical" data-tab="performance" title="Undo history depth, autosave interval and export defaults">History &amp; Export</button>
             </div>
             
             <!-- Right Panels Content -->
@@ -2216,7 +2219,7 @@ function openSettings() {
                   <h3 style="margin:0 0 4px; font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600;">Canvas Configuration</h3>
                   <div style="display:flex; align-items:center; gap:12px; font-size:12px; color:var(--text-main);">
                     <span style="flex:1;">Mouse Scroll Zoom Step:</span>
-                    <input type="number" id="set-zoom-step" value="${Math.round(tempSettings.zoomStep * 100)}" min="1" max="50" style="width:65px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:3px 8px; font-family:inherit; font-size:12px;" />
+                    <input type="number" id="set-zoom-step" title="How much one notch of the mouse wheel zooms the board" value="${Math.round(tempSettings.zoomStep * 100)}" min="1" max="50" style="width:65px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:3px 8px; font-family:inherit; font-size:12px;" />
                     <span style="color:var(--text-muted); width:20px;">%</span>
                   </div>
                   <div style="display:flex; align-items:center; gap:12px; font-size:12px; color:var(--text-main);">
@@ -2229,7 +2232,7 @@ function openSettings() {
                   </div>
                   <div style="display:flex; align-items:center; gap:12px; font-size:12px; color:var(--text-main);">
                     <span style="flex:1;">Startup Template preference:</span>
-                    <select id="set-startup-mode" style="width:240px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:4px 8px; font-family:inherit; font-size:12px; outline:none; cursor:pointer;">
+                    <select id="set-startup-mode" title="What a brand-new project starts from: an empty board, or one of your startup templates" style="width:240px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:4px 8px; font-family:inherit; font-size:12px; outline:none; cursor:pointer;">
                       ${buildStartupOptions()}
                     </select>
                   </div>
@@ -2264,7 +2267,7 @@ function openSettings() {
                   <h3 style="margin:0 0 4px; font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600;">Snapping Threshold</h3>
                   <div style="display:flex; align-items:center; gap:12px; font-size:12px; color:var(--text-main);">
                     <span style="flex:1;">Snapping Distance Tolerance:</span>
-                    <input type="number" id="set-snap-distance" value="${tempSettings.snapDistance}" min="2" max="25" style="width:65px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:3px 8px; font-family:inherit; font-size:12px;" />
+                    <input type="number" id="set-snap-distance" title="How close a layer must come before it snaps, in pixels" value="${tempSettings.snapDistance}" min="2" max="25" style="width:65px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:3px 8px; font-family:inherit; font-size:12px;" />
                     <span style="color:var(--text-muted); width:20px;">px</span>
                   </div>
                   <div style="font-size:10px; color:var(--text-muted); line-height:1.4;">
@@ -2294,11 +2297,11 @@ function openSettings() {
                   <h3 style="margin:0 0 4px; font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600;">History Engine</h3>
                   <label style="display:flex; align-items:center; gap:12px; font-size:12px; color:var(--text-main); cursor:pointer;">
                     <span style="flex:1;">Undo / Redo History Limit:</span>
-                    <input type="number" id="set-history-limit" value="${tempSettings.savedHistoryLimit}" min="5" max="100" style="width:65px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:3px 8px; font-family:inherit; font-size:12px;" />
+                    <input type="number" id="set-history-limit" title="How many steps of undo to keep. Higher uses more memory" value="${tempSettings.savedHistoryLimit}" min="5" max="100" style="width:65px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:3px 8px; font-family:inherit; font-size:12px;" />
                   </label>
                   <label style="display:flex; align-items:center; gap:12px; font-size:12px; color:var(--text-main); cursor:pointer;">
                     <span style="flex:1;">Local Auto-Save Interval:</span>
-                    <input type="number" id="set-autosave-interval" value="${tempSettings.autosaveInterval}" min="5" max="60" style="width:65px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:3px 8px; font-family:inherit; font-size:12px;" />
+                    <input type="number" id="set-autosave-interval" title="How often work is saved to this browser, in seconds" value="${tempSettings.autosaveInterval}" min="5" max="60" style="width:65px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:3px 8px; font-family:inherit; font-size:12px;" />
                     <span style="color:var(--text-muted); font-size:11px;">seconds</span>
                   </label>
                 </section>
@@ -2307,7 +2310,7 @@ function openSettings() {
                   <h3 style="margin:0 0 4px; font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600;">Export Pipelines</h3>
                   <label style="display:flex; align-items:center; gap:12px; font-size:12px; color:var(--text-main); cursor:pointer;">
                     <span style="flex:1;">Max Ad Weight Limit (IAB):</span>
-                    <input type="number" id="set-ad-limit" value="${tempSettings.adSizeLimit}" min="50" max="1000" style="width:65px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:3px 8px; font-family:inherit; font-size:12px;" />
+                    <input type="number" id="set-ad-limit" title="Total weight an exported banner may reach before validation flags it. 150 KB is the industry standard" value="${tempSettings.adSizeLimit}" min="50" max="1000" style="width:65px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:3px 8px; font-family:inherit; font-size:12px;" />
                     <span style="color:var(--text-muted); font-size:11px; width:20px;">KB</span>
                   </label>
                   <div style="font-size:10px; color:var(--text-muted); line-height:1.4;">
@@ -2330,12 +2333,12 @@ function openSettings() {
           <!-- Modal Footer: Save and Cancel with Preview option -->
           <div class="modal-foot" style="border-top:1px solid var(--border-light); background:var(--bg-panel); flex-shrink:0; display:flex; align-items:center; justify-content:space-between; width:100%;">
             <label style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-main); cursor:pointer; user-select:none; margin:0;">
-              <input type="checkbox" id="settings-preview-toggle" checked style="margin:0;" />
+              <input type="checkbox" id="settings-preview-toggle" title="Apply changes to the editor as you make them, so you can judge them before saving" checked style="margin:0;" />
               <span>Preview changes instantly</span>
             </label>
             <div style="display:flex; gap:8px;">
-              <button class="btn" id="settings-cancel">Cancel</button>
-              <button class="btn primary" id="settings-save">Save Changes</button>
+              <button class="btn" id="settings-cancel" title="Close without keeping any change made since the dialog opened">Cancel</button>
+              <button class="btn primary" id="settings-save" title="Apply these settings and close">Save Changes</button>
             </div>
           </div>
         </div>`;

@@ -44,7 +44,12 @@ const profile = join(tmpdir(), 'adflow-docs-shots-' + Date.now());
 const chrome = spawn(CHROME, [
   '--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`,
   `--window-size=${VW},${VH}`, '--hide-scrollbars', '--no-first-run',
-  '--no-default-browser-check', '--force-color-profile=srgb', '--mute-audio'
+  '--no-default-browser-check', '--force-color-profile=srgb', '--mute-audio',
+  // Software raster. On the GPU path this run reliably lost its renderer partway
+  // through the sequence — the renderer goes, the CDP socket follows, and every
+  // remaining step rejects with "Inspected target navigated or closed". Slower
+  // per shot, but it finishes.
+  '--disable-gpu'
 ], { stdio: ['ignore', 'ignore', 'pipe'] });
 
 const port = await new Promise((resolve, reject) => {
@@ -80,6 +85,9 @@ ws.onmessage = (e) => {
     if (!p) return;
     m.error ? p.reject(new Error(m.error.message)) : p.resolve(m.result);
   } else {
+    if (process.env.ADFLOW_SHOT_TRACE && /^(Page\.frameNavigated|Runtime\.executionContextsCleared|Inspector\.)/.test(m.method)) {
+      console.log('    [trace]', m.method, JSON.stringify(m.params || {}).slice(0, 120));
+    }
     for (let i = eventWaiters.length - 1; i >= 0; i--) {
       if (eventWaiters[i].event === m.method) { eventWaiters[i].resolve(m.params); eventWaiters.splice(i, 1); }
     }
@@ -107,8 +115,24 @@ async function nav(url) {
 }
 
 // Evaluate in-page. Async IIFE bodies welcome; throws surface here with text.
+//
+// Retries once on "Inspected target navigated or closed". During boot the app
+// swaps the page's execution context out from under an in-flight evaluate, and
+// the whole run used to die on the first one that lost the race — reproducibly,
+// right after the splash shot. The page itself is fine; re-evaluating lands in
+// the new context.
 async function ev(expression, awaitPromise = true) {
-  const r = await send('Runtime.evaluate', { expression, awaitPromise, returnByValue: true });
+  let r;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      r = await send('Runtime.evaluate', { expression, awaitPromise, returnByValue: true });
+      break;
+    } catch (err) {
+      const contextGone = /navigated or closed|Execution context was destroyed|Cannot find context/i.test(err.message || '');
+      if (!contextGone || attempt >= 2) throw err;
+      await sleep(600);
+    }
+  }
   if (r.exceptionDetails) {
     const d = r.exceptionDetails;
     throw new Error('page eval failed: ' + (d.exception?.description || d.text));
@@ -138,10 +162,42 @@ async function rectOf(selectors, pad = 8) {
   })()`, false);
 }
 
+// Freeze motion before capturing. Docs images are stills, and a running
+// animation makes the compositor produce a fresh frame forever — the assets and
+// link-group panels (looping highlight + thumbnail transitions) would sit there
+// until Page.captureScreenshot timed out at 25s, twice, then give up. Frozen,
+// they capture instantly and deterministically.
+const FREEZE_CSS = `(() => {
+  if (document.getElementById('__docs_freeze')) return true;
+  const s = document.createElement('style');
+  s.id = '__docs_freeze';
+  s.textContent = '*,*::before,*::after{animation-play-state:paused!important;' +
+                  'animation-delay:0s!important;transition:none!important;' +
+                  'caret-color:transparent!important;}';
+  document.head.appendChild(s);
+  return true;
+})()`;
+
 const t0 = Date.now();
 const ts = () => ((Date.now() - t0) / 1000).toFixed(1) + 's';
+
+// A setup step that must not sink the run. Posing the app for a shot is
+// best-effort: if a selector moved, that shot is wrong or missing and gets
+// reported, but the other forty still get captured. Everything after the boot
+// sequence goes through this.
+async function stepv(expression, awaitPromise = true) {
+  try {
+    return await ev(expression, awaitPromise);
+  } catch (err) {
+    const label = String(expression).replace(/\s+/g, ' ').trim().slice(0, 58);
+    failures.push('setup [' + label + '…]: ' + err.message);
+    console.log('  !', ts(), 'setup failed —', err.message.slice(0, 90));
+    return null;
+  }
+}
 async function shot(name, opts = {}) {
   try {
+    try { await ev(FREEZE_CSS, false); } catch (e) { /* not worth failing a shot over */ }
     let clip;
     if (opts.sel) {
       const r = await rectOf(opts.sel, opts.pad ?? 8);
@@ -209,7 +265,7 @@ await ev(`(async () => {
 await sleep(800);
 
 // Build a presentable demo project on top of the default boot project.
-await ev(`(async () => {
+await stepv(`(async () => {
   try { _autosaveSuspended = true; } catch (e) {}
   const c = state.canvases.find(x => x.width === 300 && x.height === 250);
   const c2 = state.canvases.find(x => x.width === 728 && x.height === 90);
@@ -274,7 +330,7 @@ await ev(`(async () => {
 })()`);
 await sleep(500);
 // Fresh-profile sections can start collapsed; the docs want them all open.
-await ev(`(() => {
+await stepv(`(() => {
   document.querySelectorAll('.panel-section.collapsed').forEach(s => s.classList.remove('collapsed'));
 })()`, false);
 await sleep(300);
@@ -287,7 +343,7 @@ await shot('panel-add-elements', { sel: '#panel-section-add-elements', scale: 2 
 await shot('panel-layers', { sel: '#panel-section-layers', scale: 2, maxH: 460 });
 await shot('panel-assets', { sel: '#panel-section-assets', scale: 2, maxH: 420 });
 await shot('panel-link-groups', { sel: '#panel-section-link-groups', scale: 2 });
-await ev(`(() => { const b = document.getElementById('btn-ai-resize'); return b ? b.parentElement.setAttribute('data-shot-anchor','1') : null; })()`, false);
+await stepv(`(() => { const b = document.getElementById('btn-ai-resize'); return b ? b.parentElement.setAttribute('data-shot-anchor','1') : null; })()`, false);
 await shot('autoresize-buttons', { sel: '[data-shot-anchor="1"]', scale: 2 });
 await shot('frames-strip', { sel: '#frame-controls-wrap', scale: 2 });
 await shot('version-dropdown', { sel: '#version-select-container', pad: 10, scale: 2 });
@@ -298,16 +354,16 @@ const select = (id) => ev(`(async () => {
   render(); await new Promise(r => setTimeout(r, 350));
 })()`);
 
-await ev(`(async () => { const c = getActiveCanvas();
+await stepv(`(async () => { const c = getActiveCanvas();
   const h = c.elements.find(e => e.customName === 'Headline'); window.__ids = {
     head: h && h.id,
     sub: (c.elements.find(e => e.customName === 'Subheading') || {}).id,
     img: 'demo_img', mask: 'demo_mask' }; })()`);
-const ids = await ev(`window.__ids`, false);
+const ids = await stepv(`window.__ids`, false);
 
 await select(ids.head);
 await shot('panel-animation', { sel: '#header-animation', pad: 6, scale: 2, maxH: 620 });
-await ev(`(() => { const h = document.getElementById('header-animation'); const s = h && h.closest('.panel-section'); if (s) s.setAttribute('data-shot-anim','1'); })()`, false);
+await stepv(`(() => { const h = document.getElementById('header-animation'); const s = h && h.closest('.panel-section'); if (s) s.setAttribute('data-shot-anim','1'); })()`, false);
 await shot('panel-animation-full', { sel: '[data-shot-anim="1"]', scale: 1.5, maxH: 700 });
 await shot('dynamic-data-panel', { sel: '#panel-section-dynamic-data', scale: 2, maxH: 420 });
 
@@ -317,7 +373,7 @@ await shot('anim-typing-controls', { sel: '[data-shot-anim="1"]', scale: 1.5, ma
 await select(ids.img);
 await shot('props-image', { sel: '#props', pad: 0, scale: 1.25, maxH: 780 });
 // Drop-to-replace affordance on the preview thumbnail.
-await ev(`(async () => {
+await stepv(`(async () => {
   const pc = document.querySelector('#props .img-preview-container[data-img-drop="1"]');
   if (!pc) throw new Error('no droppable preview');
   const dt = new DataTransfer();
@@ -326,38 +382,38 @@ await ev(`(async () => {
   await new Promise(r => setTimeout(r, 200));
 })()`);
 await shot('img-drop-hint', { sel: '#props .img-preview-container', pad: 10, scale: 2 });
-await ev(`(() => { const pc = document.querySelector('#props .img-preview-container');
+await stepv(`(() => { const pc = document.querySelector('#props .img-preview-container');
   if (pc) pc.dispatchEvent(new DragEvent('dragleave', { bubbles: true, relatedTarget: document.body })); })()`, false);
 
 // The masked image on canvas, selected.
-await ev(`(() => { const f = document.querySelector('.canvas-frame[data-canvas-id="' + state.activeCanvasId + '"]'); if (f) f.setAttribute('data-shot-canvas','1'); })()`, false);
+await stepv(`(() => { const f = document.querySelector('.canvas-frame[data-canvas-id="' + state.activeCanvasId + '"]'); if (f) f.setAttribute('data-shot-canvas','1'); })()`, false);
 await shot('canvas-masked', { sel: '[data-shot-canvas="1"]', pad: 14, scale: 1.5 });
 
 // --- timeline ----------------------------------------------------------------
 await select(ids.head);
 await shot('timeline-overview', { sel: '#sequencer-panel', pad: 0, scale: 1.5 });
-await ev(`(async () => { seqFxEditId = null;
+await stepv(`(async () => { seqFxEditId = null;
   const c = getActiveCanvas(); const b = c.elements.find(e => e.fxEnabled && e.effectType && e.effectType !== 'none');
   if (b) { state.selectedElementId = b.id; state.layerSelection = [b.id]; render(); await new Promise(r => setTimeout(r, 250));
     seqFxEditId = b.id; renderSequencer(true); await new Promise(r => setTimeout(r, 250)); }
 })()`);
 await shot('timeline-fx-isolated', { sel: '#sequencer-panel', pad: 0, scale: 1.5 });
-await ev(`(async () => { seqExitFxEdit(); renderSequencer(true); await new Promise(r => setTimeout(r, 200)); })()`);
+await stepv(`(async () => { seqExitFxEdit(); renderSequencer(true); await new Promise(r => setTimeout(r, 200)); })()`);
 
-await ev(`(async () => {
+await stepv(`(async () => {
   const chip = document.querySelector('.seq-chip-in[data-el="' + ${JSON.stringify(ids.head)} + '"]') || document.querySelector('.seq-chip-in');
   const el = getActiveCanvas().elements.find(e => e.id === (chip ? chip.dataset.el : null));
   seqOpenPresetPopover(el, 'in', chip.getBoundingClientRect());
   await new Promise(r => setTimeout(r, 250));
 })()`);
 await shot('timeline-preset-menu', { sel: ['.seq-popover', '.seq-chip-in'], pad: 10, scale: 2 });
-await ev(`seqCloseNPopover()`, false);
-await ev(`(async () => { seqOpenSettingsPopover(document.getElementById('seq-settings-btn').getBoundingClientRect()); await new Promise(r => setTimeout(r, 200)); })()`);
+await stepv(`seqCloseNPopover()`, false);
+await stepv(`(async () => { seqOpenSettingsPopover(document.getElementById('seq-settings-btn').getBoundingClientRect()); await new Promise(r => setTimeout(r, 200)); })()`);
 await shot('timeline-settings', { sel: ['.seq-popover', '#seq-settings-btn'], pad: 10, scale: 2 });
-await ev(`seqCloseNPopover()`, false);
+await stepv(`seqCloseNPopover()`, false);
 
 // --- menus & modals ------------------------------------------------------------
-await ev(`(async () => {
+await stepv(`(async () => {
   const node = document.querySelector('.el[data-id="' + ${JSON.stringify(ids.head)} + '"]');
   const r = node.getBoundingClientRect();
   node.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true,
@@ -367,16 +423,16 @@ await ev(`(async () => {
   if (sub) sub.style.display = 'block';
 })()`);
 await shot('ctx-menu-element', { sel: ['#ctx-menu', '#ctx-menu .ctx-submenu'], pad: 10, scale: 1.5 });
-await ev(`(() => { const m = document.getElementById('ctx-menu'); if (m) m.style.display = 'none'; })()`, false);
+await stepv(`(() => { const m = document.getElementById('ctx-menu'); if (m) m.style.display = 'none'; })()`, false);
 
-await ev(`(() => { const d = document.getElementById('menu-file-new').closest('.dropdown'); d.style.display = 'block'; d.setAttribute('data-shot-menu','1'); })()`, false);
+await stepv(`(() => { const d = document.getElementById('menu-file-new').closest('.dropdown'); d.style.display = 'block'; d.setAttribute('data-shot-menu','1'); })()`, false);
 await shot('file-menu', { sel: '[data-shot-menu="1"]', pad: 10, scale: 1.5 });
-await ev(`(() => { const d = document.querySelector('[data-shot-menu="1"]'); d.style.display = ''; })()`, false);
+await stepv(`(() => { const d = document.querySelector('[data-shot-menu="1"]'); d.style.display = ''; })()`, false);
 
 const modalShot = async (openExpr, name, scale = 1.25) => {
-  await ev(`(async () => { document.querySelectorAll('.modal-bg').forEach(n => n.remove()); ${openExpr}; await new Promise(r => setTimeout(r, 450)); })()`);
+  await stepv(`(async () => { document.querySelectorAll('.modal-bg').forEach(n => n.remove()); ${openExpr}; await new Promise(r => setTimeout(r, 450)); })()`);
   await shot(name, { sel: '.modal-bg .modal', pad: 12, scale });
-  await ev(`document.querySelectorAll('.modal-bg').forEach(n => n.remove())`, false);
+  await stepv(`document.querySelectorAll('.modal-bg').forEach(n => n.remove())`, false);
 };
 await modalShot(`document.getElementById('menu-file-new').click()`, 'new-project-modal');
 await modalShot(`document.getElementById('menu-open-settings').click()`, 'settings-modal');
@@ -389,7 +445,7 @@ await modalShot(`openDataPanel()`, 'data-versions', 1.1);
 // ============================================================================
 console.log('preview portal…');
 await nav(BASE + '/preview.html');
-await ev(`(async () => { for (let i = 0; i < 100; i++) {
+await stepv(`(async () => { for (let i = 0; i < 100; i++) {
   const e = document.getElementById('pv-empty');
   if (e && getComputedStyle(e).display !== 'none') return;
   await new Promise(r => setTimeout(r, 100)); } throw new Error('pv-empty never showed'); })()`);
@@ -425,12 +481,12 @@ window.__flow = async (isTemplate) => {
   zip.file('project.json', JSON.stringify(st));
   return await zip.generateAsync({ type: 'blob' });
 };`;
-await ev(FLOW_BUILDER, false);
-await ev(`(async () => { const b = await window.__flow(false); await processProjectFile(b); await new Promise(r => setTimeout(r, 1500)); })()`);
+await stepv(FLOW_BUILDER, false);
+await stepv(`(async () => { const b = await window.__flow(false); await processProjectFile(b); await new Promise(r => setTimeout(r, 1500)); })()`);
 await shot('portal-loaded');
 
 // Third-party ads, side by side.
-await ev(`(async () => {
+await stepv(`(async () => {
   const mkAd = async (name, w, h, c1, c2, label) => {
     const zip = new JSZip();
     zip.file('index.html', '<!DOCTYPE html><html><head><meta name="ad.size" content="width=' + w + ',height=' + h + '">' +
@@ -454,23 +510,31 @@ await shot('portal-external-controls', { sel: '#external-controls', pad: 10, sca
 // ============================================================================
 console.log('batch portal…');
 await nav(BASE + '/batch.html');
-await ev(`(async () => { for (let i = 0; i < 100; i++) {
+await stepv(`(async () => { for (let i = 0; i < 100; i++) {
   const e = document.getElementById('batch-empty');
   if (e && getComputedStyle(e).display !== 'none') return;
   await new Promise(r => setTimeout(r, 100)); } throw new Error('batch-empty never showed'); })()`);
 await sleep(400);
 await shot('batch-empty');
-await ev(FLOW_BUILDER, false);
-await ev(`(async () => { const b = await window.__flow(true); await processProjectFile(b); await new Promise(r => setTimeout(r, 1800));
+await stepv(FLOW_BUILDER, false);
+await stepv(`(async () => { const b = await window.__flow(true); await processProjectFile(b); await new Promise(r => setTimeout(r, 1800));
   const sel = document.getElementById('select-version'); if (sel && [...sel.options].some(o => o.value === '0')) { sel.value = '0'; sel.dispatchEvent(new Event('change')); }
   await new Promise(r => setTimeout(r, 900)); })()`);
 await shot('batch-loaded');
 await shot('batch-sidebar', { sel: '.sidebar', pad: 0, scale: 1.5, maxH: 900 });
 
 // ============================================================================
-writeFileSync(join(OUT, 'manifest.json'), JSON.stringify(manifest, null, 2));
-console.log('\ndone:', Object.keys(manifest).length, 'shots →', OUT);
-if (failures.length) { console.log('FAILURES:'); failures.forEach(f => console.log('  -', f)); }
-ws.close(); chrome.kill();
-try { rmSync(profile, { recursive: true, force: true }); } catch {}
-process.exit(failures.length ? 1 : 0);
+finish();
+
+// Always write the manifest and say what happened. A late failure used to throw
+// past the reporting and lose the record of everything that HAD been captured.
+function finish(fatal) {
+  writeFileSync(join(OUT, 'manifest.json'), JSON.stringify(manifest, null, 2));
+  console.log('\ndone:', Object.keys(manifest).length, 'shots →', OUT);
+  if (fatal) console.log('FATAL (run stopped early):', fatal.message);
+  if (failures.length) { console.log('FAILURES:'); failures.forEach(f => console.log('  -', f)); }
+  try { ws.close(); } catch {}
+  try { chrome.kill(); } catch {}
+  try { rmSync(profile, { recursive: true, force: true }); } catch {}
+  process.exit(failures.length || fatal ? 1 : 0);
+}

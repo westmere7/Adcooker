@@ -314,7 +314,7 @@ function openAuthModal(initialTab = 'signin') {
     showCanvasNotification('Cloud sign-in is not configured in this build.', { type: 'warning' });
     return;
   }
-  const tabBtn = (id, label, active) => `<button data-tab="${id}" class="auth-tab" style="flex:1; padding:8px 0; background:transparent; border:none; color:${active ? 'var(--text-bright)' : 'var(--text-muted)'}; font-size:13px; font-weight:600; border-bottom:2px solid ${active ? 'var(--accent-base)' : 'transparent'}; cursor:pointer; transition:all .15s ease;">${label}</button>`;
+  const tabBtn = (id, label, active) => `<button data-tab="${id}" class="auth-tab" title="${label}" style="flex:1; padding:8px 0; background:transparent; border:none; color:${active ? 'var(--text-bright)' : 'var(--text-muted)'}; font-size:13px; font-weight:600; border-bottom:2px solid ${active ? 'var(--accent-base)' : 'transparent'}; cursor:pointer; transition:all .15s ease;">${label}</button>`;
   const body = `
     <div style="display:flex; gap:0; border-bottom:1px solid var(--border-light); margin:-4px -4px 16px;">
       ${tabBtn('signin', 'Sign in', initialTab === 'signin')}
@@ -322,14 +322,14 @@ function openAuthModal(initialTab = 'signin') {
     </div>
     <form id="auth-form" autocomplete="on" style="display:flex; flex-direction:column; gap:10px;">
       <label style="font-size:11px; color:var(--text-muted);">Email
-        <input type="email" id="auth-email" required autocomplete="email" style="width:100%; margin-top:4px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:8px 10px; font-size:12px; outline:none; box-sizing:border-box;" />
+        <input type="email" id="auth-email" title="The email address on your Adflow account" required autocomplete="email" style="width:100%; margin-top:4px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:8px 10px; font-size:12px; outline:none; box-sizing:border-box;" />
       </label>
       <label style="font-size:11px; color:var(--text-muted);">Password
-        <input type="password" id="auth-password" required minlength="6" autocomplete="current-password" style="width:100%; margin-top:4px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:8px 10px; font-size:12px; outline:none; box-sizing:border-box;" />
+        <input type="password" id="auth-password" title="Your Adflow account password" required minlength="6" autocomplete="current-password" style="width:100%; margin-top:4px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:8px 10px; font-size:12px; outline:none; box-sizing:border-box;" />
       </label>
       <div id="auth-hint" style="font-size:10px; color:var(--text-muted); display:${initialTab === 'signup' ? 'block' : 'none'};">Password must be at least 6 characters.</div>
       <div id="auth-error" style="font-size:11px; color:#ef4444; min-height:14px;"></div>
-      <button type="submit" id="auth-submit" class="btn primary" style="padding:9px 12px; font-size:12px; font-weight:600;">${initialTab === 'signin' ? 'Sign in' : 'Create account'}</button>
+      <button type="submit" id="auth-submit" title="Sign in to Adflow" class="btn primary" style="padding:9px 12px; font-size:12px; font-weight:600;">${initialTab === 'signin' ? 'Sign in' : 'Create account'}</button>
     </form>`;
   openModal(initialTab === 'signin' ? 'Sign in' : 'Sign up', body, false);
 
@@ -425,12 +425,12 @@ async function openCloudProjectsModal() {
       <div style="width:200px; flex-shrink:0; display:flex; flex-direction:column; gap:6px; border-right:1px solid var(--border-light); padding-right:12px;">
         <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; font-weight:600;">${ctxLabel}</div>
         <div id="cloud-folder-list" style="display:flex; flex-direction:column; gap:2px; flex:1;"></div>
-        ${spaceId ? '<button class="btn" id="cloud-new-folder-btn" style="padding:5px 8px; font-size:11px;">+ New folder</button>' : ''}
+        ${spaceId ? '<button class="btn" id="cloud-new-folder-btn" title="Create a folder to organise cloud projects in this space" style="padding:5px 8px; font-size:11px;">+ New folder</button>' : ''}
       </div>
       <div style="flex:1; display:flex; flex-direction:column; gap:10px; min-width:0;">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; padding:9px 11px; background:var(--bg-input); border:1px solid var(--border-light); border-radius:6px;">
           <div id="cloud-push-note" style="font-size:11px; color:var(--text-muted);">Loading…</div>
-          <button class="btn primary" id="cloud-push-btn" style="padding:6px 12px; font-size:11px; font-weight:600;">Save (Cloud)</button>
+          <button class="btn primary" id="cloud-push-btn" title="Save the project currently open to the cloud" style="padding:6px 12px; font-size:11px; font-weight:600;">Save (Cloud)</button>
         </div>
         <div id="cloud-list" style="display:flex; flex-direction:column; gap:6px; min-height:200px;">
           <div style="font-size:11px; color:var(--text-muted); text-align:center; padding:20px;">Loading projects…</div>
@@ -511,8 +511,8 @@ async function openCloudProjectsModal() {
           <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">${_formatRelativeTime(r.updated_at)} · ${_formatBytes(r.size_bytes)}${r.id === localId ? ' · current' : ''}${folder ? ` · ${folder.name}` : ''}</div>
         </div>
         ${spaceId && folderRows.length ? `<select data-set-folder="${r.id}" title="Move to folder" style="background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:4px 6px; font-size:10px;"><option value="">No folder</option>${folderOpts}</select>` : ''}
-        <button class="btn" data-act="open" style="padding:5px 10px; font-size:11px;">Open</button>
-        <button class="btn" data-act="del" style="padding:5px 10px; font-size:11px;">Delete</button>
+        <button class="btn" data-act="open" title="Open this cloud project, replacing what is currently on the board" style="padding:5px 10px; font-size:11px;">Open</button>
+        <button class="btn" data-act="del" title="Delete this project from the cloud. This cannot be undone" style="padding:5px 10px; font-size:11px;">Delete</button>
       </div>`;
     }).join('');
     list.querySelectorAll('[data-set-folder]').forEach(sel => sel.addEventListener('change', async (e) => {
@@ -968,7 +968,7 @@ async function openSpaceManagementModal() {
     <div style="display:flex; flex-direction:column; gap:14px;">
       <div style="display:flex; justify-content:space-between; align-items:center;">
         <div style="font-size:11px; color:var(--text-muted);">Spaces you belong to. Switch from the chip dropdown.</div>
-        <button class="btn primary" id="space-create-btn" style="padding:6px 12px; font-size:11px;">+ New space</button>
+        <button class="btn primary" id="space-create-btn" title="Create a shared workspace for your team" style="padding:6px 12px; font-size:11px;">+ New space</button>
       </div>
       <div id="space-list" style="display:flex; flex-direction:column; gap:8px; min-height:80px;"></div>
     </div>`;
@@ -988,13 +988,13 @@ async function openSpaceManagementModal() {
           <div style="font-size:13px; font-weight:600; color:var(--text-bright); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${(s.name || '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</div>
           <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">${isOwner ? 'Owner' : (s.role || 'member')}</div>
         </div>
-        <button class="btn" data-act="members"   style="padding:5px 10px; font-size:11px;">Members</button>
-        <button class="btn" data-act="invite"    style="padding:5px 10px; font-size:11px;">Invite</button>
-        ${isOwner ? `<button class="btn" data-act="rename" style="padding:5px 10px; font-size:11px;">Rename</button>` : ''}
+        <button class="btn" data-act="members" title="See and manage who can reach this space" style="padding:5px 10px; font-size:11px;">Members</button>
+        <button class="btn" data-act="invite" title="Invite someone to this space by email" style="padding:5px 10px; font-size:11px;">Invite</button>
+        ${isOwner ? `<button class="btn" data-act="rename" title="Rename this space" style="padding:5px 10px; font-size:11px;">Rename</button>` : ''}
         <button class="btn" data-act="duplicate" title="Create a copy of this space with all folders and projects" style="padding:5px 10px; font-size:11px;">Duplicate</button>
         ${isOwner
           ? `<button class="btn" data-act="delete" title="Permanently delete this space and all its projects" style="padding:5px 10px; font-size:11px; color:#ef4444;">Delete</button>`
-          : `<button class="btn" data-act="leave" style="padding:5px 10px; font-size:11px;">Leave</button>`}
+          : `<button class="btn" data-act="leave" title="Leave this space. You lose access to its projects until someone invites you back" style="padding:5px 10px; font-size:11px;">Leave</button>`}
       </div>`;
     }).join('');
     listEl.querySelectorAll('[data-act="invite"]').forEach(btn => btn.addEventListener('click', () => openInviteModal(btn.closest('[data-space-id]').dataset.spaceId)));
@@ -1063,11 +1063,11 @@ async function openMembersModal(spaceId) {
     <div style="display:flex; align-items:center; gap:8px; padding:6px 10px; border:1px dashed var(--border-light); border-radius:5px;">
       <span style="flex:1; font-size:11px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${i.invited_email.replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</span>
       <span style="font-size:10px; color:var(--text-muted);">pending</span>
-      <button class="btn" data-cancel="${i.id}" style="padding:3px 8px; font-size:10px;">Cancel</button>
+      <button class="btn" data-cancel="${i.id}" title="Withdraw this invitation" style="padding:3px 8px; font-size:10px;">Cancel</button>
     </div>`).join('');
   const body = `
     <div style="display:flex; flex-direction:column; gap:14px;">
-      <button class="btn primary" id="members-invite-btn" style="align-self:flex-start; padding:6px 12px; font-size:11px;">+ Invite teammate</button>
+      <button class="btn primary" id="members-invite-btn" title="Invite someone to this space" style="align-self:flex-start; padding:6px 12px; font-size:11px;">+ Invite teammate</button>
       <div>
         <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; font-weight:600; margin-bottom:6px;">Members</div>
         <div style="display:flex; flex-direction:column; gap:6px;">${memberRows}</div>
@@ -1092,9 +1092,9 @@ async function openInviteModal(spaceId) {
     <div style="display:flex; flex-direction:column; gap:12px;">
       <div style="font-size:12px; color:var(--text-muted); line-height:1.5;">Invite a teammate to <b style="color:var(--text-bright);">${(sp.name || '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</b>. We'll generate a join link you can paste into Slack or email.</div>
       <label style="font-size:10px; color:var(--text-muted); display:flex; flex-direction:column; gap:5px;">Their email
-        <input type="email" id="invite-email" autocomplete="email" required style="width:100%; padding:8px 11px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:5px; font-size:12px; outline:none; box-sizing:border-box;" />
+        <input type="email" id="invite-email" title="Email address of the person to invite to this space" autocomplete="email" required style="width:100%; padding:8px 11px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:5px; font-size:12px; outline:none; box-sizing:border-box;" />
       </label>
-      <button class="btn primary" id="invite-create-btn" style="padding:9px; font-size:12px; font-weight:600;">Create invitation</button>
+      <button class="btn primary" id="invite-create-btn" title="Send the invitation" style="padding:9px; font-size:12px; font-weight:600;">Create invitation</button>
       <div id="invite-result" style="display:none; padding:10px; background:var(--bg-input); border:1px solid var(--border-light); border-radius:5px; font-size:11px; color:var(--text-main);"></div>
     </div>`;
   openModal('Invite teammate', body, false);

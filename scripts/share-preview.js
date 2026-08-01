@@ -27,8 +27,8 @@ async function openSharePreviewModal() {
         <p style="margin-top: 0; margin-bottom: 12px;">To generate a secure, shareable preview link, you need to sign in and save this project to Adflow Cloud.</p>
         <p style="margin-bottom: 16px; color: var(--text-muted);">Cloud projects support instant real-time sharing with clients, version switching, and multi-format previewing.</p>
         <div style="display: flex; gap: 8px; justify-content: flex-end;">
-          <button class="btn" id="btn-share-cancel" style="padding: 6px 12px;">Cancel</button>
-          <button class="btn primary" id="btn-share-login" style="padding: 6px 12px; font-weight: 600;">Sign In / Sign Up</button>
+          <button class="btn" id="btn-share-cancel" title="Close without creating a link" style="padding: 6px 12px;">Cancel</button>
+          <button class="btn primary" id="btn-share-login" title="Sign in — share links are stored in the cloud, so they need an account" style="padding: 6px 12px; font-weight: 600;">Sign In / Sign Up</button>
         </div>
       </div>
     `;
@@ -106,7 +106,7 @@ async function openSharePreviewModal() {
 
         <div style="margin-bottom: 20px;">
           <label style="display: block; font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; margin-bottom: 6px; letter-spacing: 0.05em;">Link Expiration</label>
-          <select id="share-expiry-select" style="width: 100%; padding: 8px 12px; font-size: 13px; background: var(--bg-input); border: 1px solid var(--border-light); border-radius: 4px; color: var(--text-main); outline: none;">
+          <select id="share-expiry-select" title="How long the link keeps working before it expires" style="width: 100%; padding: 8px 12px; font-size: 13px; background: var(--bg-input); border: 1px solid var(--border-light); border-radius: 4px; color: var(--text-main); outline: none;">
             <option value="86400">1 Day</option>
             <option value="604800">7 Days</option>
             <option value="2592000" selected>30 Days (Recommended)</option>
@@ -114,8 +114,8 @@ async function openSharePreviewModal() {
         </div>
 
         <div style="display: flex; gap: 8px; justify-content: flex-end;">
-          <button class="btn" id="btn-share-settings-cancel" style="padding: 6px 16px;">Cancel</button>
-          <button class="btn primary" id="btn-make-share-link" style="padding: 6px 16px; font-weight: 600;">Make shareable link</button>
+          <button class="btn" id="btn-share-settings-cancel" title="Go back without replacing the current link" style="padding: 6px 16px;">Cancel</button>
+          <button class="btn primary" id="btn-make-share-link" title="Create a secure link to a snapshot of this project" style="padding: 6px 16px; font-weight: 600;">Make shareable link</button>
         </div>
       </div>
     `;
@@ -227,9 +227,9 @@ async function openSharePreviewModal() {
         <div style="margin-bottom: 14px;">
           <label style="display: block; font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; margin-bottom: 6px; letter-spacing: 0.05em;">Preview Link</label>
           <div style="display: flex; gap: 8px;">
-            <input type="text" id="share-link-input" readonly value="${state.previewUrl}" style="flex: 1; padding: 8px 12px; font-size: 12px; font-family: monospace; background: var(--bg-input); border: 1px solid var(--border-light); border-radius: 4px; color: var(--text-main); outline: none;" />
-            <button class="btn primary" id="btn-copy-share-link" style="padding: 0 14px; font-weight: 600; font-size: 12px; white-space: nowrap;">Copy Link</button>
-            <button class="btn" id="btn-open-share-link" style="padding: 0 14px; font-weight: 600; font-size: 12px; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px;">
+            <input type="text" id="share-link-input" title="The share link. Anyone with it can view this project — no account needed" readonly value="${state.previewUrl}" style="flex: 1; padding: 8px 12px; font-size: 12px; font-family: monospace; background: var(--bg-input); border: 1px solid var(--border-light); border-radius: 4px; color: var(--text-main); outline: none;" />
+            <button class="btn primary" id="btn-copy-share-link" title="Copy the link to the clipboard" style="padding: 0 14px; font-weight: 600; font-size: 12px; white-space: nowrap;">Copy Link</button>
+            <button class="btn" id="btn-open-share-link" title="Open the link in a new tab to see what reviewers will see" style="padding: 0 14px; font-weight: 600; font-size: 12px; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px;">
               <span>Open Link</span>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: block;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
             </button>
@@ -249,7 +249,7 @@ async function openSharePreviewModal() {
             <button class="btn ghost" id="btn-share-show-settings" style="padding: 6px 12px; font-size: 12px; color: var(--text-muted); font-weight: 500;" title="Generates a new link; the current one stops working">New Link / Expiration...</button>
             <button class="btn ghost" id="btn-share-delete-link" style="padding: 6px 12px; font-size: 12px; color: var(--danger-base); border-color: transparent; font-weight: 500;" title="Delete preview link and revoke access">Delete Link</button>
           </div>
-          <button class="btn primary" id="btn-share-done" style="padding: 6px 16px; font-weight: 600;">Done</button>
+          <button class="btn primary" id="btn-share-done" title="Close. The link stays active" style="padding: 6px 16px; font-weight: 600;">Done</button>
         </div>
       </div>
     `;
@@ -330,7 +330,7 @@ async function openSharePreviewModal() {
         </div>
         <p style="margin-top: 0; margin-bottom: 16px; color: var(--text-muted);">An error occurred while preparing your shareable preview: <strong style="color:var(--text-main);">${err.message || err}</strong></p>
         <div style="display: flex; justify-content: flex-end;">
-          <button class="btn" id="btn-share-error-close" style="padding: 6px 16px;">Close</button>
+          <button class="btn" id="btn-share-error-close" title="Close" style="padding: 6px 16px;">Close</button>
         </div>
       </div>
     `;

@@ -18,7 +18,7 @@
        themes, buttons and dialogs instead of maintaining a parallel look.
        Loaded BEFORE the page-specific block below so the portal's own layout
        rules can still override where they must. -->
-  <link rel="stylesheet" href="styles.css?v=0.38.1" />
+  <link rel="stylesheet" href="styles.css?v=0.39.1" />
 
   <style>
     /* This page's layout was written against its own palette names. Rather than
@@ -608,12 +608,12 @@
             <span>Restart All</span>
           </button>
           <label class="checkbox-item" style="font-size:11.5px; color:var(--text-main); display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
-            <input type="checkbox" id="chk-ext-loop" style="margin:0; cursor:pointer;">
+            <input type="checkbox" id="chk-ext-loop" title="Restart this ad automatically so you can watch it more than once" style="margin:0; cursor:pointer;">
             <span>Loop</span>
           </label>
           <div style="display:flex; align-items:center; gap:6px;">
             <span style="font-size:10.5px; color:var(--text-muted);">Replay every</span>
-            <input type="number" id="ext-loop-secs" min="1" max="600" step="1" value="30"
+            <input type="number" id="ext-loop-secs" title="How long to let the ad run before restarting it" min="1" max="600" step="1" value="30"
                    style="width:58px; margin:0; height:24px; font-size:11px; padding:2px 6px;" />
             <span style="font-size:10.5px; color:var(--text-muted);">sec</span>
           </div>
@@ -641,7 +641,7 @@
           </button>
           <div style="display:flex; flex-direction:column; gap:4px; margin-top:2px;">
             <label class="checkbox-item" style="font-size:11.5px; color:var(--text-main); display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
-              <input type="checkbox" id="chk-loop-ad" style="margin:0; cursor:pointer;">
+              <input type="checkbox" id="chk-loop-ad" title="Loop the timeline in this preview only. The exported ad keeps its own loop setting" style="margin:0; cursor:pointer;">
               <span>Loop timeline</span>
             </label>
             <div style="font-size:10px; color:var(--text-muted); line-height:1.3; font-style:italic;">
@@ -658,7 +658,7 @@
           <button type="button" class="btn" id="btn-prev-frame" style="flex:none !important; padding:0; height:26px; width:22px; min-width:22px; background:var(--bg-btn); border:1px solid var(--border-color); border-radius:4px; color:var(--text-muted); cursor:pointer; display:flex; align-items:center; justify-content:center;" onmouseover="this.style.color='var(--text-bright)'" onmouseout="this.style.color='var(--text-muted)'" title="Previous Frame">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
-          <select id="select-frame" style="flex:1; margin:0; height:26px; font-size:11.5px; padding:2px 8px;">
+          <select id="select-frame" title="Show all frames in sequence, or jump to one frame and play it across every size" style="flex:1; margin:0; height:26px; font-size:11.5px; padding:2px 8px;">
             <option value="play" selected>All frames</option>
           </select>
           <button type="button" class="btn" id="btn-next-frame" style="flex:none !important; padding:0; height:26px; width:22px; min-width:22px; background:var(--bg-btn); border:1px solid var(--border-color); border-radius:4px; color:var(--text-muted); cursor:pointer; display:flex; align-items:center; justify-content:center;" onmouseover="this.style.color='var(--text-bright)'" onmouseout="this.style.color='var(--text-muted)'" title="Next Frame">
@@ -674,7 +674,7 @@
           <button type="button" class="btn" id="btn-prev-version" style="flex:none !important; padding:0; height:26px; width:22px; min-width:22px; background:var(--bg-btn); border:1px solid var(--border-color); border-radius:4px; color:var(--text-muted); cursor:pointer; display:flex; align-items:center; justify-content:center;" onmouseover="this.style.color='var(--text-bright)'" onmouseout="this.style.color='var(--text-muted)'" title="Previous Version">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
-          <select id="select-version" style="flex:1; margin:0; height:26px; font-size:11.5px; padding:2px 8px;"></select>
+          <select id="select-version" title="Switch which row of the data sheet every size is showing" style="flex:1; margin:0; height:26px; font-size:11.5px; padding:2px 8px;"></select>
           <button type="button" class="btn" id="btn-next-version" style="flex:none !important; padding:0; height:26px; width:22px; min-width:22px; background:var(--bg-btn); border:1px solid var(--border-color); border-radius:4px; color:var(--text-muted); cursor:pointer; display:flex; align-items:center; justify-content:center;" onmouseover="this.style.color='var(--text-bright)'" onmouseout="this.style.color='var(--text-muted)'" title="Next Version">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
@@ -689,8 +689,8 @@
         </div>
         <div class="size-check-list" id="size-check-list"></div>
         <div class="list-actions">
-          <button class="btn-link" id="btn-select-all">Select All</button>
-          <button class="btn-link" id="btn-select-none">Clear All</button>
+          <button class="btn-link" id="btn-select-all" title="Show every banner size">Select All</button>
+          <button class="btn-link" id="btn-select-none" title="Hide every banner size">Clear All</button>
         </div>
       </div>
       
@@ -720,15 +720,15 @@
         <div id="preview-share-meta" style="font-size:11.5px; color:var(--text-muted); font-weight:500; white-space:nowrap; flex-shrink:0;"></div>
       </div>
       <div style="font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 12px; flex-shrink:0;">
-        <button class="btn primary" id="btn-download-all" style="display: none; padding: 4px 10px; font-size: 11px; height: 26px; gap: 4px; flex-shrink: 0; align-items: center; justify-content: center; cursor: pointer; white-space: nowrap;">
+        <button class="btn primary" id="btn-download-all" title="Download every visible size as HTML5 zips in one archive" style="display: none; padding: 4px 10px; font-size: 11px; height: 26px; gap: 4px; flex-shrink: 0; align-items: center; justify-content: center; cursor: pointer; white-space: nowrap;">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display: block;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           <span>Download All (.zip)</span>
         </button>
-        <button class="btn" id="btn-update-preview" style="display: none; padding: 4px 10px; font-size: 11px; height: 26px; gap: 4px; flex-shrink: 0; align-items: center; justify-content: center; cursor: pointer; white-space: nowrap;">
+        <button class="btn" id="btn-update-preview" title="Fetch the latest saved version of this project" style="display: none; padding: 4px 10px; font-size: 11px; height: 26px; gap: 4px; flex-shrink: 0; align-items: center; justify-content: center; cursor: pointer; white-space: nowrap;">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display: block;"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
           <span>Update Preview</span>
         </button>
-        <button class="btn-link" id="btn-drag-trigger" style="font-size: 12px; white-space: nowrap; flex-shrink:0;">Load Local File...</button>
+        <button class="btn-link" id="btn-drag-trigger" title="Choose a file from your computer" style="font-size: 12px; white-space: nowrap; flex-shrink:0;">Load Local File...</button>
       </div>
     </div>
     
@@ -740,11 +740,11 @@
       <div id="pv-empty-title">Nothing loaded yet</div>
       <div id="pv-empty-sub">Open an Adflow project to review every banner size, or drop in a standalone HTML5 ad zip from outside Adflow.</div>
       <div id="pv-empty-actions">
-        <button class="btn primary pv-hero" id="btn-empty-flow">
+        <button class="btn primary pv-hero" id="btn-empty-flow" title="Open an Adflow project (.flow) to review every size, frame and data version">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
           <span>Open Adflow Project…</span>
         </button>
-        <button class="btn pv-hero" id="btn-empty-ext">
+        <button class="btn pv-hero" id="btn-empty-ext" title="Open an HTML5 ad zip built outside Adflow and play it here">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
           <span>Open HTML5 Ad (.zip)…</span>
         </button>
@@ -904,12 +904,12 @@
   <!-- LOAD WORKSPACE ENGINE SCRIPTS
        ?v= is bumped with each release (same as index.html) so reviewers'
        browsers never pair stale engine scripts with new inline portal code. -->
-  <script src="scripts/render-runtime.js?v=0.38.1"></script>
-  <script src="scripts/auto-arrange-config.js?v=0.38.1"></script>
-  <script src="scripts/auto-resize-engine.js?v=0.38.1"></script>
-  <script src="scripts/data-merge.js?v=0.38.1"></script>
-  <script src="scripts/font-subset.js?v=0.38.1"></script>
-  <script src="scripts/export-pipeline.js?v=0.38.1"></script>
+  <script src="scripts/render-runtime.js?v=0.39.1"></script>
+  <script src="scripts/auto-arrange-config.js?v=0.39.1"></script>
+  <script src="scripts/auto-resize-engine.js?v=0.39.1"></script>
+  <script src="scripts/data-merge.js?v=0.39.1"></script>
+  <script src="scripts/font-subset.js?v=0.39.1"></script>
+  <script src="scripts/export-pipeline.js?v=0.39.1"></script>
 
   <!-- MAIN PREVIEW ENGINE PORTAL -->
   <script>
@@ -2446,14 +2446,14 @@
         row.innerHTML = `
           <div style="display:flex; align-items:center; gap:6px;">
             <span style="flex:1; min-width:0; font-size:10.5px; color:var(--text-main); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${extEsc(ad.name)}">${extEsc(ad.name)}</span>
-            <button class="btn-link" data-act="restart" style="flex:none; font-size:10px;">Restart</button>
-            <button class="btn-link" data-act="remove" style="flex:none; font-size:10px; color:var(--danger-base);">Remove</button>
+            <button class="btn-link" data-act="restart" title="Replay this banner from the first frame" style="flex:none; font-size:10px;">Restart</button>
+            <button class="btn-link" data-act="remove" title="Remove this banner from the preview. The project file is untouched" style="flex:none; font-size:10px; color:var(--danger-base);">Remove</button>
           </div>
           <div style="display:flex; align-items:center; gap:5px;">
-            <input type="number" data-act="w" min="1" max="4000" value="${ad.width}"
+            <input type="number" data-act="w" min="1" max="4000" title="Width this ad is displayed at, in pixels" value="${ad.width}"
                    style="width:58px; margin:0; height:22px; font-size:10.5px; padding:1px 5px;" />
             <span style="font-size:10px; color:var(--text-muted);">&times;</span>
-            <input type="number" data-act="h" min="1" max="4000" value="${ad.height}"
+            <input type="number" data-act="h" min="1" max="4000" title="Height this ad is displayed at, in pixels" value="${ad.height}"
                    style="width:58px; margin:0; height:22px; font-size:10.5px; padding:1px 5px;" />
             <span style="font-size:9.5px; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${extEsc(ad.sizeSource)}">${extEsc(ad.sizeSource)}</span>
           </div>`;

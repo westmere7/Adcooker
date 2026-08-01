@@ -240,15 +240,15 @@ document.addEventListener('contextmenu', (e) => {
   const bgSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="4" /><line x1="2" y1="12" x2="22" y2="12" stroke-dasharray="2 2" /></svg>`;
 
   const addElementsMenuHTML = `
-    <div class="ctx-item has-submenu">Add Element
+    <div class="ctx-item has-submenu" title="Add a new layer to this canvas and frame">Add Element
       <div class="ctx-submenu">
-        <div class="ctx-item has-submenu">
+        <div class="ctx-item has-submenu" title="Drop in a ready-made set of RMIT brand furniture">
           ${svgWrap(brandSetsSvg, 'Brand sets')}
           <div class="ctx-submenu">
             <div class="ctx-item" id="ctx-brandset-logo-rfwn-cricos" style="white-space:nowrap;">Logo + RFWN + CRICOS</div>
           </div>
         </div>
-        <div class="ctx-item has-submenu">
+        <div class="ctx-item has-submenu" title="Add a single RMIT brand element">
           ${svgWrap(brandSvg, 'Brand Elements')}
           <div class="ctx-submenu">
             <div class="ctx-item" id="ctx-brand-cricos" style="white-space:nowrap;">CRICOS</div>
@@ -259,22 +259,22 @@ document.addEventListener('contextmenu', (e) => {
             <div class="ctx-item" id="ctx-brand-pixel" style="white-space:nowrap;">Pixel Shape</div>
           </div>
         </div>
-        <div class="ctx-item" id="ctx-add-text">${svgWrap(textSvg, 'Add Text')}</div>
-        <div class="ctx-item" id="ctx-add-image">${svgWrap(imageSvg, 'Add Image')}</div>
-        <div class="ctx-item" id="ctx-add-rect">${svgWrap(rectSvg, 'Add Rectangle')}</div>
-        <div class="ctx-item" id="ctx-add-circle">${svgWrap(circleSvg, 'Add Circle')}</div>
-        <div class="ctx-item" id="ctx-add-line">${svgWrap(lineSvg, 'Add Line')}</div>
-        <div class="ctx-item" id="ctx-add-btn">${svgWrap(btnSvg, 'Add Button')}</div>
-        <div class="ctx-item" id="ctx-add-bg">${svgWrap(bgSvg, 'Add Background')}</div>
+        <div class="ctx-item" id="ctx-add-text" title="Add a text layer at the click point on this canvas and frame">${svgWrap(textSvg, 'Add Text')}</div>
+        <div class="ctx-item" id="ctx-add-image" title="Add an image placeholder here — drop a picture on it, or pick one from Assets">${svgWrap(imageSvg, 'Add Image')}</div>
+        <div class="ctx-item" id="ctx-add-rect" title="Add a rectangle. Rectangles can also be used as masks to clip the image below them">${svgWrap(rectSvg, 'Add Rectangle')}</div>
+        <div class="ctx-item" id="ctx-add-circle" title="Add a circle. Circles can also be used as masks to clip the image below them">${svgWrap(circleSvg, 'Add Circle')}</div>
+        <div class="ctx-item" id="ctx-add-line" title="Add a horizontal rule">${svgWrap(lineSvg, 'Add Line')}</div>
+        <div class="ctx-item" id="ctx-add-btn" title="Add a call-to-action button. Buttons auto-size their text and count as the click area">${svgWrap(btnSvg, 'Add Button')}</div>
+        <div class="ctx-item" id="ctx-add-bg" title="Add a full-bleed background rectangle on the Always Bottom tier, behind everything else">${svgWrap(bgSvg, 'Add Background')}</div>
       </div>
     </div>
   `;
 
   let html = '';
   if (canvasItemNode) {
-    html += `<div class="ctx-item" id="ctx-canvas-clone">Clone Canvas</div>`;
+    html += `<div class="ctx-item" id="ctx-canvas-clone" title="Duplicate this canvas, its layers and its frames as a new size on the board">Clone Canvas</div>`;
     if (state.canvases.length > 1) {
-      html += `<div class="ctx-item" id="ctx-canvas-delete" style="color:#ef4444;">Delete Canvas</div>`;
+      html += `<div class="ctx-item" id="ctx-canvas-delete" title="Delete this canvas and everything on it. Other canvases are unaffected" style="color:#ef4444;">Delete Canvas</div>`;
     }
   } else if (elNode) {
     const id = elNode.dataset.id;
@@ -292,17 +292,17 @@ document.addEventListener('contextmenu', (e) => {
     }
 
     const autoArrangeSvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /></svg>`;
-    html += `<div class="ctx-item highlight" id="ctx-canvas-auto-arrange" style="display:flex; align-items:center; gap:8px;">${autoArrangeSvg}Auto-arrange elements</div>`;
+    html += `<div class="ctx-item highlight" id="ctx-canvas-auto-arrange" title="Re-lay out this canvas from its layers&#39; roles, respecting margins and safe zones" style="display:flex; align-items:center; gap:8px;">${autoArrangeSvg}Auto-arrange elements</div>`;
     html += `<div class="ctx-divider"></div>`;
 
-    html += `<div class="ctx-item" id="ctx-bring-fwd">Bring Forward</div>`;
-    html += `<div class="ctx-item" id="ctx-send-bwd">Send Backward</div>`;
+    html += `<div class="ctx-item" id="ctx-bring-fwd" title="Move the selection one step up the layer stack (Ctrl+])">Bring Forward</div>`;
+    html += `<div class="ctx-item" id="ctx-send-bwd" title="Move the selection one step down the layer stack (Ctrl+[)">Send Backward</div>`;
     html += `<div class="ctx-divider"></div>`;
-    html += `<div class="ctx-item" id="ctx-cut">Cut</div>`;
-    html += `<div class="ctx-item" id="ctx-copy">Copy</div>`;
-    html += `<div class="ctx-item" id="ctx-clone">Clone</div>`;
+    html += `<div class="ctx-item" id="ctx-cut" title="Cut the selection to the clipboard (Ctrl+X)">Cut</div>`;
+    html += `<div class="ctx-item" id="ctx-copy" title="Copy the selection to the clipboard (Ctrl+C)">Copy</div>`;
+    html += `<div class="ctx-item" id="ctx-clone" title="Duplicate the selection on this canvas, offset slightly (Ctrl+D)">Clone</div>`;
     html += `<div class="ctx-divider"></div>`;
-    html += `<div class="ctx-item" id="ctx-reset-transform">Reset Transform</div>`;
+    html += `<div class="ctx-item" id="ctx-reset-transform" title="Clear rotation, flip and scale, returning the layer to its natural orientation">Reset Transform</div>`;
 
     // Only emit the Group/Ungroup section + its divider when there's actually
     // something to put there — avoids two adjacent dividers leaving a blank gap.
@@ -348,17 +348,23 @@ document.addEventListener('contextmenu', (e) => {
 
     // Distribute is a top-level action, not something buried in the Link Group
     // submenu: copying a layout to the other sizes is a routine job that has
-    // nothing to do with linking. It works on ANY selection, so it sits outside
-    // the category gate below. "& Link" needs a linkable category, so it is
-    // emitted with the link section.
+    // nothing to do with linking.
+    //
+    // Both entries work on ANY selection — deliberately NOT gated on every
+    // selected layer sharing a category, the way the Link Group submenu below
+    // has to be. That submenu's "Link to: <group>" targets one group, so it
+    // needs one category; Distribute & Link creates a SEPARATE group per layer,
+    // named and categorised from that layer, so a headline + button + image
+    // selection links perfectly well as three groups. Requiring one category
+    // meant the option vanished exactly when you'd reach for it — distributing
+    // a whole composition.
     const otherCanvasCount = (state.canvases || []).length - 1;
     if (otherCanvasCount > 0 && state.layerSelection && state.layerSelection.length) {
       const n = state.layerSelection.length;
+      const subject = n === 1 ? 'this layer' : `these ${n} layers`;
       html += `<div class="ctx-divider"></div>`;
-      html += `<div class="ctx-item" id="ctx-distribute" style="white-space:nowrap;" title="Copy ${n === 1 ? 'this layer' : 'these ' + n + ' layers'} to the other ${otherCanvasCount} canvas${otherCanvasCount > 1 ? 'es' : ''}, on this frame, keeping the arrangement.">Distribute</div>`;
-      if (cat && (sameCat || maskPairSelected)) {
-        html += `<div class="ctx-item" id="ctx-distribute-link" style="white-space:nowrap;" title="Distribute, then link each layer to its counterpart on every canvas so edits travel between them.">Distribute &amp; Link</div>`;
-      }
+      html += `<div class="ctx-item" id="ctx-distribute" style="white-space:nowrap;" title="Copy ${subject} to the other ${otherCanvasCount} canvas${otherCanvasCount > 1 ? 'es' : ''}, on this frame, keeping the arrangement.">Distribute</div>`;
+      html += `<div class="ctx-item" id="ctx-distribute-link" style="white-space:nowrap;" title="Distribute ${subject}, then link each one to its counterpart on every canvas so edits travel between them.">Distribute &amp; Link</div>`;
     }
 
     if (cat && (sameCat || maskPairSelected)) {
@@ -373,7 +379,7 @@ document.addEventListener('contextmenu', (e) => {
         html += `<div class="ctx-item" id="ctx-link-toggle-live">${isLive ? '✓ Live Linking' : 'Live Linking'}</div>`;
         html += `<div class="ctx-item highlight" id="ctx-link-push" style="white-space:nowrap;">Push Changes to Group</div>`;
       }
-      html += `<div class="ctx-item has-submenu">Link Group
+      html += `<div class="ctx-item has-submenu" title="Link this layer to its counterparts on other canvases so edits travel between them">Link Group
         <div class="ctx-submenu">`;
       
       // "Link to: <group>" targets a single group, so it can only ever cover one
@@ -420,11 +426,11 @@ document.addEventListener('contextmenu', (e) => {
     }
 
     html += `<div class="ctx-divider"></div>`;
-    html += `<div class="ctx-item" id="ctx-save-asset">Save to Assets</div>`;
+    html += `<div class="ctx-item" id="ctx-save-asset" title="Save this image to the Assets panel so you can reuse it on other canvases and projects">Save to Assets</div>`;
 
     if (activeEl && activeEl.role && activeEl.role !== 'misc') {
       html += `<div class="ctx-divider"></div>`;
-      html += `<div class="ctx-item has-submenu">Advanced
+      html += `<div class="ctx-item has-submenu" title="Less common layer actions">Advanced
         <div class="ctx-submenu">
           <div class="ctx-item" id="ctx-define-placement" style="white-space:nowrap;">Define default placement</div>`;
       if (c.layoutOverrides && c.layoutOverrides[activeEl.role]) {
@@ -435,7 +441,7 @@ document.addEventListener('contextmenu', (e) => {
     html += `<div class="ctx-divider"></div>`;
     html += addElementsMenuHTML;
     html += `<div class="ctx-divider"></div>`;
-    html += `<div class="ctx-item" id="ctx-delete" style="color:#ef4444">Delete</div>`;
+    html += `<div class="ctx-item" id="ctx-delete" title="Delete the selected layers from this canvas (Del)" style="color:#ef4444">Delete</div>`;
   } else if (canvasNode) {
     state.activeCanvasId = canvasNode.parentElement.dataset.canvasId;
     state.selectedElementId = null;
@@ -444,21 +450,21 @@ document.addEventListener('contextmenu', (e) => {
 
     const inPreview = state.singlePreviewId === state.activeCanvasId;
     const previewSvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="${inPreview ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>`;
-    html += `<div class="ctx-item highlight" id="ctx-canvas-preview" style="display:flex; align-items:center; gap:8px;">${previewSvg}${inPreview ? 'Exit Preview' : 'Preview'}</div>`;
+    html += `<div class="ctx-item highlight" id="ctx-canvas-preview" title="Play this canvas on its own, full size, without leaving the editor" style="display:flex; align-items:center; gap:8px;">${previewSvg}${inPreview ? 'Exit Preview' : 'Preview'}</div>`;
     // Auto-Resize sits directly under Preview with the same highlight style.
     // Click forces the canvas-selection dialogue regardless of the bypass
     // setting — when the user invokes via this menu they expect to pick targets.
     const autoResizeSvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3H13M21 3V11M21 3L11 13M3 21H11M3 21V13M3 21L13 11"/></svg>`;
-    html += `<div class="ctx-item highlight" id="ctx-canvas-auto-resize" style="display:flex; align-items:center; gap:8px;">${autoResizeSvg}Auto-Resize</div>`;
+    html += `<div class="ctx-item highlight" id="ctx-canvas-auto-resize" title="Generate the other banner sizes from this canvas" style="display:flex; align-items:center; gap:8px;">${autoResizeSvg}Auto-Resize</div>`;
     html += `<div class="ctx-divider"></div>`;
 
-    html += `<div class="ctx-item has-submenu">
+    html += `<div class="ctx-item has-submenu" title="Export this canvas on its own">
       ${svgWrap(brandSetsSvg, 'Brand sets')}
       <div class="ctx-submenu">
         <div class="ctx-item" id="ctx-brandset-logo-rfwn-cricos" style="white-space:nowrap;">Logo + RFWN + CRICOS</div>
       </div>
     </div>`;
-    html += `<div class="ctx-item has-submenu">
+    html += `<div class="ctx-item has-submenu" title="Copy layers to other frames or other canvases">
       ${svgWrap(brandSvg, 'Brand Elements')}
       <div class="ctx-submenu">
         <div class="ctx-item" id="ctx-brand-cricos" style="white-space:nowrap;">CRICOS</div>
@@ -469,13 +475,13 @@ document.addEventListener('contextmenu', (e) => {
         <div class="ctx-item" id="ctx-brand-pixel" style="white-space:nowrap;">Pixel Shape</div>
       </div>
     </div>`;
-    html += `<div class="ctx-item" id="ctx-add-text">${svgWrap(textSvg, 'Add Text')}</div>`;
-    html += `<div class="ctx-item" id="ctx-add-image">${svgWrap(imageSvg, 'Add Image')}</div>`;
-    html += `<div class="ctx-item" id="ctx-add-rect">${svgWrap(rectSvg, 'Add Rectangle')}</div>`;
-    html += `<div class="ctx-item" id="ctx-add-circle">${svgWrap(circleSvg, 'Add Circle')}</div>`;
-    html += `<div class="ctx-item" id="ctx-add-line">${svgWrap(lineSvg, 'Add Line')}</div>`;
-    html += `<div class="ctx-item" id="ctx-add-btn">${svgWrap(btnSvg, 'Add Button')}</div>`;
-    html += `<div class="ctx-item" id="ctx-add-bg">${svgWrap(bgSvg, 'Add Background')}</div>`;
+    html += `<div class="ctx-item" id="ctx-add-text" title="Add a text layer at the click point on this canvas and frame">${svgWrap(textSvg, 'Add Text')}</div>`;
+    html += `<div class="ctx-item" id="ctx-add-image" title="Add an image placeholder here — drop a picture on it, or pick one from Assets">${svgWrap(imageSvg, 'Add Image')}</div>`;
+    html += `<div class="ctx-item" id="ctx-add-rect" title="Add a rectangle. Rectangles can also be used as masks to clip the image below them">${svgWrap(rectSvg, 'Add Rectangle')}</div>`;
+    html += `<div class="ctx-item" id="ctx-add-circle" title="Add a circle. Circles can also be used as masks to clip the image below them">${svgWrap(circleSvg, 'Add Circle')}</div>`;
+    html += `<div class="ctx-item" id="ctx-add-line" title="Add a horizontal rule">${svgWrap(lineSvg, 'Add Line')}</div>`;
+    html += `<div class="ctx-item" id="ctx-add-btn" title="Add a call-to-action button. Buttons auto-size their text and count as the click area">${svgWrap(btnSvg, 'Add Button')}</div>`;
+    html += `<div class="ctx-item" id="ctx-add-bg" title="Add a full-bleed background rectangle on the Always Bottom tier, behind everything else">${svgWrap(bgSvg, 'Add Background')}</div>`;
     html += `<div class="ctx-divider"></div>`;
 
     const syncSvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>`;
@@ -484,7 +490,7 @@ document.addEventListener('contextmenu', (e) => {
     // nothing needs selecting first — the quick per-selection versions live on
     // the element right-click menu.
     const otherCount = (state.canvases || []).length - 1;
-    html += `<div class="ctx-item has-submenu">
+    html += `<div class="ctx-item has-submenu" title="Copy layers to other frames or other canvases">
       ${svgWrap(syncSvg, 'Distribute / Sync')}
       <div class="ctx-submenu">
         <div class="ctx-item" id="ctx-frame-sync" style="white-space:nowrap;" title="Copy this frame's layer stack to other frames on this canvas.">Across Frames...</div>
@@ -492,20 +498,20 @@ document.addEventListener('contextmenu', (e) => {
       </div>
     </div>`;
     html += `<div class="ctx-divider"></div>`;
-    html += `<div class="ctx-item" id="ctx-canvas-clone">Clone Canvas</div>`;
+    html += `<div class="ctx-item" id="ctx-canvas-clone" title="Duplicate this canvas, its layers and its frames as a new size on the board">Clone Canvas</div>`;
     if (state.canvases.length > 1) {
-      html += `<div class="ctx-item" id="ctx-canvas-delete" style="color:#ef4444;">Delete Canvas</div>`;
+      html += `<div class="ctx-item" id="ctx-canvas-delete" title="Delete this canvas and everything on it. Other canvases are unaffected" style="color:#ef4444;">Delete Canvas</div>`;
     }
     html += `<div class="ctx-divider"></div>`;
-    html += `<div class="ctx-item" id="ctx-canvas-bg-color">Change canvas BG color</div>`;
-    html += `<div class="ctx-item has-submenu">Export
+    html += `<div class="ctx-item" id="ctx-canvas-bg-color" title="Set the background colour behind this canvas&#39;s layers">Change canvas BG color</div>`;
+    html += `<div class="ctx-item has-submenu" title="Export this canvas on its own">Export
       <div class="ctx-submenu">
         <div class="ctx-item" id="ctx-canvas-export-html">HTML5</div>
         <div class="ctx-item" id="ctx-canvas-export-png">PNG</div>
       </div>
     </div>`;
     html += `<div class="ctx-divider"></div>`;
-    html += `<div class="ctx-item has-submenu" style="color:#ef4444">Clear all
+    html += `<div class="ctx-item has-submenu" title="Remove layers in bulk. This cannot be undone by closing the menu" style="color:#ef4444">Clear all
       <div class="ctx-submenu">
         <div class="ctx-item" id="ctx-clear-current"    style="white-space:nowrap;">Current canvas</div>
         <div class="ctx-item" id="ctx-clear-others"     style="white-space:nowrap;">Other canvases</div>
@@ -513,13 +519,13 @@ document.addEventListener('contextmenu', (e) => {
       </div>
     </div>`;
     html += `<div class="ctx-divider"></div>`;
-    html += `<div class="ctx-item" id="ctx-toggle-snap">${state.snapEnabled !== false ? '✓ ' : ''}Snapping</div>`;
-    html += `<div class="ctx-item" id="ctx-toggle-rulers">${state.showRulers ? 'Hide' : 'Show'} Rulers & Guides</div>`;
-    html += `<div class="ctx-item" id="ctx-toggle-safezones">${state.showSafezones ? '✓ ' : ''}Show Safezones</div>`;
-    html += `<div class="ctx-item" id="ctx-clear-guides">Clear All Guides</div>`;
-    html += `<div class="ctx-item" id="ctx-toggle-outline">${state.outlineMode ? '✓ ' : ''}Outline Mode</div>`;
+    html += `<div class="ctx-item" id="ctx-toggle-snap" title="Snap layers to other layers, canvas edges and guides while dragging">${state.snapEnabled !== false ? '✓ ' : ''}Snapping</div>`;
+    html += `<div class="ctx-item" id="ctx-toggle-rulers" title="Show or hide the rulers and the guides you have dragged from them">${state.showRulers ? 'Hide' : 'Show'} Rulers & Guides</div>`;
+    html += `<div class="ctx-item" id="ctx-toggle-safezones" title="Overlay the margins that copy and calls to action must stay inside">${state.showSafezones ? '✓ ' : ''}Show Safezones</div>`;
+    html += `<div class="ctx-item" id="ctx-clear-guides" title="Remove every guide you have dragged onto the board">Clear All Guides</div>`;
+    html += `<div class="ctx-item" id="ctx-toggle-outline" title="Draw every layer as an outline only — useful for spotting overlaps and stray layers">${state.outlineMode ? '✓ ' : ''}Outline Mode</div>`;
     html += `<div class="ctx-divider"></div>`;
-    html += `<div class="ctx-item" id="ctx-open-settings">Settings…</div>`;
+    html += `<div class="ctx-item" id="ctx-open-settings" title="Open app settings: theme, rulers, snapping, history and autosave">Settings…</div>`;
   } else {
     html += `<div class="ctx-item" id="ctx-toggle-snap">${state.snapEnabled !== false ? '✓ ' : ''}Snapping</div>`;
     html += `<div class="ctx-item" id="ctx-toggle-rulers">${state.showRulers ? 'Hide' : 'Show'} Rulers & Guides</div>`;
@@ -1224,7 +1230,7 @@ const appSplash = (() => {
         const verEl = document.createElement('span');
         verEl.className = 'app-splash-version';
         verEl.style.cssText = 'font-size: 10px; color: var(--text-muted, #8b8f9c); border: 1px solid rgba(139, 143, 156, 0.4); padding: 2px 8px; border-radius: 10px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: inline-flex; align-items: center; justify-content: center; line-height: 1; margin-top: 2px;';
-        verEl.textContent = 'v0.38.1';
+        verEl.textContent = 'v0.39.1';
         logoEl.appendChild(verEl);
       }
     }
@@ -1554,7 +1560,7 @@ function showCanvasNotification(message, options = {}) {
   const buttonList = Array.isArray(options.buttons)
     ? options.buttons
     : (options.button ? [options.button] : []);
-  const buttonHtml = buttonList.map((b, i) => `<button class="toast-btn" data-btn-i="${i}">${b.text}</button>`).join('');
+  const buttonHtml = buttonList.map((b, i) => `<button class="toast-btn" data-btn-i="${i}" title="${(b.title || b.text || '').replace(/"/g, '&quot;')}">${b.text}</button>`).join('');
 
   toast.innerHTML = `
     <span class="icon">${iconHtml}</span>
@@ -1686,7 +1692,7 @@ function showSyncLayersMenu(anchorEl, initialTab = 'frames') {
   const canvasRows = otherCanvases.length
     ? otherCanvases.map(c => `
         <label style="display:flex; align-items:center; gap:6px; font-size:11px; cursor:pointer;" title="Toggle canvas target ${esc(c.name || (c.width + 'x' + c.height))}">
-          <input type="checkbox" class="dist-target-canvas-chk" data-id="${esc(c.id)}" checked style="margin:0;" />
+          <input type="checkbox" class="dist-target-canvas-chk" data-id="${esc(c.id)}" checked title="Include this canvas when distributing" style="margin:0;" />
           <span>${esc(c.name || (c.width + 'x' + c.height))}</span>
         </label>`).join('')
     : `<div style="font-size:11px; color:var(--text-muted); font-style:italic;">No other canvases</div>`;
@@ -1708,8 +1714,8 @@ function showSyncLayersMenu(anchorEl, initialTab = 'frames') {
       </div>
 
       <div style="display: flex; gap: 0; border-bottom: 1px solid var(--border-light); background: var(--bg-body); padding: 0 12px; flex-shrink: 0;">
-        <button id="btn-tab-frame-sync" style="${tabStyle(initialTab !== 'canvases')}">Across Frames</button>
-        <button id="btn-tab-canvas-dist" style="${tabStyle(initialTab === 'canvases')}">Across Canvases</button>
+        <button id="btn-tab-frame-sync" title="Copy this frame&#39;s layer stack to other frames on this canvas" style="${tabStyle(initialTab !== 'canvases')}">Across Frames</button>
+        <button id="btn-tab-canvas-dist" title="Copy this frame&#39;s layers to your other canvases" style="${tabStyle(initialTab === 'canvases')}">Across Canvases</button>
       </div>
 
       <div class="modal-body" style="display:flex; flex-direction:column; gap:16px; padding:18px 22px; overflow-y:auto;">
@@ -1792,8 +1798,8 @@ function showSyncLayersMenu(anchorEl, initialTab = 'frames') {
       </div>
 
       <div class="modal-foot">
-        <button class="btn btn-sync-layers-cancel" style="padding: 6px 12px; font-size: 12px; cursor: pointer;">Cancel</button>
-        <button class="btn primary" id="btn-sync-layers-execute" style="padding: 6px 16px; font-size: 12px; font-weight: 600; background: var(--accent-base); color: var(--text-on-accent, #fff); border: none; border-radius: 4px; cursor: pointer;">Sync Across Frames</button>
+        <button class="btn btn-sync-layers-cancel" title="Close without copying anything" style="padding: 6px 12px; font-size: 12px; cursor: pointer;">Cancel</button>
+        <button class="btn primary" id="btn-sync-layers-execute" title="Run this with the options above" style="padding: 6px 16px; font-size: 12px; font-weight: 600; background: var(--accent-base); color: var(--text-on-accent, #fff); border: none; border-radius: 4px; cursor: pointer;">Sync Across Frames</button>
       </div>
     </div>
   `;
@@ -1843,14 +1849,14 @@ function showSyncLayersMenu(anchorEl, initialTab = 'frames') {
       const frameIndex = state.frames.findIndex(x => x.id === f.id);
       return `
         <label style="display:flex; align-items:center; gap:6px; font-size:11px; cursor:pointer;" title="Toggle frame target Frame ${frameIndex + 1}">
-          <input type="checkbox" class="sync-target-frame-chk" data-id="${f.id}" checked style="margin:0;" />
+          <input type="checkbox" class="sync-target-frame-chk" data-id="${f.id}" checked title="Include Frame ${frameIndex + 1} as a target" style="margin:0;" />
           <span>Frame ${frameIndex + 1}</span>
         </label>`;
     }).join('');
 
     wrapper.innerHTML = `
       <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size: 12px; font-weight: 500;" title="Apply to all other frames.">
-        <input type="checkbox" id="chk-sync-all-frames" ${syncAllFrames ? 'checked' : ''} style="margin:0;" />
+        <input type="checkbox" id="chk-sync-all-frames" title="Apply to every other frame on this canvas" ${syncAllFrames ? 'checked' : ''} style="margin:0;" />
         <span>All other frames</span>
       </label>
       <div id="sync-frames-selection-container" style="display: ${syncAllFrames ? 'none' : 'flex'}; flex-direction: column; gap: 4px; max-height: 100px; overflow-y: auto; padding: 4px 6px; background: var(--bg-input); border: 1px solid var(--border-light); border-radius: 4px; margin-top: 4px;">

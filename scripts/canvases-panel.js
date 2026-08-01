@@ -474,7 +474,7 @@ function renderLinkControl() {
             const labelStyle = isForced ? 'cursor:default;' : 'cursor:pointer;';
             const controlHtml = isForced
               ? `<svg viewBox="0 0 24 24" fill="currentColor" style="width: 13px; height: 13px; color: var(--text-accent); flex-shrink: 0;" title="Locked to sync (active dynamic data mapping)"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`
-              : `<input type="checkbox" class="lnk-sync-prop" data-prop="${propName}" ${checkedAttr} />`;
+              : `<input type="checkbox" class="lnk-sync-prop" data-prop="${propName}" ${checkedAttr} title="Sync ${propName} across every canvas in this link group" />`;
             const finalTitle = isForced ? `${titleText} (Locked — bound to dynamic data)` : titleText;
             return `<label title="${esc(finalTitle)}" style="display:flex; align-items:center; gap:5px; font-size:10px; font-weight:500; color:var(--text-muted); ${labelStyle} user-select:none; white-space:nowrap;">${controlHtml} ${esc(labelText)}</label>`;
           };
@@ -580,7 +580,7 @@ function renderLinkControl() {
               <div class="toggle-slider">
                 <div class="toggle-knob"></div>
               </div>
-              <input type="checkbox" id="lnk-live-toggle" style="display: none !important;" ${group.liveLink ? 'checked' : ''} />
+              <input type="checkbox" id="lnk-live-toggle" title="Push every edit to the rest of the group as you make it, instead of waiting for a manual push" style="display: none !important;" ${group.liveLink ? 'checked' : ''} />
             </label>
           </div>`;
 

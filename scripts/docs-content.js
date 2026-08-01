@@ -70,6 +70,10 @@ const DOCS_SECTIONS = [
           <li>Refine. Add per-frame animation if you want movement.</li>
           <li><b>Export</b> from the top bar → ZIP per canvas, ready to upload.</li>
         </ol>
+        <figure class="doc-shot">
+          <img src="data/docs/shortcuts-modal.png" alt="Keyboard shortcuts reference dialog" loading="lazy" />
+          <figcaption>The full keyboard shortcut list — press <b>?</b> at any time, or find it in the Help menu.</figcaption>
+        </figure>
       `},
     ]
   },
@@ -82,6 +86,14 @@ const DOCS_SECTIONS = [
         <p>Along the bottom sits the <a href="#" data-doc-sec="animation" data-doc-sub="timeline" style="color:var(--text-accent); font-weight: 500;">Timeline</a> — a collapsible sequencer showing the active frame's animations as draggable bars. Click its header to expand or collapse it; the choice is remembered.</p>
         <p><b>Adflow's Advantage:</b> In legacy visual editors, adjusting different banner aspect ratios requires opening multiple application tabs, leading to mismatched copy and inconsistent layouts. Adflow places every target canvas side-by-side, allowing creative teams to verify layout alignments, compare formats, and coordinate updates instantly across the entire campaign.</p>
         <div style="font-size: 11.5px; color: var(--text-muted); opacity: 0.8; border-top: 1px solid var(--border-light); padding-top: 8px; margin-top: 16px;"><b>General Tips:</b> Use custom horizontal and vertical guides by dragging directly from the viewport rulers onto a focused canvas. Toggle the Safezone overlay to ensure critical call-to-actions and legal CRICOS text stay clear of format edges, preventing cut-offs on display networks.</div>
+        <figure class="doc-shot">
+          <img src="data/docs/editor-overview.png" alt="The Adflow editor with six banner sizes on the board" loading="lazy" />
+          <figcaption>The whole editor: menus and actions along the top, the panel stack on the left, canvases on the board, properties on the right, timeline along the bottom.</figcaption>
+        </figure>
+        <figure class="doc-shot">
+          <img src="data/docs/topbar.png" alt="Adflow top bar: menus, tools, Full preview, Export and Share" loading="lazy" />
+          <figcaption>The top bar. Tools sit left of centre, the frame controls in the middle, and Full preview / Export / Share on the right.</figcaption>
+        </figure>
       `},
       { id: 'canvases-navigation', title: 'Canvases & navigation', body: `
         <ul>
@@ -91,6 +103,10 @@ const DOCS_SECTIONS = [
           <li><b>Canvas right-click:</b> Preview, Export HTML5/PNG, background, clear. The sidebar entry's right-click adds clone/delete.</li>
           <li><b>Crop to canvas:</b> <b>File → Settings</b> — clips elements that bleed outside a canvas for a true export preview.</li>
         </ul>
+        <figure class="doc-shot">
+          <img src="data/docs/panel-canvases.png" alt="Canvases panel listing each banner size" loading="lazy" />
+          <figcaption>Every size in the project. Click one to make it active; the board scrolls to it.</figcaption>
+        </figure>
       `},
       { id: 'layers-persistence', title: 'Layers & persistence', body: `
         <p>Each canvas has a layer stack in the left Layers panel.</p>
@@ -99,6 +115,10 @@ const DOCS_SECTIONS = [
           <li><b>Group:</b> select layers, <span class="kbd">Ctrl</span>+<span class="kbd">G</span>. Double-click a group to <b>isolate</b> and edit inside.</li>
           <li><b>Layer sections</b> in the panel: <i>Main Layers</i> (default — visible only on the active frame, driven by the active frame selection), <i>Always Bottom</i> (background, painted under every frame), <i>Always Top</i> (overlay painted above every frame — typical for logos and compliance text). Drag a layer between sections to change its persistence.</li>
         </ul>
+        <figure class="doc-shot">
+          <img src="data/docs/panel-layers.png" alt="Layers panel showing the stack for the active canvas and frame" loading="lazy" />
+          <figcaption>The layer stack for the active canvas and frame, topmost first.</figcaption>
+        </figure>
       `},
       { id: 'assets-panel', title: 'Assets panel', body: `
         <ul>
@@ -127,6 +147,10 @@ const DOCS_SECTIONS = [
         <p>Adflow includes a pre-loaded library of approved brand elements, such as logo marks and compliance components, which can be placed instantly onto any focused canvas. Additionally, the workspace includes custom utilities like a non-destructive Crop & Level tool and layer-based image masking to support custom framing workflows.</p>
         <p><b>Adflow's Advantage:</b> Standard layout editors require tedious manual asset management and yield bloated output packages. Adflow bundles assets natively, optimizes text measurements automatically, and includes an active multi-format image compressor to convert and downsize files directly in the browser to fit network weight limits.</p>
         <div style="font-size: 11.5px; color: var(--text-muted); opacity: 0.8; border-top: 1px solid var(--border-light); padding-top: 8px; margin-top: 16px;"><b>General Tips:</b> Save customized layers or group templates directly into the Assets panel to reuse them across other projects. When cropping uploaded graphics, use the Crop & Level slider: the rotation is baked directly into the output crop image, which leaves the layer's primary transform handles clean and aligned.</div>
+        <figure class="doc-shot">
+          <img src="data/docs/panel-add-elements.png" alt="Add Elements panel with text, button, shape and image buttons" loading="lazy" />
+          <figcaption>Add Elements. Each button drops a new layer onto the active canvas and frame.</figcaption>
+        </figure>
       `},
       { id: 'text-typography', title: 'Text & typography', body: `
         <p>Add a text layer from the left panel (or right-click the canvas). Double-click to edit inline.</p>
@@ -149,6 +173,10 @@ const DOCS_SECTIONS = [
         </ul>
         <p>All three behave identically: a picture bound to a data column updates the <b>active version's cell</b> rather than the template default, the <b>Data lock</b> is respected, the fixed RMIT logo can't be swapped, and a live-linked group propagates the new picture to its siblings (with Live-link off, use <b>Push changes to group</b>).</p>
         <p><b>Image compression:</b> Adflow includes a built-in multi-format compressor for PNG/JPEG uploads, supporting WebP, JPEG, or PNG formats depending on Project Settings and image transparency. Features a quality slider (10–100%) and live KB preview to help you stay under the ad weight limit.</p>
+        <figure class="doc-shot">
+          <img src="data/docs/props-image.png" alt="Properties panel for a selected image, showing the preview thumbnail" loading="lazy" />
+          <figcaption>An image layer's properties. The preview at the top doubles as a drop target — drag a new image onto it to swap the picture and keep everything else.</figcaption>
+        </figure>
       `},
       { id: 'shapes', title: 'Shapes & Image Masking', body: `
         <p>Rectangles, circles, and lines from the Add panel. Adjust fill, stroke, corner radius from the Properties panel.</p>
@@ -164,6 +192,10 @@ const DOCS_SECTIONS = [
           <li><b>No Dynamic Data:</b> a mask is a shape, not a content slot, so the Dynamic Data panel stays disabled while a layer is a mask — turn <b>Use as mask</b> off to bind data to it.</li>
           <li><b>Swap the Photo Without Unmasking:</b> Drop an image file from your computer, or drag one out of the Assets panel, straight onto the masked photo — Adflow looks through the mask shape to the image beneath and replaces just the photo. The mask's shape, position and size are untouched, so there's no need to unmask, swap and re-apply. Dragging another image already on the canvas onto it does the same.</li>
         </ul>
+        <figure class="doc-shot">
+          <img src="data/docs/canvas-masked.png" alt="A photo clipped by a mask shape on the canvas" loading="lazy" />
+          <figcaption>A mask shape clipping the image directly beneath it.</figcaption>
+        </figure>
       `},
       { id: 'color-picker', title: 'Color picker & gradients', body: `
         <p>The custom picker (powered by Iro.js) supports:</p>
@@ -192,6 +224,10 @@ const DOCS_SECTIONS = [
         <p><b>Skip frame:</b> mark a frame as skipped to hide it in preview/export (max 1 skipped frame).</p>
         <p><b>Single-frame loops:</b> a one-frame ad with Loop on still re-animates — the exported runtime restarts the frame each cycle, replaying every entrance (and the frame transition, if you set one). Useful for animated email signatures and similar always-on placements.</p>
         <p><b>Deleting a frame</b> (the <b>−</b> button, in the top bar or under any canvas) takes that frame's layers with it. Frames are project-wide, so this happens on <i>every</i> canvas at once — if you'd lose anything, Adflow asks first and tells you how many layers on how many canvases. Layers set to Always Top or Always Bottom survive, because they belong to every frame rather than to one. A frame with nothing of its own is removed without a prompt, and any deletion can be undone.</p>
+        <figure class="doc-shot">
+          <img src="data/docs/frames-strip.png" alt="Frame controls: frame selector, duration, add and remove buttons" loading="lazy" />
+          <figcaption>The frame controls. The − button asks before deleting a frame that still holds layers.</figcaption>
+        </figure>
       `},
       { id: 'frame-sync', title: 'Frame Sync', body: `
         <p><b>Frame Sync</b> copies one frame's layer stack into other frames <i>of the same canvas</i> — the frame-to-frame counterpart of <a href="#" data-doc-sec="link-groups" data-doc-sub="distribute" style="color:var(--text-accent); font-weight: 500;">Distribute</a>, which works canvas to canvas. Open it from the ⟳ button in the Layers panel header, or right-click the canvas → <b>Distribute / Sync → Across Frames…</b> — the two tabs of that one panel are the two directions layers can travel.</p>
@@ -224,6 +260,18 @@ const DOCS_SECTIONS = [
         <p><b>Play.</b> The <b>▶ Play</b> button (or tapping <span class="kbd">Space</span>) replays the current frame's animations in place on the editor canvas, using the very same animation code the export generates — so what you see is what ships. It deliberately does not advance to the next frame; use the full Preview for that.</p>
         <p><b>Frame duration follows the animations.</b> If you drag an animation past the end of the frame, the frame's duration extends to fit and a notice tells you. Pull it back in and the duration shrinks again, but never below whatever it was before the timeline extended it. The stretch of track beyond the frame's end is shaded so you can see when you're over.</p>
         <p><b>Settings (⚙).</b> Choose the grid step (0.1s – 0.5s) and toggle <b>Show all elements</b>. Moving to a <i>coarser</i> grid re-snaps every animation timing on the current canvas and frame, so Adflow asks first.</p>
+        <figure class="doc-shot">
+          <img src="data/docs/timeline-overview.png" alt="Timeline showing IN, OUT and FX bars for each layer" loading="lazy" />
+          <figcaption>The timeline. Each row is a layer; the bars are its entrance, exit and FX spans on a shared time axis.</figcaption>
+        </figure>
+        <figure class="doc-shot">
+          <img src="data/docs/timeline-fx-isolated.png" alt="Timeline with an FX bar isolated for editing" loading="lazy" />
+          <figcaption>FX edit mode. The IN and OUT bars fade back so the FX span can be dragged and resized on its own.</figcaption>
+        </figure>
+        <figure class="doc-shot doc-shot-inline">
+          <img src="data/docs/timeline-settings.png" alt="Timeline settings popover with grid step options" loading="lazy" />
+          <figcaption>The timeline's settings: grid step, and whether to list layers that have no animation.</figcaption>
+        </figure>
       `},
       { id: 'previewing', title: 'Previewing your ad', body: `
         <p>There are three ways to watch an ad play, in ascending order of fidelity to what actually ships.</p>
@@ -339,6 +387,14 @@ const DOCS_SECTIONS = [
           </li>
           <li><b>Adjust roles (if needed):</b> Each element has an auto-detected role (e.g. logo, CTA button, heading). Check the Layers panel — you'll see a grey role-tag icon next to each layer. If the engine classified something incorrectly, click the icon to manually lock it to the correct role. Locked roles show a purple icon.</li>
         </ol>
+        <figure class="doc-shot doc-shot-inline">
+          <img src="data/docs/autoresize-buttons.png" alt="Auto-resize and settings buttons in the properties panel" loading="lazy" />
+          <figcaption>The Auto-Resize buttons in the properties panel.</figcaption>
+        </figure>
+        <figure class="doc-shot">
+          <img src="data/docs/autoresize-modal.png" alt="Auto-Resize dialog with target sizes and options" loading="lazy" />
+          <figcaption>The Auto-Resize dialog: pick the sizes to generate and how the engine should treat the layout.</figcaption>
+        </figure>
       `},
       { id: 'auto-resize-settings', title: 'Engine Settings & Live Linking', body: `
         <p>Click the <b>gear icon</b> next to the Auto-resize button at the bottom of the left panel to configure behavior:</p>
@@ -367,6 +423,10 @@ const DOCS_SECTIONS = [
           <li>Fill <b>Color</b> on shapes.</li>
         </ul>
         <p>A small dot marks dynamic elements on the canvas. Unmarked elements are never touched by the merge.</p>
+        <figure class="doc-shot">
+          <img src="data/docs/dynamic-data-panel.png" alt="Dynamic Data panel for marking slots" loading="lazy" />
+          <figcaption>The Dynamic Data panel. Marking a layer as a slot binds it to a column in your data sheet.</figcaption>
+        </figure>
       `},
       { id: 'slots-link-groups', title: 'Slots × Link Groups', body: `
         <p>A dynamic field becomes a <b>slot</b>. If the element is in a Link Group, the slot covers the whole group — so one binding fills that element on every size at once. Toggling a dynamic field on a linked element applies it to all siblings automatically, and the corresponding sync properties (e.g. Text, Color, Image) are forced active and locked from deselection in the Link Groups panel UI to guarantee absolute synchronization consistency.</p>
@@ -375,6 +435,10 @@ const DOCS_SECTIONS = [
         <p>Open <b>File → Data &amp; Versions</b> (or the <b>Data</b> button). <b>Import CSV</b>, or add columns/rows by hand. Map each column to a slot's field, pick the <b>★ version name</b> column (names the exported folders), and optionally bind a column to <b>ClickTag</b>.</p>
         <p>The sheet stores inside the <code>.flow</code> project; it auto-saves and travels with it.</p>
         <p><b>Interactions:</b> double-click a column header to rename, drag the header to reorder columns, drag the ⋮⋮ grip on each row to reorder rows, click the sort icon for asc/desc/none.</p>
+        <figure class="doc-shot">
+          <img src="data/docs/data-versions.png" alt="Data & Versions panel with a loaded sheet and version rows" loading="lazy" />
+          <figcaption>A loaded data sheet. Each row becomes a version you can step through and export.</figcaption>
+        </figure>
       `},
       { id: 'switching-versions', title: 'Switching versions live', body: `
         <p>Pick a row from the <b>Version</b> dropdown in the top bar to preview that row on the canvas. Non-destructive — your template defaults are never overwritten, and selecting "No version" returns to them.</p>
@@ -404,6 +468,10 @@ const DOCS_SECTIONS = [
           <li><b>Remember me on this device</b> (default on) — session token stored in localStorage and persists across tabs. Uncheck to scope the session to the current tab only.</li>
           <li><b>Use locally without signing in</b> — skip the cloud, work entirely against IndexedDB autosave. You can sign in later from the top-bar chip.</li>
         </ul>
+        <figure class="doc-shot">
+          <img src="data/docs/splash-signin.png" alt="Adflow start-up screen with the sign-in gate" loading="lazy" />
+          <figcaption>The start-up gate. Sign in for cloud projects and spaces, or carry on locally — local work never needs an account.</figcaption>
+        </figure>
       `},
       { id: 'cloud-projects', title: 'Cloud Projects', body: `
         <p>When signed in, click the chip → <b>My Cloud Projects</b>. Push the current project to the cloud, open one back, or delete. Cloud projects use the same <code>.flow</code> format as local saves, so nothing needs re-importing.</p>
@@ -446,9 +514,21 @@ const DOCS_SECTIONS = [
       `},
       { id: 'new-project-wizard', title: 'New Project wizard', body: `
         <p><b>File → New Project…</b> lets you pick which canvas sizes to include, the project name, ClickTag URL, default canvas background, and ad-weight limit (default 150 KB — the industry standard).</p>
+        <figure class="doc-shot">
+          <img src="data/docs/new-project-modal.png" alt="New Project dialog with canvas sizes and background colour" loading="lazy" />
+          <figcaption>The New Project dialog: sizes, background colour, ClickTag and weight limit.</figcaption>
+        </figure>
       `},
       { id: 'settings', title: 'App settings', body: `
         <p><b>File → Settings</b>: theme (Dark, RMIT Brand, Ocean, Navy, Light), rulers, snapping, Crop to Canvas, history limit, autosave behaviour. <b>File → Project Settings</b> covers per-project options (name, ClickTag, weight limit).</p>
+        <figure class="doc-shot">
+          <img src="data/docs/settings-modal.png" alt="App Settings dialog showing theme, snapping and canvas options" loading="lazy" />
+          <figcaption>File → Settings. Theme, rulers, snapping, history, autosave and the default canvas background.</figcaption>
+        </figure>
+        <figure class="doc-shot doc-shot-inline">
+          <img src="data/docs/file-menu.png" alt="The File menu open, listing project and portal actions" loading="lazy" />
+          <figcaption>The File menu.</figcaption>
+        </figure>
       `},
       { id: 'startup-templates-docs', title: 'Startup Templates', body: `
         <p>Adflow supports initializing new projects from pre-defined startup templates (such as branding guides, base layouts, or canvas sets) stored inside the <code>Startup/</code> directory.</p>
@@ -512,6 +592,22 @@ const DOCS_SECTIONS = [
         <p>Each banner card carries its own <b>Restart</b> and <b>Download HTML5</b> buttons; <b>Download All (.zip)</b> in the header packages every visible size at once.</p>
         <p><b>Share links</b> open this same page pointed at a snapshot in the cloud — see <a href="#" data-doc-sec="cloud-spaces" data-doc-sub="cloud-projects" style="color:var(--text-accent); font-weight: 500;">Cloud &amp; Spaces</a>. When a link is open, <b>Update Preview</b> re-fetches the latest snapshot. An expired link now says so and still lets you open a file instead of dead-ending.</p>
         <p><b>Is this the latest?</b> Saving the project to the cloud also refreshes any live share link's snapshot, so a reviewer's existing link keeps showing your current work. The line under the project name says which they are looking at: <i>Shared on …</i> when nothing has changed since the link was made, or <i>Updated …</i> when a newer save has landed — hover that for the original share date.</p>
+        <figure class="doc-shot">
+          <img src="data/docs/portal-empty.png" alt="Preview Portal with nothing loaded, offering to open a project or zip" loading="lazy" />
+          <figcaption>The Preview Portal on its own. Drop a .flow project or an HTML5 zip anywhere on the page.</figcaption>
+        </figure>
+        <figure class="doc-shot">
+          <img src="data/docs/portal-loaded.png" alt="Preview Portal showing every banner size of a loaded project" loading="lazy" />
+          <figcaption>An Adflow project open in the portal: every size playing at once, with playback, frame and version controls in the sidebar.</figcaption>
+        </figure>
+        <figure class="doc-shot">
+          <img src="data/docs/portal-external.png" alt="Preview Portal displaying a third-party HTML5 ad from a zip" loading="lazy" />
+          <figcaption>A third-party HTML5 ad opened from a zip. Adflow can only mount it in an iframe, so the editor-specific controls are hidden.</figcaption>
+        </figure>
+        <figure class="doc-shot doc-shot-inline">
+          <img src="data/docs/portal-external-controls.png" alt="Sidebar controls available for an external HTML5 ad" loading="lazy" />
+          <figcaption>The reduced control set for an external ad.</figcaption>
+        </figure>
       `},
       { id: 'external-ads', title: 'Reviewing non-Adflow HTML5 ads', body: `
         <p>The Preview Portal can also review a <b>standalone HTML5 ad built outside Adflow</b> — anything supplied as a zip containing an <code>index.html</code> plus its assets. Use <b>Open HTML5 Ad (.zip)…</b>, or drop the zips on the page.</p>
@@ -533,6 +629,18 @@ const DOCS_SECTIONS = [
         <p><b>3 · Export.</b> One click produces every data version × every ticked banner size, packed into a single ZIP with one folder per version, through the standard export pipeline — the same output the editor produces.</p>
         <p>Alongside the three steps the sidebar keeps playback controls (Animated / Static only, Restart Timeline, Loop timeline), the data-version stepper, and the banner-size checklist. There is deliberately no frame picker (the grid always plays whole ads) and no appearance controls — the portal always renders in the standard Adflow theme so it can't drift from the editor.</p>
         <p>A file the portal can't accept reports the problem in place: on the empty prompt as a short message under the heading, with the button becoming <b>Try another file</b>; if you already have a template open it arrives as a notice and your work stays on screen untouched.</p>
+        <figure class="doc-shot">
+          <img src="data/docs/batch-empty.png" alt="Batch Operation portal awaiting a template and data sheet" loading="lazy" />
+          <figcaption>The Batch portal with nothing loaded.</figcaption>
+        </figure>
+        <figure class="doc-shot">
+          <img src="data/docs/batch-loaded.png" alt="Batch portal with a template and data sheet loaded, ready to export" loading="lazy" />
+          <figcaption>A certified template plus a data sheet, ready to export the whole pack.</figcaption>
+        </figure>
+        <figure class="doc-shot doc-shot-inline">
+          <img src="data/docs/batch-sidebar.png" alt="Batch portal sidebar with version and export controls" loading="lazy" />
+          <figcaption>The batch sidebar: pick versions and sizes, then export.</figcaption>
+        </figure>
       `},
     ]
   },
@@ -856,6 +964,29 @@ function renderDocsPanel(bg, activeSecId, activeSubId) {
 document.getElementById('menu-help-documentation').addEventListener('click', openDocumentation);
 
 const CHANGELOG_DATA = [
+  {
+    version: 'v0.39.1',
+    date: 'August 2026 — Engine v2.19',
+    items: [
+      'Every Control Now Explains Itself on Hover: a sweep of the whole interface found 100 controls that said nothing when you pointed at them, and another 90 in dialogs that only open in particular circumstances. All of them now carry a tooltip, and the tooltips say something the label does not — what the control affects, what happens if you switch it off, or the keyboard shortcut. Covered: every right-click menu item and submenu on both the layer and canvas menus, the Settings dialog including all thirteen themes and its four tabs, Auto-Resize and its engine settings, the validation checks and their tabs, Data and Versions, the sign-in gate, the cloud and space dialogs, the share flow, the export dialog, frame transitions, and both portals.',
+      'Three Places Were Silent by Omission Rather Than Design: the animation Duration and Delay fields were the only numeric properties without hover text, because the one builder that makes them never read the tooltip map the others use — the descriptions had existed all along. The preset dropdowns (entrance, exit, FX, direction, logo variant) were passed a description that was only ever shown inside the open popup, never on the closed control. And every Settings row already had explanatory text underneath it that was not also offered on hover. All three now use what was already written.',
+    ],
+  },
+  {
+    version: 'v0.39.0',
+    date: 'August 2026 — Engine v2.19',
+    items: [
+      'Documentation Now Has Screenshots: 27 captured images run through the manual — full views of the editor and both portals, region shots of each panel, dialog and the timeline, and close-ups of individual controls. Every one carries short alt text, a caption explaining what you are looking at, and lazy loading so opening the manual stays instant. Sections covered include the workspace and top bar, the Canvases, Layers, Add Elements and Dynamic Data panels, image properties and masking, the frame controls and the timeline (including FX edit mode and its settings), Auto-Resize, Data and Versions, the sign-in gate, the New Project, Settings and Keyboard Shortcuts dialogs, and both portals.',
+      'Screenshots Are Rebuildable, Not Hand-Pasted: scripts/build-docs-screenshots.mjs drives a throwaway headless Chrome over the DevTools protocol, poses the app for each shot and writes data/docs/*.png plus a manifest. Re-run it whenever the interface moves and the manual catches up. It has no dependencies and never touches your own browser profile.',
+    ],
+  },
+  {
+    version: 'v0.38.2',
+    date: 'August 2026 — Engine v2.19',
+    items: [
+      'Distribute & Link Now Works on Mixed Selections: the option disappeared whenever the selected layers were not all the same kind — so selecting a headline, a button and an image, which is exactly when you would reach for it, offered only plain Distribute. That restriction belongs to the Link Group submenu, where "Link to: <group>" targets a single group and therefore a single category. Distribute & Link creates a separate group per layer, named and categorised from that layer, so a mixed selection links perfectly well as several groups. It is now offered for any selection, including element groups.',
+    ],
+  },
   {
     version: 'v0.38.1',
     date: 'August 2026 — Engine v2.19',

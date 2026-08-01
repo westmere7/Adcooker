@@ -11,7 +11,7 @@ function openModal(title, body, isCode) {
         <button class="btn" id="modal-close" title="Close dialog">Close</button>
       </div>
       <div class="modal-body">
-        ${isCode ? `<textarea id="modal-text" spellcheck="false"></textarea>` : `<div>${body}</div>`}
+        ${isCode ? `<textarea id="modal-text" title="Edit the text for this layer" spellcheck="false"></textarea>` : `<div>${body}</div>`}
       </div>
       <div class="modal-foot">
         ${isCode ? `<button class="btn" id="modal-copy" title="Copy code to clipboard">Copy</button>
@@ -69,7 +69,7 @@ function showAdflowAlert(message, title = 'Notification') {
           ${message}
         </div>
         <div class="modal-foot" style="display: flex; justify-content: flex-end;">
-          <button class="btn primary" id="adflow-alert-ok">OK</button>
+          <button class="btn primary" id="adflow-alert-ok" title="Dismiss this message">OK</button>
         </div>
       </div>`;
     document.body.appendChild(bg);
@@ -107,8 +107,8 @@ function showAdflowConfirm(message, title = 'Confirm Action') {
           ${message}
         </div>
         <div class="modal-foot" style="display: flex; justify-content: flex-end; gap: 12px;">
-          <button class="btn" id="adflow-confirm-cancel">Cancel</button>
-          <button class="btn primary" id="adflow-confirm-ok">Confirm</button>
+          <button class="btn" id="adflow-confirm-cancel" title="Leave everything as it is">Cancel</button>
+          <button class="btn primary" id="adflow-confirm-ok" title="Go ahead with the action described above">Confirm</button>
         </div>
       </div>`;
     document.body.appendChild(bg);
@@ -148,11 +148,11 @@ function showAdflowPrompt(message, defaultValue = '', title = 'Input Required') 
         </div>
         <div class="modal-body" style="display: flex; flex-direction: column; gap: 12px; font-size: 13px; color: var(--text-main); padding: 18px 22px;">
           <div>${message}</div>
-          <input type="text" id="adflow-prompt-input" value="${defaultValue.replace(/"/g, '&quot;')}" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-light); color: var(--text-main); border-radius: 4px; padding: 7px 9px; font-size: 12px; outline: none;" />
+          <input type="text" id="adflow-prompt-input" title="Type your answer here" value="${defaultValue.replace(/"/g, '&quot;')}" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border-light); color: var(--text-main); border-radius: 4px; padding: 7px 9px; font-size: 12px; outline: none;" />
         </div>
         <div class="modal-foot" style="display: flex; justify-content: flex-end; gap: 12px;">
-          <button class="btn" id="adflow-prompt-cancel">Cancel</button>
-          <button class="btn primary" id="adflow-prompt-ok">OK</button>
+          <button class="btn" id="adflow-prompt-cancel" title="Leave everything as it is">Cancel</button>
+          <button class="btn primary" id="adflow-prompt-ok" title="Confirm this value">OK</button>
         </div>
       </div>`;
     document.body.appendChild(bg);
@@ -465,9 +465,9 @@ async function openWebpCompressionModal(el) {
               <img id="webp-preview-img" src="${originalDataUrl}" title="Image preview (Drag/Scroll to zoom, drag to pan)" style="max-width:100%; max-height:100%; object-fit:contain; transition:transform 0.1s ease; transform-origin:center center;" />
             </div>
             <div style="position:absolute; bottom:8px; right:8px; background:rgba(0,0,0,0.6); padding:4px 8px; border-radius:4px; display:flex; gap:6px; align-items:center; z-index:10; border:1px solid var(--border-light);">
-              <button class="btn" id="webp-zoom-out" style="padding:2px 6px; font-size:10px; min-width:20px; border:none; background:var(--bg-input); color:var(--text-bright); font-weight:bold; cursor:pointer;">-</button>
+              <button class="btn" id="webp-zoom-out" title="Zoom out" style="padding:2px 6px; font-size:10px; min-width:20px; border:none; background:var(--bg-input); color:var(--text-bright); font-weight:bold; cursor:pointer;">-</button>
               <span id="webp-zoom-display" style="font-size:10px; color:var(--text-bright); font-weight:600; min-width:32px; text-align:center; user-select:none;">100%</span>
-              <button class="btn" id="webp-zoom-in" style="padding:2px 6px; font-size:10px; min-width:20px; border:none; background:var(--bg-input); color:var(--text-bright); font-weight:bold; cursor:pointer;">+</button>
+              <button class="btn" id="webp-zoom-in" title="Zoom in to inspect compression quality" style="padding:2px 6px; font-size:10px; min-width:20px; border:none; background:var(--bg-input); color:var(--text-bright); font-weight:bold; cursor:pointer;">+</button>
               <button class="btn" id="webp-zoom-reset" style="padding:2px 6px; font-size:10px; border:none; background:var(--bg-input); color:var(--text-bright); font-weight:bold; cursor:pointer;" title="Reset zoom to 100%">100%</button>
             </div>
             <div style="position:absolute; top:8px; left:8px; background:rgba(0,0,0,0.6); padding:2px 6px; border-radius:4px; font-size:9px; color:var(--accent-light); font-weight:bold; border:1px solid var(--border-light);">
@@ -493,7 +493,7 @@ async function openWebpCompressionModal(el) {
                 const label = f === 'image/webp' ? 'WebP' : (f === 'image/jpeg' ? 'JPEG' : 'PNG');
                 const activeStyle = 'background:var(--accent-base); color:var(--text-on-accent, var(--text-bright));';
                 const idleStyle = 'background:transparent; color:var(--text-muted);';
-                return `<button class="btn format-opt${isActive ? ' active' : ''}" data-format="${f}" style="flex:1; padding:6px 12px; font-size:11px; font-weight:600; border:none; border-radius:4px; cursor:pointer; ${isActive ? activeStyle : idleStyle} transition:all 0.15s ease;">${label}</button>`;
+                return `<button class="btn format-opt${isActive ? ' active' : ''}" data-format="${f}" title="Compress images to ${f}" style="flex:1; padding:6px 12px; font-size:11px; font-weight:600; border:none; border-radius:4px; cursor:pointer; ${isActive ? activeStyle : idleStyle} transition:all 0.15s ease;">${label}</button>`;
               }).join('')}
             </div>
           </div>
@@ -1145,8 +1145,8 @@ function openImageCropModal(el) {
         </div>
         <div style="display:flex; gap:10px; align-items:center;">
           <label style="font-size:11px; color:var(--text-muted); text-transform:uppercase; font-weight:600; min-width:74px; letter-spacing:.04em;">Rotation</label>
-          <input type="range" id="crop-rot-slider" min="-180" max="180" step="0.1" value="0" style="flex:1; accent-color:var(--accent-base); cursor:pointer;" />
-          <input type="number" id="crop-rot-input" min="-180" max="180" step="0.1" value="0" style="width:64px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:4px 6px; font-size:11px; outline:none; font-family:inherit;" />
+          <input type="range" id="crop-rot-slider" title="Rotate the image inside its crop" min="-180" max="180" step="0.1" value="0" style="flex:1; accent-color:var(--accent-base); cursor:pointer;" />
+          <input type="number" id="crop-rot-input" title="Rotation angle in degrees" min="-180" max="180" step="0.1" value="0" style="width:64px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:4px 6px; font-size:11px; outline:none; font-family:inherit;" />
           <button class="btn" id="crop-rot-reset" style="padding:4px 10px; font-size:11px;" title="Reset rotation to 0°">Reset</button>
         </div>
         <div style="font-size:10.5px; color:var(--text-muted); line-height:1.5;">

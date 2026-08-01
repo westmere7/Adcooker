@@ -467,13 +467,13 @@ function openAutoResizeModal() {
         <div style="margin-bottom:14px;">
           <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.4px; margin-bottom:6px;">Apply to these canvases</div>
           <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-            <button class="btn" id="ar-select-all" style="padding:3px 8px; font-size:10px;">Select all</button>
-            <button class="btn" id="ar-select-none" style="padding:3px 8px; font-size:10px;">Clear</button>
+            <button class="btn" id="ar-select-all" title="Tick every target size" style="padding:3px 8px; font-size:10px;">Select all</button>
+            <button class="btn" id="ar-select-none" title="Untick every target size" style="padding:3px 8px; font-size:10px;">Clear</button>
           </div>
           <div id="ar-target-list" style="display:grid; grid-template-columns: 1fr 1fr; gap:6px 14px; max-height:200px; overflow-y:auto; padding:8px; background:var(--bg-deep); border:1px solid var(--border-light); border-radius:4px;">
             ${targets.map(c => `
               <label style="display:flex; align-items:center; gap:8px; font-size:12px; cursor:pointer; padding:3px 0;">
-                <input type="checkbox" class="ar-target-checkbox" data-canvas-id="${c.id}" checked />
+                <input type="checkbox" class="ar-target-checkbox" data-canvas-id="${c.id}" checked title="Include this size when Auto-Resize runs" />
                 <span style="color:var(--text-main);">${esc(c.name || (c.width + '×' + c.height))}</span>
                 <span style="color:var(--text-muted); font-size:10px;">${c.width}×${c.height}</span>
               </label>
@@ -483,7 +483,7 @@ function openAutoResizeModal() {
 
         <div style="margin-bottom:14px; display:flex; flex-direction:column; gap:12px;">
           <label style="display:flex; align-items:flex-start; gap:8px; font-size:12px; cursor:pointer;">
-            <input type="checkbox" id="ar-include-unassigned" ${persistedSettings.behaviour.includeUnassigned ? 'checked' : ''} />
+            <input type="checkbox" id="ar-include-unassigned" title="Also lay out layers that have no role yet, instead of leaving them where they are" ${persistedSettings.behaviour.includeUnassigned ? 'checked' : ''} />
             <span>
               <span style="color:var(--text-main); font-weight:500;">Place unassigned elements in the centre of each target canvas</span>
               <br>
@@ -492,7 +492,7 @@ function openAutoResizeModal() {
           </label>
 
           <label style="display:flex; align-items:flex-start; gap:8px; font-size:12px; cursor:pointer;">
-            <input type="checkbox" id="ar-lock-brand" ${persistedSettings.behaviour.lockBrandElements !== false ? 'checked' : ''} />
+            <input type="checkbox" id="ar-lock-brand" title="Keep the RMIT logo, CRICOS line and other brand furniture at their correct size and position on each canvas rather than scaling them with the layout" ${persistedSettings.behaviour.lockBrandElements !== false ? 'checked' : ''} />
             <span>
               <span style="color:var(--text-main); font-weight:500;">Lock brand elements (Logo, Tagline, CRICOS) after layout</span>
               <br>
@@ -501,7 +501,7 @@ function openAutoResizeModal() {
           </label>
 
           <label style="display:flex; align-items:flex-start; gap:8px; font-size:12px; cursor:pointer;">
-            <input type="checkbox" id="ar-live-link" ${persistedSettings.behaviour.liveLink.enabled !== false ? 'checked' : ''} />
+            <input type="checkbox" id="ar-live-link" title="Link each generated layer to its source, so later edits travel to every size" ${persistedSettings.behaviour.liveLink.enabled !== false ? 'checked' : ''} />
             <span>
               <span style="color:var(--text-main); font-weight:500;">Enable live-linking for auto-resized elements</span>
               <br>
@@ -510,7 +510,7 @@ function openAutoResizeModal() {
           </label>
 
           <label style="display:flex; align-items:flex-start; gap:8px; font-size:12px; cursor:pointer;">
-            <input type="checkbox" id="ar-show-ctx-modal" ${persistedSettings.behaviour.showModalInCtxMenu !== false ? 'checked' : ''} />
+            <input type="checkbox" id="ar-show-ctx-modal" title="Open this dialog when you pick Auto-Resize from the right-click menu. Off: it runs immediately with these settings" ${persistedSettings.behaviour.showModalInCtxMenu !== false ? 'checked' : ''} />
             <span>
               <span style="color:var(--text-main); font-weight:500;">Show confirmation dialog in context menu</span>
               <br>
@@ -518,7 +518,7 @@ function openAutoResizeModal() {
             </span>
           </label>
           <label style="display:flex; align-items:flex-start; gap:8px; font-size:12px; cursor:pointer;">
-            <input type="checkbox" id="ar-sync-canvas-bg" ${persistedSettings.behaviour.syncCanvasBg ? 'checked' : ''} />
+            <input type="checkbox" id="ar-sync-canvas-bg" title="Give the generated canvases the same background colour as this one" ${persistedSettings.behaviour.syncCanvasBg ? 'checked' : ''} />
             <span>
               <span style="color:var(--text-main); font-weight:500;">Sync canvas background</span>
               <br>
@@ -532,8 +532,8 @@ function openAutoResizeModal() {
         </div>
       </div>
       <div class="modal-foot" style="display:flex; justify-content:flex-end; gap:8px;">
-        <button class="btn" id="ar-cancel">Cancel</button>
-        <button class="btn primary" id="ar-run">Run Auto-Resize</button>
+        <button class="btn" id="ar-cancel" title="Close without generating anything">Cancel</button>
+        <button class="btn primary" id="ar-run" title="Generate the selected sizes from the current canvas">Run Auto-Resize</button>
       </div>
     </div>
   `;
@@ -2169,7 +2169,7 @@ function openAutoResizeSettingsModal() {
         <div style="display:flex; flex-direction:column; gap:2px;">
           ${relationRows.map(r => `
             <label class="ars-row" style="display:flex; align-items:flex-start; gap:9px; padding:6px 8px; cursor:pointer; border-radius:4px;">
-              <input type="checkbox" class="ars-rel" data-rel="${r.id}" ${s.relations[r.id] !== false ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
+              <input type="checkbox" class="ars-rel" data-rel="${r.id}" title="Keep this layout relationship when Auto-Resize rebuilds a canvas" ${s.relations[r.id] !== false ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
               <div style="flex:1; min-width:0;">
                 <div style="font-size:12px; font-weight:600; color:var(--text-main); line-height:1.35;">${r.label}</div>
                 <div style="font-size:10.5px; color:var(--text-muted); line-height:1.4; margin-top:2px;">${r.desc}</div>
@@ -2184,28 +2184,28 @@ function openAutoResizeSettingsModal() {
         </div>
         <div style="display:flex; flex-direction:column; gap:2px;">
           <label class="ars-row" style="display:flex; align-items:flex-start; gap:9px; padding:6px 8px; cursor:pointer; border-radius:4px;">
-            <input type="checkbox" id="ars-include-unassigned" ${s.behaviour.includeUnassigned ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
+            <input type="checkbox" id="ars-include-unassigned" title="Also lay out layers that have no role yet, instead of leaving them where they are" ${s.behaviour.includeUnassigned ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
             <div style="flex:1; min-width:0;">
               <div style="font-size:12px; font-weight:600; color:var(--text-main); line-height:1.35;">Include unassigned elements by default</div>
               <div style="font-size:10.5px; color:var(--text-muted); line-height:1.4; margin-top:2px;">Copy unassigned elements to the target canvas's centre.</div>
             </div>
           </label>
           <label class="ars-row" style="display:flex; align-items:flex-start; gap:9px; padding:6px 8px; cursor:pointer; border-radius:4px;">
-            <input type="checkbox" id="ars-lock-brand" ${s.behaviour.lockBrandElements !== false ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
+            <input type="checkbox" id="ars-lock-brand" title="Keep the RMIT logo, CRICOS line and other brand furniture at their correct size and position rather than scaling them with the layout" ${s.behaviour.lockBrandElements !== false ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
             <div style="flex:1; min-width:0;">
               <div style="font-size:12px; font-weight:600; color:var(--text-main); line-height:1.35;">Lock brand elements (Logo, Tagline, CRICOS) after layout</div>
               <div style="font-size:10.5px; color:var(--text-muted); line-height:1.4; margin-top:2px;">Automatically lock Logo, Tagline, and CRICOS layers after auto-resize or auto-arrange.</div>
             </div>
           </label>
           <label class="ars-row" style="display:flex; align-items:flex-start; gap:9px; padding:6px 8px; cursor:pointer; border-radius:4px;">
-            <input type="checkbox" id="ars-show-ctx-modal" ${s.behaviour.showModalInCtxMenu !== false ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
+            <input type="checkbox" id="ars-show-ctx-modal" title="Open the Auto-Resize dialog when you pick it from the right-click menu. Off: it runs immediately" ${s.behaviour.showModalInCtxMenu !== false ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
             <div style="flex:1; min-width:0;">
               <div style="font-size:12px; font-weight:600; color:var(--text-main); line-height:1.35;">Show confirmation dialog in context menu</div>
               <div style="font-size:10.5px; color:var(--text-muted); line-height:1.4; margin-top:2px;">When on, right-clicking a canvas and selecting Auto-Resize opens the target selection dialog. Off: runs Auto-Resize instantly to all targets.</div>
             </div>
           </label>
           <label class="ars-row" style="display:flex; align-items:flex-start; gap:9px; padding:6px 8px; cursor:pointer; border-radius:4px;">
-            <input type="checkbox" id="ars-sync-canvas-bg" ${s.behaviour.syncCanvasBg ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
+            <input type="checkbox" id="ars-sync-canvas-bg" title="Give generated canvases the same background colour as the source" ${s.behaviour.syncCanvasBg ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
             <div style="flex:1; min-width:0;">
               <div style="font-size:12px; font-weight:600; color:var(--text-main); line-height:1.35;">Sync canvas background</div>
               <div style="font-size:10.5px; color:var(--text-muted); line-height:1.4; margin-top:2px;">Sync background changes across all canvases per-frame (disabling "Per canvas" mode and enabling "Per frame" mode).</div>
@@ -2216,7 +2216,7 @@ function openAutoResizeSettingsModal() {
         <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin:14px 0 6px 0;">Live linking</div>
         <div style="display:flex; flex-direction:column; gap:2px;">
           <label class="ars-row" style="display:flex; align-items:flex-start; gap:9px; padding:6px 8px; cursor:pointer; border-radius:4px;">
-            <input type="checkbox" id="ars-ll-enabled" ${s.behaviour.liveLink.enabled !== false ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
+            <input type="checkbox" id="ars-ll-enabled" title="Link generated layers to their source so later edits travel to every size" ${s.behaviour.liveLink.enabled !== false ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
             <div style="flex:1; min-width:0;">
               <div style="font-size:12px; font-weight:600; color:var(--text-main); line-height:1.35;">Enable live linking for auto-resized elements</div>
               <div style="font-size:10.5px; color:var(--text-muted); line-height:1.4; margin-top:2px;">When on, every target element joins the source's link group with real-time propagation — edits on the source update every target instantly. Off: target elements are independent copies after the resize completes.</div>
@@ -2224,35 +2224,35 @@ function openAutoResizeSettingsModal() {
           </label>
           <div id="ars-ll-sub" style="display:flex; flex-direction:column; gap:2px; margin-left:24px; padding-left:8px; border-left:1px solid var(--border-light);">
             <label class="ars-row" style="display:flex; align-items:flex-start; gap:9px; padding:5px 8px; cursor:pointer; border-radius:4px;">
-              <input type="checkbox" id="ars-ll-text" ${s.behaviour.liveLink.syncText !== false ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
+              <input type="checkbox" id="ars-ll-text" title="Include the wording when live-linking generated layers" ${s.behaviour.liveLink.syncText !== false ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
               <div style="flex:1; min-width:0;">
                 <div style="font-size:11.5px; font-weight:600; color:var(--text-main); line-height:1.3;">Text content</div>
                 <div style="font-size:10px; color:var(--text-muted); line-height:1.35;">Edits to the headline / CTA / RFWN text propagate to every linked target.</div>
               </div>
             </label>
             <label class="ars-row" style="display:flex; align-items:flex-start; gap:9px; padding:5px 8px; cursor:pointer; border-radius:4px;">
-              <input type="checkbox" id="ars-ll-font" ${s.behaviour.liveLink.syncFont !== false ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
+              <input type="checkbox" id="ars-ll-font" title="Include the typeface and size when live-linking generated layers" ${s.behaviour.liveLink.syncFont !== false ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
               <div style="flex:1; min-width:0;">
                 <div style="font-size:11.5px; font-weight:600; color:var(--text-main); line-height:1.3;">Font family + weight</div>
                 <div style="font-size:10px; color:var(--text-muted); line-height:1.35;">Changing the typeface or weight syncs across canvases. Font SIZE is always independent per canvas.</div>
               </div>
             </label>
             <label class="ars-row" style="display:flex; align-items:flex-start; gap:9px; padding:5px 8px; cursor:pointer; border-radius:4px;">
-              <input type="checkbox" id="ars-ll-color" ${s.behaviour.liveLink.syncColor !== false ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
+              <input type="checkbox" id="ars-ll-color" title="Include the colour when live-linking generated layers" ${s.behaviour.liveLink.syncColor !== false ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
               <div style="flex:1; min-width:0;">
                 <div style="font-size:11.5px; font-weight:600; color:var(--text-main); line-height:1.3;">Colour / fill</div>
                 <div style="font-size:10px; color:var(--text-muted); line-height:1.35;">Text colour, button fill + stroke, shape fill + stroke, line colour. Background colours included for text.</div>
               </div>
             </label>
             <label class="ars-row" style="display:flex; align-items:flex-start; gap:9px; padding:5px 8px; cursor:pointer; border-radius:4px;">
-              <input type="checkbox" id="ars-ll-opacity" ${s.behaviour.liveLink.syncOpacity !== false ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
+              <input type="checkbox" id="ars-ll-opacity" title="Include opacity when live-linking generated layers" ${s.behaviour.liveLink.syncOpacity !== false ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
               <div style="flex:1; min-width:0;">
                 <div style="font-size:11.5px; font-weight:600; color:var(--text-main); line-height:1.3;">Opacity</div>
                 <div style="font-size:10px; color:var(--text-muted); line-height:1.35;">Per-element opacity / alpha changes sync across canvases.</div>
               </div>
             </label>
             <label class="ars-row" style="display:flex; align-items:flex-start; gap:9px; padding:5px 8px; cursor:pointer; border-radius:4px;">
-              <input type="checkbox" id="ars-ll-anim" ${s.behaviour.liveLink.syncAnimations !== false ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
+              <input type="checkbox" id="ars-ll-anim" title="Include animation settings when live-linking generated layers" ${s.behaviour.liveLink.syncAnimations !== false ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
               <div style="flex:1; min-width:0;">
                 <div style="font-size:11.5px; font-weight:600; color:var(--text-main); line-height:1.3;">Animations + effects</div>
                 <div style="font-size:10px; color:var(--text-muted); line-height:1.35;">In-transitions (Fade in, Slide up, etc.) and Animation FX (Pulse, Wiggle, Spin) sync across canvases.</div>
@@ -2265,10 +2265,10 @@ function openAutoResizeSettingsModal() {
         </div>
       </div>
       <div class="modal-foot" style="display:flex; justify-content:space-between; gap:8px;">
-        <button class="btn" id="ars-reset" style="color:var(--text-muted);">Reset to defaults</button>
+        <button class="btn" id="ars-reset" title="Put every engine setting back to its default" style="color:var(--text-muted);">Reset to defaults</button>
         <div style="display:flex; gap:8px;">
-          <button class="btn" id="ars-cancel">Cancel</button>
-          <button class="btn primary" id="ars-save">Save</button>
+          <button class="btn" id="ars-cancel" title="Close without keeping any change">Cancel</button>
+          <button class="btn primary" id="ars-save" title="Keep these engine settings">Save</button>
         </div>
       </div>
     </div>

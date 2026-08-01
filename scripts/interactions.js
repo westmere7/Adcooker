@@ -1126,20 +1126,20 @@ async function openValidatorDetails(initialCanvas, initialTab = 'specs') {
         <div style="display:flex; flex-direction:column; gap:5px; padding-left:4px;">
           <div style="font-size:9px; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:2px;">Accessibility</div>
           <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-main); cursor:pointer;">
-            <input type="checkbox" class="val-setting-chk" data-setting="textSize" ${settings.textSize !== false ? 'checked' : ''} />
+            <input type="checkbox" title="Include this check when validating" class="val-setting-chk" data-setting="textSize" ${settings.textSize !== false ? 'checked' : ''} />
             <span>Text size</span>
           </label>
           <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-main); cursor:pointer;">
-            <input type="checkbox" class="val-setting-chk" data-setting="contrast" ${settings.contrast !== false ? 'checked' : ''} />
+            <input type="checkbox" title="Include this check when validating" class="val-setting-chk" data-setting="contrast" ${settings.contrast !== false ? 'checked' : ''} />
             <span>Contrast ratio</span>
           </label>
           <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-main); cursor:pointer;">
-            <input type="checkbox" class="val-setting-chk" data-setting="transitionTiming" ${settings.transitionTiming !== false ? 'checked' : ''} />
+            <input type="checkbox" title="Include this check when validating" class="val-setting-chk" data-setting="transitionTiming" ${settings.transitionTiming !== false ? 'checked' : ''} />
             <span>Timing & transitions</span>
           </label>
 
           <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-main); cursor:pointer;">
-            <input type="checkbox" class="val-setting-chk" data-setting="infiniteMotion" ${settings.infiniteMotion !== false ? 'checked' : ''} />
+            <input type="checkbox" title="Include this check when validating" class="val-setting-chk" data-setting="infiniteMotion" ${settings.infiniteMotion !== false ? 'checked' : ''} />
             <span>Infinite motion</span>
           </label>
         </div>
@@ -1147,19 +1147,19 @@ async function openValidatorDetails(initialCanvas, initialTab = 'specs') {
         <div style="display:flex; flex-direction:column; gap:5px; padding-left:4px; margin-top:4px;">
           <div style="font-size:9px; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:2px;">Branding Compliance</div>
           <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-main); cursor:pointer;">
-            <input type="checkbox" class="val-setting-chk" data-setting="cricos" ${settings.cricos !== false ? 'checked' : ''} />
+            <input type="checkbox" title="Include this check when validating" class="val-setting-chk" data-setting="cricos" ${settings.cricos !== false ? 'checked' : ''} />
             <span>CRICOS text</span>
           </label>
           <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-main); cursor:pointer;">
-            <input type="checkbox" class="val-setting-chk" data-setting="logo" ${settings.logo !== false ? 'checked' : ''} />
+            <input type="checkbox" title="Include this check when validating" class="val-setting-chk" data-setting="logo" ${settings.logo !== false ? 'checked' : ''} />
             <span>RMIT Logo presence</span>
           </label>
           <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-main); cursor:pointer;">
-            <input type="checkbox" class="val-setting-chk" data-setting="brandColors" ${settings.brandColors !== false ? 'checked' : ''} />
+            <input type="checkbox" title="Include this check when validating" class="val-setting-chk" data-setting="brandColors" ${settings.brandColors !== false ? 'checked' : ''} />
             <span>Brand colors</span>
           </label>
           <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-main); cursor:pointer;">
-            <input type="checkbox" class="val-setting-chk" data-setting="brandFonts" ${settings.brandFonts !== false ? 'checked' : ''} />
+            <input type="checkbox" title="Include this check when validating" class="val-setting-chk" data-setting="brandFonts" ${settings.brandFonts !== false ? 'checked' : ''} />
             <span>Brand fonts</span>
           </label>
         </div>
@@ -1273,19 +1273,19 @@ async function openValidatorDetails(initialCanvas, initialTab = 'specs') {
 
     let tabSelectorHtml = `
       <div class="val-tabs" style="display: flex; gap: 8px; border-bottom: 1px solid var(--border-light); padding-bottom: 8px; margin-bottom: 12px; flex-shrink: 0;">
-        <button class="val-tab-btn ${activeTab === 'specs' ? 'active' : ''}" data-tab="specs" style="
+        <button class="val-tab-btn ${activeTab === 'specs' ? 'active' : ''}" data-tab="specs" title="Ad specification checks: weight, ClickTag and external assets" style="
           background: ${activeTab === 'specs' ? 'var(--accent-base)' : 'transparent'};
           color: ${activeTab === 'specs' ? 'var(--text-on-accent, var(--text-bright))' : 'var(--text-muted)'};
           border: 1px solid ${activeTab === 'specs' ? 'var(--accent-base)' : 'var(--border-light)'};
           padding: 6px 14px; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s; outline: none;
         ">Ad Compliance (${specsCount})</button>
-        <button class="val-tab-btn ${activeTab === 'a11y' ? 'active' : ''}" data-tab="a11y" style="
+        <button class="val-tab-btn ${activeTab === 'a11y' ? 'active' : ''}" data-tab="a11y" title="Accessibility checks: text size, contrast and motion" style="
           background: ${activeTab === 'a11y' ? 'var(--accent-base)' : 'transparent'};
           color: ${activeTab === 'a11y' ? 'var(--text-on-accent, var(--text-bright))' : 'var(--text-muted)'};
           border: 1px solid ${activeTab === 'a11y' ? 'var(--accent-base)' : 'var(--border-light)'};
           padding: 6px 14px; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s; outline: none;
         ">Accessibility Audit (${a11yCount})</button>
-        <button class="val-tab-btn ${activeTab === 'brand' ? 'active' : ''}" data-tab="brand" style="
+        <button class="val-tab-btn ${activeTab === 'brand' ? 'active' : ''}" data-tab="brand" title="RMIT brand checks: CRICOS line, logo, colours and fonts" style="
           background: ${activeTab === 'brand' ? 'var(--accent-base)' : 'transparent'};
           color: ${activeTab === 'brand' ? 'var(--text-on-accent, var(--text-bright))' : 'var(--text-muted)'};
           border: 1px solid ${activeTab === 'brand' ? 'var(--accent-base)' : 'var(--border-light)'};
@@ -1306,7 +1306,7 @@ async function openValidatorDetails(initialCanvas, initialTab = 'specs') {
             </strong>
             <ul style="margin:0; padding-left:18px; line-height:1.5; display:flex; flex-direction:column; gap:8px;">
               ${a11yWarnings.map(w => {
-                const locateBtn = w.layerId ? `<button class="val-locate-btn" data-layer-id="${w.layerId}" style="background:none; border:none; color:var(--text-accent); cursor:pointer; text-decoration:underline; font-size:11px; padding:0; margin-left:8px; display:inline-block;">Locate Layer</button>` : '';
+                const locateBtn = w.layerId ? `<button class="val-locate-btn" data-layer-id="${w.layerId}" title="Select the layer this warning is about and scroll it into view" style="background:none; border:none; color:var(--text-accent); cursor:pointer; text-decoration:underline; font-size:11px; padding:0; margin-left:8px; display:inline-block;">Locate Layer</button>` : '';
                 return `<li>${w.message}${locateBtn}</li>`;
               }).join('')}
             </ul>
@@ -1331,7 +1331,7 @@ async function openValidatorDetails(initialCanvas, initialTab = 'specs') {
             </strong>
             <ul style="margin:0; padding-left:18px; line-height:1.5; display:flex; flex-direction:column; gap:8px;">
               ${brandWarnings.map(w => {
-                const locateBtn = w.layerId ? `<button class="val-locate-btn" data-layer-id="${w.layerId}" style="background:none; border:none; color:var(--text-accent); cursor:pointer; text-decoration:underline; font-size:11px; padding:0; margin-left:8px; display:inline-block;">Locate Layer</button>` : '';
+                const locateBtn = w.layerId ? `<button class="val-locate-btn" data-layer-id="${w.layerId}" title="Select the layer this warning is about and scroll it into view" style="background:none; border:none; color:var(--text-accent); cursor:pointer; text-decoration:underline; font-size:11px; padding:0; margin-left:8px; display:inline-block;">Locate Layer</button>` : '';
                 return `<li>${w.message}${locateBtn}</li>`;
               }).join('')}
             </ul>
@@ -1552,7 +1552,7 @@ async function openValidatorDetails(initialCanvas, initialTab = 'specs') {
               ${state.dataMerge && state.dataMerge.enabled && state.dataMerge.rows && state.dataMerge.rows.length ? `
                 <div style="display:flex; align-items:center; gap:6px; background:var(--bg-input); border:1px solid var(--border-light); border-radius:4px; padding:3px 8px; flex-shrink:0;">
                   <span style="font-size:11px; color:var(--text-muted); font-weight:600;">Version:</span>
-                  <select id="val-version-select" style="background:transparent; border:none; color:var(--text-bright); font-size:11.5px; font-weight:600; outline:none; cursor:pointer; font-family:inherit; max-width:180px;">
+                  <select id="val-version-select" title="Which data version to validate" style="background:transparent; border:none; color:var(--text-bright); font-size:11.5px; font-weight:600; outline:none; cursor:pointer; font-family:inherit; max-width:180px;">
                     ${state.dataMerge.rows.map((row, i) => {
                        const keyCol = (state.dataMerge.keyColumn && state.dataMerge.columns.includes(state.dataMerge.keyColumn)) ? state.dataMerge.keyColumn : state.dataMerge.columns[0];
                        const name = row[keyCol] || `Version ${i + 1}`;

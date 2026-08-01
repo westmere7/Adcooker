@@ -456,7 +456,7 @@ function dmRenderCustomSelect(container, options, activeVal, onSelect) {
   const currentOpt = options.find(o => o.val === activeVal) || options[0] || { label: '— none —', val: '' };
   
   container.innerHTML = `
-    <button class="custom-select-trigger" style="width: 100%; display: flex; justify-content: space-between; align-items: center; background: var(--bg-input); border: 1px solid ${activeVal !== '' ? 'var(--accent-base)' : 'var(--border-light)'}; color: var(--text-main); border-radius: 6px; padding: 4px 6px; font-size: 11px; height: 24px; text-align: left; cursor: pointer; outline: none;">
+    <button class="custom-select-trigger" title="Click destination for this version — pick a data column, or leave on the project default" style="width: 100%; display: flex; justify-content: space-between; align-items: center; background: var(--bg-input); border: 1px solid ${activeVal !== '' ? 'var(--accent-base)' : 'var(--border-light)'}; color: var(--text-main); border-radius: 6px; padding: 4px 6px; font-size: 11px; height: 24px; text-align: left; cursor: pointer; outline: none;">
       <span class="custom-select-label" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; padding-right: 4px;">${dmEsc(currentOpt.label)}</span>
       <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="opacity: 0.7; pointer-events: none; flex-shrink: 0;"><polyline points="6 9 12 15 18 9"></polyline></svg>
     </button>
@@ -563,7 +563,7 @@ function renderPreviewVersionBar() {
       '<div id="preview-version-select-container" style="position:relative; width:200px; z-index:1000001; margin-right:4px;"></div>';
   }
   if (showCurrentOnlyBtn) {
-    inner += '<button id="preview-switch-all-btn" class="btn primary" style="padding: 4px 10px; font-size: 11px; height: 24px; white-space: nowrap; line-height: 1.2;">Current frame only. Switch to all?</button>';
+    inner += '<button id="preview-switch-all-btn" title="Apply this version to every canvas" class="btn primary" style="padding: 4px 10px; font-size: 11px; height: 24px; white-space: nowrap; line-height: 1.2;">Current frame only. Switch to all?</button>';
   }
 
   // Full-preview-only controls: frame selector (jump-and-play), replay all,
@@ -586,7 +586,7 @@ function renderPreviewVersionBar() {
   }
 
   // Prominent exit button inside the bar
-  inner += '<button id="preview-exit-btn" class="btn" style="padding: 4px 12px; font-size: 11px; height: 24px; white-space: nowrap; line-height: 1.2; background: #dc2626; color: #ffffff; border: 1px solid #dc2626; font-weight: 600; transition: background 0.15s, border-color 0.15s;">Exit Preview</button>';
+  inner += '<button id="preview-exit-btn" title="Stop previewing versions and return to the project&#39;s own content" class="btn" style="padding: 4px 12px; font-size: 11px; height: 24px; white-space: nowrap; line-height: 1.2; background: #dc2626; color: #ffffff; border: 1px solid #dc2626; font-weight: 600; transition: background 0.15s, border-color 0.15s;">Exit Preview</button>';
 
   bar.innerHTML = inner;
 
@@ -1053,23 +1053,23 @@ function dmRenderPanel(bg) {
         <!-- Producing the export is what this panel is for, so it leads —
              full width, taller than the utility buttons, and never stretched
              (flex:none) no matter what the surrounding column does. -->
-        <button class="btn primary" id="dm-export-versions" ${btnDisabled}
+        <button class="btn primary" id="dm-export-versions" title="Export every data version, each as its own set of banner zips" ${btnDisabled}
           style="flex:none; width:100%; height:52px; padding:0 16px; font-size:14px; font-weight:700; letter-spacing:.01em; display:flex; align-items:center; justify-content:center; gap:10px; box-shadow:0 2px 14px color-mix(in srgb, var(--accent-base) 45%, transparent);">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           <span>${btnLabel}</span>
         </button>
 
         <div style="display:flex; gap:6px; flex-wrap:wrap;">
-          <button class="btn" id="dm-import" style="flex:1;">Import CSV…</button>
-          <button class="btn" id="dm-export" ${dm.columns.length ? '' : 'disabled'} style="flex:1;">Export CSV</button>
+          <button class="btn" id="dm-import" title="Load a CSV or spreadsheet — each row becomes a version of the ad" style="flex:1;">Import CSV…</button>
+          <button class="btn" id="dm-export" title="Export the current version as HTML5 zips" ${dm.columns.length ? '' : 'disabled'} style="flex:1;">Export CSV</button>
         </div>
         <div style="display:flex; gap:8px;">
           <label class="checkbox-row" style="flex:1; display:flex; align-items:center; gap:7px; font-size:11px; padding:7px 10px; background:var(--bg-input); border-radius:5px; cursor:pointer;" title="If checked, CSV has no header row. Column names will be generated automatically.">
-            <input type="checkbox" id="dm-skip-headers" ${dm.skipHeaders ? 'checked' : ''} style="margin:0;"/>
+            <input type="checkbox" id="dm-skip-headers" title="Treat the first row of the sheet as column names rather than data" ${dm.skipHeaders ? 'checked' : ''} style="margin:0;"/>
             Skip header
           </label>
           <label class="checkbox-row" style="flex:1; display:flex; align-items:center; gap:7px; font-size:11px; padding:7px 10px; background:var(--bg-input); border-radius:5px; cursor:pointer;">
-            <input type="checkbox" id="dm-enabled" ${dm.enabled ? 'checked' : ''} style="margin:0;"/>
+            <input type="checkbox" id="dm-enabled" title="Use the loaded data sheet to fill the dynamic slots. Off: every canvas shows its own default content" ${dm.enabled ? 'checked' : ''} style="margin:0;"/>
             Enable merge
           </label>
         </div>
@@ -1091,9 +1091,9 @@ function dmRenderPanel(bg) {
               Versions <span style="color:var(--text-main);">·</span> ${dm.rows.length} row${dm.rows.length === 1 ? '' : 's'}
             </h3>
             <div style="display:flex; align-items:center; gap:6px; margin-left:12px;">
-              <button class="btn" id="dm-table-addcol" style="font-size:10.5px; padding:3px 8px; height:24px;">+ Add Column</button>
-              <button class="btn" id="dm-table-addrow" ${dm.columns.length ? '' : 'disabled'} style="font-size:10.5px; padding:3px 8px; height:24px;">+ Add Row</button>
-              <button class="btn" id="dm-table-delselected" ${dm.rows.some(r => r._selected !== false) ? '' : 'disabled'} style="font-size:10.5px; padding:3px 8px; height:24px; background:rgba(239, 68, 68, 0.05); color:#ef4444; border:1px solid rgba(239, 68, 68, 0.25);">Delete Selected Rows</button>
+              <button class="btn" id="dm-table-addcol" title="Add a column to the data sheet, then bind a layer to it as a dynamic slot" style="font-size:10.5px; padding:3px 8px; height:24px;">+ Add Column</button>
+              <button class="btn" id="dm-table-addrow" title="Add a row — one more version of the ad" ${dm.columns.length ? '' : 'disabled'} style="font-size:10.5px; padding:3px 8px; height:24px;">+ Add Row</button>
+              <button class="btn" id="dm-table-delselected" title="Delete the ticked rows from the data sheet" ${dm.rows.some(r => r._selected !== false) ? '' : 'disabled'} style="font-size:10.5px; padding:3px 8px; height:24px; background:rgba(239, 68, 68, 0.05); color:#ef4444; border:1px solid rgba(239, 68, 68, 0.25);">Delete Selected Rows</button>
             </div>
           </div>
           <div style="font-size:10px; color:var(--text-muted);">
