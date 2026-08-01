@@ -857,6 +857,20 @@ document.getElementById('menu-help-documentation').addEventListener('click', ope
 
 const CHANGELOG_DATA = [
   {
+    version: 'v0.42.3',
+    date: 'August 2026 — Engine v2.19',
+    items: [
+      'Fixed the Jump Cut When Zooming to a Canvas: clicking a canvas in the Canvases panel, or double-clicking a canvas\'s size label, snapped the view to an unrelated part of the board for an instant and then slid from there to the canvas. The cause was ordering: the zoom level was applied and the board redrawn first, while the scroll position still held the offsets that belonged to the OLD zoom — so the first painted frame showed the board at the new scale looking at the wrong place, and only then did a smooth scroll correct it. Zoom and scroll are now interpolated together in a single pass, using the same routine Full preview already used for its zoom-to-fit, so the view travels straight to the canvas with nothing in between.',
+    ],
+  },
+  {
+    version: 'v0.42.2',
+    date: 'August 2026 — Engine v2.19',
+    items: [
+      'Fixed Double-Clicking a Canvas\'s Size Label Doing Nothing: the shortcut added in v0.42.1 never actually fired. Pressing the header starts a canvas drag, and that redraws the board immediately — which replaces the label you just clicked with a brand-new node. A browser only reports a double-click when both clicks land on the same element, so the second one landed on the replacement and the event was never dispatched. The double-click is now recognised from the two presses directly, keyed on the canvas rather than the DOM node, so it survives the redraw. It activates the canvas and zooms it to fit, matching a click in the Canvases panel to the pixel. A single click still just selects and drags as before, and two clicks further apart than 450ms are still two clicks.',
+    ],
+  },
+  {
     version: 'v0.42.1',
     date: 'August 2026 — Engine v2.19',
     items: [

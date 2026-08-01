@@ -13,6 +13,11 @@ const canvasesListEl = document.getElementById('canvases-list');
 // nothing to strip from autosave snapshots or the saved .flow blob.
 let hoverPreviewActive = false;
 
+// Last press on a canvas's size label, so the next one can be recognised as a
+// double-click. Keyed by canvas id because render() replaces the label node
+// between the two clicks — see the header mousedown handler.
+let _lastSizeLabelClick = { id: null, t: 0 };
+
 // setupTextLineBgs() moved to render-runtime.js (shared with preview.html portal).
 
 // hexToRgba() moved to render-runtime.js (shared with preview.html portal).
@@ -662,15 +667,16 @@ function zoomToCanvas(c) {
   const fitZoomY = (area.clientHeight - padding) / c.height;
   const newZoom = Math.min(fitZoomX, fitZoomY, 2.5);
 
-  state.zoom = Math.max(0.6, newZoom);
-  render();
-
+  // Animate zoom and scroll TOGETHER. This used to set state.zoom, render(), and
+  // only then smooth-scroll — so the first painted frame showed the board at the
+  // new scale while the scroll offsets still pointed where the OLD scale had put
+  // things. The view snapped to an unrelated part of the board and then slid to
+  // the canvas: a visible jump cut before the transition. animateViewTo
+  // interpolates both in one pass and defers the re-render to the end, which is
+  // why Full preview already used it.
   const centerX = c.workspaceX + c.width / 2;
   const centerY = c.workspaceY + c.height / 2;
-  const targetScrollLeft = centerX * state.zoom - area.clientWidth / 2;
-  const targetScrollTop = centerY * state.zoom - area.clientHeight / 2;
-
-  area.scrollTo({ left: Math.max(0, targetScrollLeft), top: Math.max(0, targetScrollTop), behavior: 'smooth' });
+  animateViewTo(Math.max(0.6, newZoom), centerX, centerY, 350);
 }
 
 function createCanvasActions(c) {
@@ -1046,23 +1052,35 @@ function canvasFrameNode(c) {
   header.addEventListener('mousedown', (e) => {
     if (state.activeTool === 'zoom') return;
     if (e.target.closest('.canvas-auto-align-btn')) return;
+
+    // Double-click the size label → activate this canvas and zoom it to fit,
+    // exactly as clicking it in the Canvases panel does.
+    //
+    // Detected by hand rather than with a 'dblclick' listener, which could never
+    // fire here: onCanvasHeaderDrag calls render() on the FIRST mousedown, that
+    // rebuilds workspaceEl.innerHTML, and the second click therefore lands on a
+    // freshly created node. dblclick requires both clicks on the same element, so
+    // the browser never dispatched it. Keyed on the canvas id, which survives the
+    // re-render that the DOM node does not.
+    if (e.target.closest('.canvas-size-label')) {
+      const now = Date.now();
+      const isSecondClick = _lastSizeLabelClick.id === c.id && (now - _lastSizeLabelClick.t) < 450;
+      _lastSizeLabelClick = isSecondClick ? { id: null, t: 0 } : { id: c.id, t: now };
+      if (isSecondClick) {
+        e.stopPropagation();
+        e.preventDefault();
+        state.activeCanvasId = c.id;
+        state.selectedElementId = null;
+        state.editingElementId = null;
+        state.layerSelection = [];
+        zoomToCanvas(c);
+        return;                     // and do NOT also start dragging the canvas
+      }
+    }
+
     onCanvasHeaderDrag(e, c);
   });
 
-  // Double-clicking the size label does exactly what clicking the canvas in the
-  // Canvases panel does — activate it and zoom it to fit. Same behaviour, reached
-  // from the board instead of the panel. Double-click rather than single because
-  // a single press on the header already begins a canvas drag.
-  const sizeLabel = header.querySelector('.canvas-size-label');
-  if (sizeLabel) sizeLabel.addEventListener('dblclick', (e) => {
-    e.stopPropagation();
-    e.preventDefault();
-    state.activeCanvasId = c.id;
-    state.selectedElementId = null;
-    state.editingElementId = null;
-    state.layerSelection = [];
-    zoomToCanvas(c);
-  });
   frame.appendChild(header);
 
   if (state.singlePreviewId && !isSinglePreview) {
