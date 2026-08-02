@@ -214,10 +214,38 @@ function buildRiseContentHTML(el, esc, isImageExport, opts) {
 // wrapper carrying every parameter as data attributes; setupCursorLines
 // (render-runtime.js, serialized into exports) measures the lines and builds
 // each one's mask/slider/caret around them at runtime.
+// A text layer's background belongs INSIDE this entrance, not outside it.
+// Every other preset lets the layer's own span paint the background, but that
+// span now contains the cursor's mask, so the colour would be on screen before
+// its text arrived — and `box-decoration-break: clone` would collapse from one
+// rectangle per line to a single block-wide one, because the span's only child
+// is a lone inline-block. Painting it on the sliding strip instead keeps the
+// chip travelling with its text and leaves the resting layout untouched.
+// Buttons are excluded: their fill is chrome, animated by buttonChromeEntranceCSS.
+function cursorOwnsTextBg(el, animType, isImageExport) {
+  return animType === 'cursor' && !isImageExport && el.type === 'text' && !!el.hasBg;
+}
+
+// The text-background declaration, shared so the layer's own span and the
+// Cursor Slide strip cannot drift apart.
+function textBgParts(el) {
+  const lr = el.bgPadL !== undefined ? el.bgPadL : 8;
+  const tb = el.bgPadV !== undefined ? el.bgPadV : 4;
+  const cov = el.bgCoverage !== undefined ? el.bgCoverage : 100;
+  const opa = (el.bgOpacity !== undefined ? el.bgOpacity : 100) / 100;
+  const rgba = hexToRgba(el.bg || '#000000', opa);
+  return {
+    lr, tb, cov, rgba,
+    css: `background-image:linear-gradient(${rgba},${rgba});background-repeat:no-repeat;background-position:left center;background-size:${cov}% 100%;padding:${tb}px ${lr}px;`
+  };
+}
+
 function buildCursorContentHTML(el, esc, isImageExport, opts) {
   const text = el.text || '';
   const lines = text.split('\n');
   if (isImageExport) return lines.map(l => esc(l)).join('<br/>');
+  const ownsBg = cursorOwnsTextBg(el, 'cursor', isImageExport);
+  const bg = ownsBg ? textBgParts(el) : null;
 
   const perLine = el.cursorSplit === 'line';
   const center = !!el.cursorCenter;
@@ -269,9 +297,15 @@ function buildCursorContentHTML(el, esc, isImageExport, opts) {
       if (!/\S/.test(line)) return esc(line);
       return line.split(/(\s+)/).map(tok => /\S/.test(tok) ? parked(tok) : tok).join('');
     }).join('<br/>');
+    // The background travels as each line's own chip, applied by the hook to
+    // the slider it builds — one slider per line means one rectangle per line,
+    // matching what the layer paints at rest.
+    const bgAttrs = bg
+      ? ` data-cur-bg="${bg.rgba}" data-cur-bg-pad-l="${bg.lr}" data-cur-bg-pad-v="${bg.tb}" data-cur-bg-cov="${bg.cov}"`
+      : '';
     return `<span data-cursor-lines="1" data-cur-dur="${totalDur}" data-cur-delay="${baseDelay}"` +
       ` data-cur-lead="${lead.toFixed(3)}" data-cur-fade="${fade ? 1 : 0}" data-cur-center="${center ? 1 : 0}"` +
-      `${cursorLineExitAttrs(el, opts)}` +
+      `${bgAttrs}${cursorLineExitAttrs(el, opts)}` +
       ` style="display:inline-block; position:relative; max-width:100%; vertical-align:bottom;">` +
       `${inner}${caretSpan('', true)}</span>`;
   }
@@ -291,7 +325,13 @@ function buildCursorContentHTML(el, esc, isImageExport, opts) {
   const caretAnims = `anim-fade-in 0.01s linear ${baseDelay.toFixed(3)}s both, ` +
     `anim-cursor-blink ${lead.toFixed(3)}s linear ${baseDelay.toFixed(3)}s, ` +
     `anim-cursor-hide 0.12s ease ${(slideStart + slideDur * CARET_SETTLE).toFixed(3)}s forwards`;
-  const inner = lines.map(l => esc(l)).join('<br/>');
+  // With a background the text is wrapped in an inline span carrying it, so
+  // box-decoration-break still yields one chip per wrapped line — the whole
+  // stack then slides out of the cursor together.
+  const rawInner = lines.map(l => esc(l)).join('<br/>');
+  const inner = bg
+    ? `<span style="display:inline;${bg.css}box-decoration-break:clone;-webkit-box-decoration-break:clone;">${rawInner}</span>`
+    : rawInner;
   // data-fit-ignore: these two carry the entrance transforms, and a transform
   // expands an ancestor's scrollable overflow — a wrapper parked at
   // translateX(53%) for "Center out" inflates the auto-sizer's scrollWidth
@@ -2270,7 +2310,11 @@ function _generateExportHTMLRaw(targetCanvas, zipRef, isImageExport = false, opt
       let bgDataAttrs = '';
       const fadeBg = el.animFadeBg !== undefined ? el.animFadeBg : (el.type === 'button' ? true : !!el.animateBg);
       const useLineBgScript = el.hasBg && fadeBg && !isImageExport && isTypingFamilyEntrance(animType);
-      if (el.hasBg) {
+      // Cursor Slide paints the background itself, on the strip that slides out
+      // of the cursor (see cursorOwnsTextBg) — the layer must not also paint it
+      // here, outside the mask.
+      const bgOwnedByEntrance = cursorOwnsTextBg(el, animType, isImageExport);
+      if (el.hasBg && !bgOwnedByEntrance) {
         const lr = el.bgPadL !== undefined ? el.bgPadL : 8;
         const tb = el.bgPadV !== undefined ? el.bgPadV : 4;
         const cov = el.bgCoverage !== undefined ? el.bgCoverage : 100;
@@ -2301,7 +2345,7 @@ function _generateExportHTMLRaw(targetCanvas, zipRef, isImageExport = false, opt
 
 
 
-      const innerSpan = el.hasBg
+      const innerSpan = (el.hasBg && !bgOwnedByEntrance)
         ? `<span${bgDataAttrs}${spanClass} style="color:${el.color};font-size:${el.fontSize}px;font-weight:${el.weight};line-height:${resolvedLH};font-family:${ff};${lsStyle}word-break:normal;overflow-wrap:normal;${bgStyle}">${content}</span>`
         : `<span${spanClass} style="display:inline;color:${el.color};font-size:${el.fontSize}px;font-weight:${el.weight};line-height:${resolvedLH};font-family:${ff};${lsStyle}word-break:normal;overflow-wrap:normal;">${content}</span>`;
       // font-size + line-height on the wrapper div eliminates the inherited body strut

@@ -228,6 +228,30 @@ function setupCursorLines(wrapper) {
   var center = wrapper.getAttribute('data-cur-center') === '1';
   var EASE = 'cubic-bezier(0.19, 1, 0.22, 1)';
   var blockW = wrapper.offsetWidth;   // whole block, measured before any surgery
+  var bgColor = wrapper.getAttribute('data-cur-bg');
+  var bgPadL = parseFloat(wrapper.getAttribute('data-cur-bg-pad-l')) || 0;
+  var bgPadV = parseFloat(wrapper.getAttribute('data-cur-bg-pad-v')) || 0;
+  var bgCov = parseFloat(wrapper.getAttribute('data-cur-bg-cov'));
+  if (isNaN(bgCov)) bgCov = 100;
+
+  // A background chip is the line's text PLUS its horizontal padding, so a line
+  // may only be as wide as the box minus that padding. The words are parked
+  // unpadded, so they would wrap later than the finished chips do and a group
+  // measured here would re-wrap inside its own slider once the padding lands.
+  // Measuring under the same constraint the chips will face keeps one measured
+  // line to one rendered line.
+  var measureCap = 0;
+  if (bgColor) {
+    // The immediate parent is the layer's own text span, which is inline and
+    // therefore reports clientWidth 0 — walk up to the nearest block container
+    // for the real available width, or the block would be capped at the floor
+    // below and every word would land on its own line.
+    var host = wrapper.parentElement;
+    while (host && !host.clientWidth) host = host.parentElement;
+    var avail = host ? host.clientWidth : blockW;
+    measureCap = Math.max(20, avail - 2 * bgPadL);
+    wrapper.style.maxWidth = measureCap + 'px';
+  }
 
   // Pass 1 — measure and classify. NOTHING is mutated until every offsetTop
   // has been read: removing a <br> reflows the text, and any word measured
@@ -257,7 +281,9 @@ function setupCursorLines(wrapper) {
       cur.nodes.push(n);
     }
   }
-  // Pass 2 — surgery, now that measurement is complete.
+  // Pass 2 — surgery, now that measurement is complete. The measuring cap comes
+  // off here: each line's padding now lives on its own slider instead.
+  if (measureCap) wrapper.style.maxWidth = '';
   for (var ri = 0; ri < removeBrs.length; ri++) wrapper.removeChild(removeBrs[ri]);
 
   var count = Math.max(1, groups.length);
@@ -297,6 +323,17 @@ function setupCursorLines(wrapper) {
     var slider = document.createElement('span');
     slider.style.cssText = 'display:inline-block;transform:translateX(-106%);';
     slider.setAttribute('data-fit-ignore', '1');
+    // A text background rides the strip rather than sitting outside the mask,
+    // so it slides out with its line instead of waiting on screen for it. One
+    // slider per line means one chip per line, which is what the layer paints
+    // at rest.
+    if (bgColor) {
+      slider.style.backgroundImage = 'linear-gradient(' + bgColor + ',' + bgColor + ')';
+      slider.style.backgroundRepeat = 'no-repeat';
+      slider.style.backgroundPosition = 'left center';
+      slider.style.backgroundSize = bgCov + '% 100%';
+      slider.style.padding = bgPadV + 'px ' + bgPadL + 'px';
+    }
     mask.appendChild(slider);
     wrap.appendChild(mask);
     row.appendChild(wrap);

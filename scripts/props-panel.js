@@ -3694,6 +3694,16 @@ function checkButtonFontSizeWarning(el) {
             if (target) {
               target.dataset.origHtml = target.innerHTML;
               target.dataset.origStyle = target.getAttribute('style') || '';
+              // Cursor Slide paints a text layer's background on the strip that
+              // slides out of the cursor (see cursorOwnsTextBg), so the layer's
+              // own background has to come off for the preview — otherwise it
+              // shows twice, and the outer copy sits outside the mask in full
+              // view before its text has arrived. origStyle is put back when
+              // the preview stops.
+              if (previewVal === 'cursor' && mergedEl.type === 'text' && mergedEl.hasBg) {
+                target.style.background = 'none';
+                target.style.padding = '0';
+              }
               const overrides = typeof dmDisplay === 'function' ? dmDisplay(mergedEl) : {};
               const displayText = overrides.text !== undefined ? overrides.text : (mergedEl.text || '');
 
