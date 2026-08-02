@@ -857,6 +857,13 @@ document.getElementById('menu-help-documentation').addEventListener('click', ope
 
 const CHANGELOG_DATA = [
   {
+    version: 'v0.42.4',
+    date: 'August 2026 — Engine v2.19',
+    items: [
+      'Fixed the All-Versions Validator Failing Ads That Are Actually Under the Limit: with Dynamic Data versions in play, the batch validator reported filesizes well above the real ones and flagged versions that export comfortably under the 150KB limit. It was measuring the wrong thing — the raw, uncompressed HTML string with every image still embedded as base64 text, instead of the finished zip. Base64 adds roughly a third to an image\'s size, and none of it had been through the zip\'s DEFLATE compression, so the number ran several times higher than the file that actually ships (over three times on our test project). The validator now builds a real zip per version, exactly the way the export does, and reports that. Sizing is also no longer duplicated: the export panel, the batch WebP scan and this validator all call one shared routine, so the three can no longer drift apart again.',
+    ],
+  },
+  {
     version: 'v0.42.3',
     date: 'August 2026 — Engine v2.19',
     items: [

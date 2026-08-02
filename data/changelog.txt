@@ -1,6 +1,9 @@
 RMIT Adflow - Version & Changelog History
 
-v0.42.3 (Current) - August 2026 — Engine v2.19
+v0.42.4 (Current) - August 2026 — Engine v2.19
+- Fixed the All-Versions Validator Failing Ads That Are Actually Under the Limit: with Dynamic Data versions in play, the batch validator reported filesizes well above the real ones and flagged versions that export comfortably under the 150KB limit. It was measuring the wrong thing — the raw, uncompressed HTML string with every image still embedded as base64 text, instead of the finished zip. Base64 adds roughly a third to an image's size, and none of it had been through the zip's DEFLATE compression, so the number ran several times higher than the file that actually ships (over three times on our test project). The validator now builds a real zip per version, exactly the way the export does, and reports that. Sizing is also no longer duplicated: the export panel, the batch WebP scan and this validator all call one shared routine, so the three can no longer drift apart again.
+
+v0.42.3 - August 2026 — Engine v2.19
 - Fixed the Jump Cut When Zooming to a Canvas: clicking a canvas in the Canvases panel, or double-clicking a canvas's size label, snapped the view to an unrelated part of the board for an instant and then slid from there to the canvas. The cause was ordering: the zoom level was applied and the board redrawn first, while the scroll position still held the offsets that belonged to the OLD zoom — so the first painted frame showed the board at the new scale looking at the wrong place, and only then did a smooth scroll correct it. Zoom and scroll are now interpolated together in a single pass, using the same routine Full preview already used for its zoom-to-fit, so the view travels straight to the canvas with nothing in between.
 
 v0.42.2 - August 2026 — Engine v2.19

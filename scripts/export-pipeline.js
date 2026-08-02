@@ -2826,6 +2826,22 @@ ${options.previewControls ? `
 </html>`;
 }
 
+// The ONE size measurement. Builds a real zip — images as binary entries, then
+// DEFLATE — so the figure matches what actually lands on disk. Module scope
+// because both the export modal and runAllVersionsValidator need it; when this
+// lived inside openExportModal the validator could not reach it and measured
+// uncompressed base64 HTML instead, over-reporting by a wide margin.
+async function calculateCanvasZipSize(c, versionIdx) {
+  if (typeof JSZip === 'undefined') return 0;
+  const zip = new JSZip();
+  await dmRunExport(versionIdx, async () => {
+    await addCanvasAssetsToZip(c, zip);
+    zip.file('index.html', generateExportHTML(c, zip));
+  });
+  const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+  return parseFloat((blob.size / 1024).toFixed(1));
+}
+
 function openExportModal() {
   const projName = state.projectName || 'Ad';
   const defaultPrefix = projName.replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -2998,17 +3014,6 @@ function openExportModal() {
     modal.style.width = '1200px';
     modal.style.maxWidth = '95vw';
   }
-
-  const calculateCanvasZipSize = async (c, versionIdx) => {
-    if (typeof JSZip === 'undefined') return 0;
-    const zip = new JSZip();
-    await dmRunExport(versionIdx, async () => {
-      await addCanvasAssetsToZip(c, zip);
-      zip.file('index.html', generateExportHTML(c, zip));
-    });
-    const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
-    return parseFloat((blob.size / 1024).toFixed(1));
-  };
 
   const chkAll = modalBg.querySelector('#chk-all');
   const chks = modalBg.querySelectorAll('.export-chk');
@@ -4042,12 +4047,13 @@ function runAllVersionsValidator() {
     const restore = dmBakeRow(currentIdx);
     try {
       for (const c of state.canvases) {
-        let html = generateExportHTML(c);
         const ctCol = dm.mappings['clicktag::url'];
         const ct = (ctCol && row[ctCol]) ? row[ctCol] : (state.clickTag || 'No clickTag');
 
-        // Compliance checks
-        const kb = (new Blob([html]).size / 1024).toFixed(1);
+        // Compliance checks. Measure the real zip, exactly as the export does —
+        // sizing the raw HTML string here counted base64 images uncompressed and
+        // failed ads that ship well under the limit.
+        const kb = (await calculateCanvasZipSize(c, currentIdx)).toFixed(1);
         const limitKb = state.adSizeLimit || 150;
         let errors = [];
         if (!ct || ct === 'No clickTag') {

@@ -1,0 +1,157 @@
+================================================================================
+ADFLOW - ERROR LOG
+================================================================================
+Format: one entry per defect. Newest at the top.
+Status values: OPEN | PATCHED (unverified) | FIXED (verified) | WONTFIX
+Each entry must be readable cold, with no prior conversation context.
+================================================================================
+
+
+--------------------------------------------------------------------------------
+[EL-001] All-versions validator reports oversize for ads that are actually under
+--------------------------------------------------------------------------------
+Status:      FIXED (verified) - shipped in v0.42.4
+Reported:    2026-08-02
+Fixed:       2026-08-02
+Area:        scripts/export-pipeline.js - export panel, all-versions validation
+Severity:    High - blocks/alarms on compliant ads; erodes trust in the validator
+
+SYMPTOM
+  With Dynamic Data versions in play, the export panel's all-versions validator
+  flags canvases as "Filesize (N KB) exceeds 150KB limit". Exporting those same
+  canvases produces zips comfortably UNDER the limit. User confirmed by exporting
+  and checking the file sizes on disk.
+
+ROOT CAUSE  (confirmed by reading the code, not inferred)
+  There are TWO different size implementations in this file, and they do not
+  measure the same thing.
+
+  1. calculateCanvasZipSize()            export-pipeline.js:3002
+     Correct. Builds a REAL zip: addCanvasAssetsToZip() writes images as binary
+     entries, then generateAsync({type:'blob', compression:'DEFLATE'}).
+     Used by the single-version audit (:3109) and the batch WebP scan (:3353).
+
+  2. runAllVersionsValidator()           export-pipeline.js:3972
+     Wrong. At :4049 it does:
+
+         let html = generateExportHTML(c);          // <-- no zipRef argument
+         const kb = (new Blob([html]).size / 1024).toFixed(1);
+
+     and trips the limit at :4086.
+
+  Two compounding inflations make this figure much larger than the real zip:
+
+    (a) No zipRef  ->  images are never extracted. _generateExportHTMLRaw()
+        only pulls data URIs out into zip entries when zipRef is truthy:
+
+            export-pipeline.js:2083
+            if (zipRef && src.startsWith('data:image/')) {
+              ...
+              zipRef.file(filename, b64Data, { base64: true });
+            }
+
+        With no zipRef every image stays inline as a base64 data URI.
+        Base64 is ~+33% over the raw binary.
+
+    (b) No compression  ->  new Blob([html]).size is the raw uncompressed byte
+        count. The real export runs DEFLATE, and base64 text compresses hard.
+
+  Net effect is a large OVER-count, exactly matching the symptom.
+  (Minor opposing error: the no-zipRef path sets fontPrefix='data/fonts/' at
+  :2313 so fonts are referenced by path, not bundled - a small UNDER-count.
+  It does not come close to offsetting (a)+(b).)
+
+WHY IT WAS WRITTEN THIS WAY
+  calculateCanvasZipSize is a `const` declared INSIDE openExportModal (:3002).
+  runAllVersionsValidator is a top-level function (:3972) and therefore cannot
+  see it. It re-implemented sizing, badly. Any fix must deal with this scoping
+  problem, not just the arithmetic.
+
+APPLIED FIX  (v0.42.4)
+  1. Hoisted calculateCanvasZipSize out of openExportModal to module scope
+     (now export-pipeline.js:2834, an `async function` directly above
+     openExportModal). Confirmed first that it closes over NOTHING from the
+     modal - it only uses globals JSZip, dmRunExport, addCanvasAssetsToZip,
+     generateExportHTML. All three callers now share it:
+       :3114  single-version modal audit
+       :3358  batch WebP scan
+       :4056  runAllVersionsValidator   <- the fix
+  2. In runAllVersionsValidator, replaced the raw-HTML measurement with
+       const kb = (await calculateCanvasZipSize(c, currentIdx)).toFixed(1);
+
+  Drafted traps, and how each turned out:
+   - "validator is synchronous" - it is, but the size work happens inside
+     `const processNextRow = async () => {...}`, which was ALREADY async. No
+     signature change and no call-site churn were needed.
+   - "nested bake" - processNextRow already holds dmBakeRow(currentIdx) open,
+     and calculateCanvasZipSize bakes again via dmRunExport. Verified safe:
+     dmBakeRow (data-merge.js:701) snapshots current values and its returned
+     closure restores exactly that snapshot, so nesting unwinds LIFO and a
+     repeat bake of the same row is a no-op. dmRunExport also saves/restores
+     activeVersion. Production already nests two deep (dmRunExport ->
+     generateExportHTML bakes again), so this was proven-safe ground.
+   - "`html` still used below" - it was NOT. Grep showed `html` referenced only
+     on its own assignment line and the size line, so it was deleted outright,
+     which also removes a redundant full HTML generation per canvas per version.
+
+VERIFIED  (scratchpad/el001-test.mjs, 4/4 pass, no page errors)
+  Fixture: 1 canvas, 1 image slot, 3 versions (light/heavy/light PNGs).
+  Independent ground-truth zip sizes: 8.2 / 13.2 / 8.2 KB.
+    - under-limit versions are no longer flagged at a 150KB limit  (was the bug)
+    - the validator's reported KB now equals the real per-version zip exactly
+      (8.2 / 13.2 / 8.2)
+    - at a 10KB limit only version 2 trips - the one genuinely over
+    - the old method measured 30.1 / 38.4 / 30.1 KB for those same versions,
+      i.e. it over-reported by 3.67x / 2.91x / 3.67x. That ratio is the bug:
+      on a real ad it is what pushes a compliant ~140KB build past 150.
+
+RULED OUT  (do not re-investigate these)
+  - Estimate-vs-measure across the other paths. Per-canvas validator, export
+    modal audit, batch audit and the final zip ALL build a real DEFLATE zip.
+    Consistent. Only runAllVersionsValidator is the outlier.
+  - The export modal's own audit being wrong in all-versions mode. It is not
+    wrong, it is ABSENT: at :3090 `if (hasVersions && mode === 'all')` renders
+    '-' for weight/clicktag/specs/a11y/brand and `return null` before any size
+    work. The all-versions figures the user sees come from
+    runAllVersionsValidator, not from that audit.
+
+FALSE TRAIL ALREADY BURNED  (cost a full context window - do not repeat)
+  First hypothesis blamed exportVersionIdx staying null in all-versions mode.
+  The modal audit was patched to loop every version and take the max, and a
+  test appeared to "confirm" it by showing 8.2 / 13.2 / 8.2 tracking the active
+  version. That was a STALE READ: _valKb still held the value from the modal's
+  initial single-version audit, so the wait loop exited immediately. After
+  clearing _valKb the value came back null, proving the audit never runs in
+  that mode at all. The patch was reverted. Tree is clean at v0.42.3.
+
+  Lesson, applies to any future export-modal test: ALWAYS
+  `state.canvases.forEach(c => { delete c._valKb; delete c._valErrors; })`
+  before switching mode, then wait for repopulation. Otherwise you are reading
+  the previous audit.
+
+VERIFICATION HARNESS  (already written, fixture works, reusable)
+  scratchpad/validator-size-test.mjs
+  Headless Chrome + raw CDP, zero deps. Needs `python -m http.server 8123` in
+  the repo root first. Builds 1 canvas + 1 image slot + 3 data versions
+  (light/heavy/light PNGs), computes independent ground-truth per-version zip
+  sizes via dmRunExport + addCanvasAssetsToZip + DEFLATE, then drives the real
+  UI. Ground truth on that fixture: 8.2 / 13.2 / 8.2 KB.
+
+  To retarget it at EL-001: point the assertions at runAllVersionsValidator's
+  output instead of the modal audit's _valKb. The bug should show as the
+  validator reporting a figure far ABOVE 13.2 for the heavy version (and above
+  8.2 for the light ones) while ground truth says they pass.
+
+  Fixture gotcha already solved: state.dataMerge needs a `mappings` object, or
+  dmFieldActive (data-merge.js:131) throws. Required shape:
+      state.dataMerge.mappings[dmSlotKey(el) + '::image'] = 'Hero';
+
+STILL OPEN, NOT PART OF THIS BUG
+  export-pipeline.js:3095 (was :3090)  all-versions mode shows '-' for every
+  audit column. In that mode the export table gives no per-canvas
+  weight/clicktag/specs/a11y/brand readout at all - the numbers come only from
+  the separate "Validate all versions" button. Decide separately whether the
+  table should compute per-version maxima instead of dashes. Left as-is: it is
+  a UI gap, not a wrong number, and the reported defect is now fixed.
+
+================================================================================
