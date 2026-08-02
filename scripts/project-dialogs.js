@@ -1959,7 +1959,7 @@ document.getElementById('menu-help-shortcuts').addEventListener('click', () => {
 
 
 function checkVersionUpdate() {
-  const currentVersion = 'v0.43.0';
+  const currentVersion = 'v0.44.0';
   const lastSeen = localStorage.getItem('last-seen-version');
   
   if (!lastSeen) {
@@ -2010,7 +2010,7 @@ function checkVersionUpdate() {
 
 
 document.getElementById('menu-about').addEventListener('click', () => {
-  const currentVersion = 'v0.43.0';
+  const currentVersion = 'v0.44.0';
   const body = `
       <div style="font-size:13px; line-height:1.75; color:var(--text-main); font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
         <p style="margin: 0 0 16px 0;"><strong>RMIT Adflow</strong> is a specialized, lightweight HTML5 display advertisement creation and automation platform. Designed to eliminate the overhead and complexities of legacy ad builders, Adflow offers a fast, precise, and visual environment for building, validating, and exporting high-performance advertising creatives.</p>
@@ -2188,7 +2188,7 @@ function openSettings() {
           <div class="modal-head" style="border-bottom:1px solid var(--border-light); background:var(--bg-panel); flex-shrink:0;">
             <div style="display:flex; align-items:center; gap:12px; flex:1;">
               <h2 style="margin:0; font-size:14px; font-weight:600; color:var(--text-bright);">Settings</h2>
-              <span style="font-size:11px; color:var(--text-muted);">v0.43.0</span>
+              <span style="font-size:11px; color:var(--text-muted);">v0.44.0</span>
               <button id="settings-changelog" title="See what changed in this and previous versions of Adflow" class="btn" style="padding:4px 8px; font-size:10px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; cursor:pointer;">Changelog</button>
             </div>
             <button class="btn" id="settings-close" title="Close without keeping any change made since the dialog opened">Close</button>

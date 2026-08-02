@@ -186,12 +186,186 @@ function setupPopLines(wrapper) {
   }
 }
 
+// 'Cursor' Line mode — the same post-layout trick as setupRiseLines, taken one
+// step further. Rise groups per-word masks into visual lines and staggers one
+// shared animation per line; the Cursor's line has to slide out of ONE mask at
+// the line's left edge, so grouping alone isn't enough — this rebuilds the DOM
+// around the measured lines. The builder parks each word in a marker span
+// (opacity 0, laid out normally); this measures which visual line each word
+// landed on — wrapped lines count, not just typed ones — then wraps every
+// line's nodes in a block row > inline-block wrap > overflow mask > slider and
+// staggers the slides. Making each line a block row is also what pins the
+// measured grouping: an inline-block mask can't re-wrap mid-line, so the text
+// can't reflow into a different grouping than the one measured.
+//
+// The <br>s that separated typed lines are now redundant (each line is its own
+// block row), so one <br> per run between lines is removed — any extras stay,
+// keeping deliberately blank lines blank.
+//
+// Each line gets its OWN caret, sized to that line and running its own
+// timeline: it appears one lead before its line moves, blinks, and leaves once
+// that line has landed — so the carets overlap and cascade down the block
+// rather than one bar waiting at the top. They are CLONED from the single
+// caret the builder emitted, which keeps the bar's geometry (width, the gap to
+// the text, the vertical overhang) defined in exactly one place; the template
+// itself is removed once the clones are placed. Because each caret now lives
+// inside its own line's relatively-positioned wrapper, "Center out" needs
+// nothing special here — the wrapper carries the shared percent keyframes and
+// the caret rides along with it, exactly as in Whole block mode.
+//
+// Serialized into exports via .toString(), so every parameter arrives as a
+// data attribute and nothing outside the function may be referenced.
+function setupCursorLines(wrapper) {
+  if (wrapper.dataset.curInited) return;
+  if (wrapper.offsetWidth === 0 && wrapper.offsetHeight === 0) return; // not laid out yet (hidden frame)
+  var words = wrapper.querySelectorAll('[data-cur-word]');
+  if (!words.length) return;
+  wrapper.dataset.curInited = '1';
+  var totalDur = parseFloat(wrapper.getAttribute('data-cur-dur')) || 1;
+  var baseDelay = parseFloat(wrapper.getAttribute('data-cur-delay')) || 0;
+  var lead = parseFloat(wrapper.getAttribute('data-cur-lead')) || 0.25;
+  var fade = wrapper.getAttribute('data-cur-fade') === '1';
+  var center = wrapper.getAttribute('data-cur-center') === '1';
+  var EASE = 'cubic-bezier(0.19, 1, 0.22, 1)';
+  var blockW = wrapper.offsetWidth;   // whole block, measured before any surgery
+
+  // Pass 1 — measure and classify. NOTHING is mutated until every offsetTop
+  // has been read: removing a <br> reflows the text, and any word measured
+  // after that can land on the wrong line (an explicit two-line text whose
+  // rows happen to fit side by side would collapse into one group).
+  // Whitespace text nodes travel with the line they follow — at a wrap
+  // boundary that leaves a trailing space inside the earlier line's slider,
+  // which renders as nothing.
+  var nodes = Array.prototype.slice.call(wrapper.childNodes);
+  var groups = [];
+  var removeBrs = [];
+  var cur = null;
+  var curTop = null;
+  var brRun = [];
+  for (var i = 0; i < nodes.length; i++) {
+    var n = nodes[i];
+    var isEl = n.nodeType === 1;
+    if (isEl && n.hasAttribute('data-cur-caret')) continue;
+    if (isEl && n.tagName === 'BR') { brRun.push(n); continue; }
+    if (isEl && n.hasAttribute('data-cur-word')) {
+      if (brRun.length && groups.length) removeBrs.push(brRun[0]);
+      brRun = [];
+      var t = n.offsetTop;
+      if (cur === null || Math.abs(t - curTop) > 2) { cur = { nodes: [] }; groups.push(cur); curTop = t; }
+      cur.nodes.push(n);
+    } else if (cur && !brRun.length) {
+      cur.nodes.push(n);
+    }
+  }
+  // Pass 2 — surgery, now that measurement is complete.
+  for (var ri = 0; ri < removeBrs.length; ri++) wrapper.removeChild(removeBrs[ri]);
+
+  var count = Math.max(1, groups.length);
+  var step = totalDur / count;
+  var slideDur = Math.max(0.3, Math.round(totalDur * 0.55 * 100) / 100);
+  // Untype exit, staged per line in REVERSE (the last line leaves first), the
+  // same as Pop's line mode. Parameters arrive as data attributes because the
+  // line count is only knowable post-layout.
+  var xStart = parseFloat(wrapper.getAttribute('data-cur-exit-start'));
+  var xTotal = parseFloat(wrapper.getAttribute('data-cur-exit-dur'));
+  var xFade = wrapper.getAttribute('data-cur-exit-fade') === '1';
+  var hasExit = isFinite(xStart) && isFinite(xTotal);
+  var xStep = hasExit ? xTotal / count : 0;
+  var caretTpl = wrapper.querySelector('[data-cur-caret]');
+  // Every caret leaves together, once the LAST line has arrived — they cascade
+  // in one at a time but clear in a single beat, so the block finishes as one
+  // rather than trailing a row of cursors blinking out one by one. The 0.85
+  // matches CARET_SETTLE in buildCursorContentHTML: the slide's expo-out stops
+  // reading as movement well before it formally ends, so they go then instead
+  // of sitting on stationary text.
+  var caretHideAt = baseDelay + (count - 1) * step + lead + slideDur * 0.85;
+  var centered = [];   // wraps awaiting their shared Center-out offset (below)
+
+  for (var gi = 0; gi < groups.length; gi++) {
+    var g = groups[gi];
+    var row = document.createElement('span');
+    row.style.display = 'block';
+    var wrap = document.createElement('span');
+    wrap.style.cssText = 'display:inline-block;position:relative;max-width:100%;vertical-align:bottom;';
+    // See the data-fit-ignore note in buildCursorContentHTML: these carry the
+    // entrance transforms and must not be measured in their animated position.
+    // This hook runs after adjustAutoSizes, so it is insurance for any later
+    // re-fit rather than the first line of defence.
+    wrap.setAttribute('data-fit-ignore', '1');
+    var mask = document.createElement('span');
+    mask.style.cssText = 'display:block;overflow:hidden;padding-bottom:0.08em;margin-bottom:-0.08em;';
+    var slider = document.createElement('span');
+    slider.style.cssText = 'display:inline-block;transform:translateX(-106%);';
+    slider.setAttribute('data-fit-ignore', '1');
+    mask.appendChild(slider);
+    wrap.appendChild(mask);
+    row.appendChild(wrap);
+    wrapper.insertBefore(row, g.nodes[0]);
+    for (var ni = 0; ni < g.nodes.length; ni++) {
+      slider.appendChild(g.nodes[ni]);
+      if (g.nodes[ni].style) g.nodes[ni].style.opacity = '';
+    }
+    // With Center out the carets do NOT stagger: they all appear together,
+    // hold, and only then do the lines slide out one after another. Each
+    // centered wrapper is parked mid-line until its own slide begins (the
+    // animation's backwards fill), so staggered carets would pop into view at
+    // scattered positions down the block. Without centering every caret sits
+    // at the same left edge, where arriving one at a time is the whole point.
+    var show = center ? baseDelay : (baseDelay + gi * step);
+    var slide = baseDelay + lead + gi * step;  // the line's text always staggers
+    var del = slide.toFixed(3);
+    var exitCss = '';
+    if (hasExit) {
+      var xdel = (xStart + (count - 1 - gi) * xStep).toFixed(3);
+      exitCss = ', anim-fade-out ' + (xFade ? 0.3 : 0.01) + 's linear ' + xdel + 's forwards';
+    }
+    slider.style.animation = 'anim-cursor-slide ' + slideDur + 's ' + EASE + ' ' + del + 's both' +
+      (fade ? ', anim-fade-in ' + slideDur + 's linear ' + del + 's both' : '') + exitCss;
+    if (center) centered.push([wrap, del]);
+    if (caretTpl) {
+      var caret = caretTpl.cloneNode(true);
+      wrap.appendChild(caret);
+      caret.style.animation = 'anim-fade-in 0.01s linear ' + show.toFixed(3) + 's both, ' +
+        'anim-cursor-blink ' + lead.toFixed(3) + 's linear ' + show.toFixed(3) + 's, ' +
+        'anim-cursor-hide 0.12s ease ' + caretHideAt.toFixed(3) + 's forwards';
+    }
+  }
+  if (caretTpl && caretTpl.parentNode) caretTpl.parentNode.removeChild(caretTpl);
+
+  // Center out, second pass: park every line's cursor on ONE shared column so
+  // they read as a single vertical bar while they wait.
+  //
+  // The shared offset is the whole point. Left to the keyframe's default each
+  // wrapper starts half of ITS OWN width to the right, and since the lines are
+  // different widths the cursors landed at different x — a scattered diagonal
+  // down the block instead of one bar. So each wrapper instead gets the exact
+  // offset that puts its left edge (and therefore its cursor) on the shared
+  // column, which also makes this correct for centre- and right-aligned text,
+  // where the rows do not even share a left edge. From there each line still
+  // slides out from under its own cursor exactly as before.
+  //
+  // Measured after the rows are built (offsetLeft is layout-only, so the
+  // wrappers' own transforms don't disturb it) and applied before the
+  // animation is attached, so the custom property is resolved from the start.
+  if (centered.length) {
+    var columnX = blockW * 0.53;
+    for (var ci = 0; ci < centered.length; ci++) {
+      var cw = centered[ci][0];
+      var shift = columnX - cw.offsetLeft;
+      if (!(shift > 0)) shift = 0;
+      cw.style.setProperty('--cur-shift', shift.toFixed(1) + 'px');
+      cw.style.animation = 'anim-cursor-center ' + slideDur + 's ' + EASE + ' ' + centered[ci][1] + 's both';
+    }
+  }
+}
+
 // One entry point for every post-layout line-stagger hook, so adding another
 // line-mode preset needs no new call sites (there are nine).
 function setupLineStaggers(root) {
   if (!root || !root.querySelectorAll) return;
   root.querySelectorAll('[data-rise-lines]').forEach(setupRiseLines);
   root.querySelectorAll('[data-pop-lines]').forEach(setupPopLines);
+  root.querySelectorAll('[data-cursor-lines]').forEach(setupCursorLines);
 }
 
 // Runtime per-line BG measurement: reads the per-char spans inside `wrapper`,
@@ -301,7 +475,7 @@ const DEFAULT_EXIT_MOTION_DURATION = 0.6;
 
 // Entrances that animate per character / word / line via generated spans, so
 // the ELEMENT wrapper must not carry the animation itself.
-const SPAN_DRIVEN_ENTRANCES = ['typing', 'fade-typing', 'word-fade', 'word-pop', 'rise'];
+const SPAN_DRIVEN_ENTRANCES = ['typing', 'fade-typing', 'word-fade', 'word-pop', 'rise', 'cursor'];
 function isSpanDrivenEntrance(animType) {
   return SPAN_DRIVEN_ENTRANCES.indexOf(animType) !== -1;
 }
@@ -330,6 +504,7 @@ function typingUnitOf(el, animType) {
   return (el && el.typingUnit === 'word') ? 'word' : 'letter';
 }
 
+
 // Rise direction → the shared @keyframes that moves the unit out from under its
 // mask. Declared here so the export bundle, the editor stylesheet, the timeline
 // playback and setupRiseLines all name the same animation.
@@ -356,7 +531,11 @@ const ANIM_IN_PRESETS = [
   { val: 'blur', label: 'Blur' },
   { val: 'typing', label: 'Typing', badge: 'text', textOnly: true },
   { val: 'word-pop', label: 'Pop', badge: 'text', textOnly: true },
-  { val: 'rise', label: 'Reveal', badge: 'text', textOnly: true }
+  { val: 'rise', label: 'Reveal', badge: 'text', textOnly: true },
+  // Label vs value: the stored animType stays 'cursor' (and the markup's
+  // data-cur-* attributes with it) — it names the object the preset is built
+  // around, and renaming it would churn every call site for no user-facing gain.
+  { val: 'cursor', label: 'Cursor Slide', badge: 'text', textOnly: true }
 ];
 // Exits that animate per character / word / line via the generated spans, so the
 // ELEMENT wrapper must not carry the exit itself — the mirror of

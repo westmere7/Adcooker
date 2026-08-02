@@ -35,6 +35,7 @@ const PRESET_DESCRIPTIONS = {
   'in-blur': "Fades in the element with a smooth camera blur.",
   'in-typing': "Fades/types in text characters or words sequentially.",
   'in-rise': "Letters, words, or lines rise into view from beneath a mask.",
+  'in-cursor': "A typing cursor appears first, then the text slides out of it sideways — line by line or as one block.",
 
   // Animation FX
   'eff-none': "No active Animation FX.",
@@ -468,12 +469,14 @@ function startFrameTransitionPreview(type) {
 
             keyframes = `@keyframes ${animName} {\n`;
             for (let pct = 0; pct <= 100; pct += 5) {
-              const t = pct / 100;
+              // Eased here rather than by a timing function: this shape is
+              // sampled, so a CSS curve would be re-applied to every step.
+              const t = frameTransSCurve(pct / 100);
               const s = sMax * t;
               const tx = ox - 289.26 * s;
               const ty = oy - 278.38 * s;
               const cp = `path('${_buildPixelClipPath(s, s, tx, ty, 0, 0, 0)}')`;
-              const opacityStr = fade ? `opacity: ${t};` : '';
+              const opacityStr = fade ? `opacity: ${t.toFixed(4)};` : '';
               keyframes += `      ${pct}% {
                 -webkit-clip-path: ${cp};
                 clip-path: ${cp};
@@ -624,7 +627,7 @@ function startFrameTransitionPreview(type) {
 
         keyframesText += keyframes + '\n' + (keyframesOut || '') + '\n';
 
-        const timingFunc = getFrameTransTiming(type);
+        const timingFunc = getFrameTransTiming(type, currentFrame);
         if (keyframesOut) {
           prevContainer.style.animation = `${animNameOut} ${duration}s ${timingFunc} both`;
         }
@@ -1277,7 +1280,7 @@ function wireCustomSelects(el, updateProp) {
         }
       } else {
         if (el) {
-          if (key === 'animDirection' || key === 'riseSplit' || key === 'riseDirection' || key === 'typingUnit' || key === 'popUnit') {
+          if (key === 'animDirection' || key === 'riseSplit' || key === 'riseDirection' || key === 'typingUnit' || key === 'popUnit' || key === 'cursorSplit') {
             if (startElementAnimPreviewFn) startElementAnimPreviewFn(el.animType || 'none');
           } else if (key === 'panDir') {
             hoverEffectPreviewActive = true;
@@ -1304,7 +1307,7 @@ function wireCustomSelects(el, updateProp) {
       if (isFrame) {
         stopFrameTransitionPreview();
       } else {
-        if (key === 'animDirection' || key === 'animType' || key === 'riseSplit' || key === 'riseDirection' || key === 'typingUnit' || key === 'popUnit') {
+        if (key === 'animDirection' || key === 'animType' || key === 'riseSplit' || key === 'riseDirection' || key === 'typingUnit' || key === 'popUnit' || key === 'cursorSplit') {
           if (stopElementAnimPreviewFn) stopElementAnimPreviewFn();
         } else if (key === 'panDir') {
           hoverEffectPreviewActive = false;
@@ -1400,7 +1403,7 @@ function wireCustomSelects(el, updateProp) {
           }
           pushHistory();
           renderProps();
-          if (key === 'animDirection' || key === 'riseSplit' || key === 'riseDirection' || key === 'typingUnit' || key === 'popUnit') {
+          if (key === 'animDirection' || key === 'riseSplit' || key === 'riseDirection' || key === 'typingUnit' || key === 'popUnit' || key === 'cursorSplit') {
             if (startElementAnimPreviewFn) startElementAnimPreviewFn(el.animType || 'none');
           } else if (key === 'animType') {
             if (startElementAnimPreviewFn) startElementAnimPreviewFn(el.animType || 'none');
@@ -1452,8 +1455,12 @@ function wireCustomSelects(el, updateProp) {
           const origRiseDirection = el.riseDirection;
           const origTypingUnit = el.typingUnit;
           const origPopUnit = el.popUnit;
+          const origCursorSplit = el.cursorSplit;
 
-          if (key === 'riseSplit') {
+          if (key === 'cursorSplit') {
+            el.cursorSplit = val;
+            if (startElementAnimPreviewFn) startElementAnimPreviewFn(el.animType || 'none');
+          } else if (key === 'riseSplit') {
             el.riseSplit = val;
             if (startElementAnimPreviewFn) startElementAnimPreviewFn(el.animType || 'none');
           } else if (key === 'riseDirection') {
@@ -1499,7 +1506,8 @@ function wireCustomSelects(el, updateProp) {
             if (origRiseDirection === undefined) delete el.riseDirection; else el.riseDirection = origRiseDirection;
             if (origTypingUnit === undefined) delete el.typingUnit; else el.typingUnit = origTypingUnit;
             if (origPopUnit === undefined) delete el.popUnit; else el.popUnit = origPopUnit;
-            if (key === 'animDirection' || key === 'riseSplit' || key === 'riseDirection' || key === 'typingUnit' || key === 'popUnit') {
+            if (origCursorSplit === undefined) delete el.cursorSplit; else el.cursorSplit = origCursorSplit;
+            if (key === 'animDirection' || key === 'riseSplit' || key === 'riseDirection' || key === 'typingUnit' || key === 'popUnit' || key === 'cursorSplit') {
               if (startElementAnimPreviewFn) startElementAnimPreviewFn(el.animType || 'none');
             } else if (key === 'panDir') {
               hoverEffectPreviewActive = true;
@@ -2869,6 +2877,45 @@ function renderProps() {
           </div>
         </div>
       `);
+    } else if (el.animType === 'cursor') {
+      // The bar defaults to white rather than the text colour: it reads as a UI
+      // caret sitting over the artwork, not as part of the type.
+      const caretCol = el.cursorColor || '#ffffff';
+      f.push(`
+        <div class="prop-row" style="margin-bottom:8px;">
+          <label>Cursor Color</label>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <button class="cp-trigger" data-k="cursorColor" title="Choose cursor color" style="width:24px; height:24px; border-radius:4px; border:1px solid var(--border-light); cursor:pointer; background:${getBgStyle(caretCol) || '#fff'}"></button>
+            ${hexInputBox('cursorColor', caretCol)}
+          </div>
+        </div>
+        <div class="prop-row" style="margin-bottom:8px;">
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label>Slide out</label>
+            ${customSelect('cursorSplit', [
+              { val: 'block', label: 'Whole block' },
+              { val: 'line', label: 'Line by line' }
+            ], el.cursorSplit === 'line' ? 'line' : 'block', 'What slides out of the cursor as one piece — the whole text behind one tall cursor, or each line in turn with its own cursor (wrapped lines count as lines)')}
+          </div>
+        </div>
+        <div class="prop-row" style="margin-bottom:8px;">
+          <div style="display:flex; flex-direction:row; gap:16px; align-items:center; height:24px;">
+            <div class="checkbox-row" style="margin:0;">
+              <input type="checkbox" data-k="cursorCenter" id="prop-cursor-center" title="Keep the text centered as it emerges — the cursor is pushed left while the text slides right. Off: the cursor holds still and the text slides out to its right." ${el.cursorCenter ? 'checked' : ''}/>
+              <label for="prop-cursor-center" title="Keep the text centered as it emerges — the cursor is pushed left while the text slides right. Off: the cursor holds still and the text slides out to its right." style="cursor:pointer; font-size:11px; white-space:nowrap;">Center out</label>
+            </div>
+            <div class="checkbox-row" style="margin:0;">
+              <input type="checkbox" data-k="cursorFade" id="prop-cursor-fade" title="Also fade the text in as it slides out of the cursor" ${el.cursorFade ? 'checked' : ''}/>
+              <label for="prop-cursor-fade" title="Also fade the text in as it slides out of the cursor" style="cursor:pointer; font-size:11px; white-space:nowrap;">Fade</label>
+            </div>
+            ${el.type === 'button' ? `
+            <div class="checkbox-row" style="margin:0;">
+              <input type="checkbox" data-k="animFadeBg" id="prop-cursor-fade-bg" title="Fade the button's background and border in with the text" ${(el.animFadeBg !== undefined ? el.animFadeBg : true) ? 'checked' : ''}/>
+              <label for="prop-cursor-fade-bg" title="Fade the button's background and border in with the text" style="cursor:pointer; font-size:11px; white-space:nowrap;">Fade BG</label>
+            </div>` : ''}
+          </div>
+        </div>
+      `);
     } else if (el.animType === 'word-pop') {
       // No 'letter' option on purpose — a per-character scale-and-overshoot is far
       // too granular to read on a headline at banner sizes.
@@ -3363,7 +3410,7 @@ function checkButtonFontSizeWarning(el) {
           inp.value = clamped;
         }
       }
-      if (inp.type === 'text' && (inp.dataset.k === 'color' || inp.dataset.k === 'bg' || inp.dataset.k === 'strokeColor') && val !== undefined) {
+      if (inp.type === 'text' && (inp.dataset.k === 'color' || inp.dataset.k === 'bg' || inp.dataset.k === 'strokeColor' || inp.dataset.k === 'cursorColor') && val !== undefined) {
         if (!val.startsWith('#') && val.length > 0 && !val.includes('gradient')) val = '#' + val;
       }
       updateProp(inp.dataset.k, val);
@@ -3379,7 +3426,7 @@ function checkButtonFontSizeWarning(el) {
               otherInp.style.boxShadow = 'none';
             }
           }
-          else otherInp.value = (inp.dataset.k === 'color' || inp.dataset.k === 'bg' || inp.dataset.k === 'canvas-bg' || inp.dataset.k === 'strokeColor') ? (val !== undefined ? val.replace(/^#/, '') : '') : (val !== undefined ? val : '');
+          else otherInp.value = (inp.dataset.k === 'color' || inp.dataset.k === 'bg' || inp.dataset.k === 'canvas-bg' || inp.dataset.k === 'strokeColor' || inp.dataset.k === 'cursorColor') ? (val !== undefined ? val.replace(/^#/, '') : '') : (val !== undefined ? val : '');
         }
       });
     });
@@ -3625,7 +3672,11 @@ function checkButtonFontSizeWarning(el) {
             riseDirection: el.riseDirection,
             typingUnit: el.typingUnit,
             popUnit: el.popUnit,
-            riseFade: el.riseFade
+            riseFade: el.riseFade,
+            cursorSplit: el.cursorSplit,
+            cursorCenter: el.cursorCenter,
+            cursorFade: el.cursorFade,
+            cursorColor: el.cursorColor
           };
           let previewVal = val;
           if (previewVal === 'swipe') {

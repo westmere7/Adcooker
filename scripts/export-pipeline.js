@@ -182,6 +182,145 @@ function buildRiseContentHTML(el, esc, isImageExport, opts) {
   }).join('<br/>');
 }
 
+// 'Cursor' entrance (v0.44.0) — a typing caret appears first, then the text
+// slides horizontally out of it: Reveal's overflow-mask trick turned sideways,
+// with a visible caret bar at the reveal edge. The caret is deliberately a
+// SIBLING of the mask, not inside it — it is drawn a tad taller than the text
+// (top/bottom overhang) and the mask's overflow:hidden would crop exactly that
+// overhang off.
+//
+// Whole block mode gets ONE caret spanning the block's full height, however
+// many lines the text runs to. Line by line instead gives each line its own
+// caret, sized to that line and cascading down the block — setupCursorLines
+// clones them from the single one emitted here, so the bar's geometry is
+// defined in exactly one place.
+//
+// Block mode is fully build-time. Anatomy:
+//   wrapper  inline-block, position:relative — carries the "Center out" motion
+//   mask     block, overflow:hidden — the slot the text emerges through
+//   slider   inline-block, translateX(-106% -> 0) — the text strip
+//   caret    absolute bar spanning the wrapper, on the text colour
+//
+// "Center out": the wrapper travels translateX(+53% -> 0) while the slider
+// travels (-106% -> 0), both on the SAME duration/ease/delay. The mask edge
+// (and caret) therefore moves left by w/2 as the glyphs move right by w/2, and
+// the visible strip [wrapperX, wrapperX + w·p] stays centred on the text's
+// final centre for every progress value p — one camera move, not two scales.
+// Off: the wrapper holds still and only the slider moves.
+//
+// Line mode staggers VISUAL lines — wrapped lines count, not just typed ones.
+// Those only exist after layout, so this builder just parks each word in a
+// marker span (opacity 0, laid out normally) inside a [data-cursor-lines]
+// wrapper carrying every parameter as data attributes; setupCursorLines
+// (render-runtime.js, serialized into exports) measures the lines and builds
+// each one's mask/slider/caret around them at runtime.
+function buildCursorContentHTML(el, esc, isImageExport, opts) {
+  const text = el.text || '';
+  const lines = text.split('\n');
+  if (isImageExport) return lines.map(l => esc(l)).join('<br/>');
+
+  const perLine = el.cursorSplit === 'line';
+  const center = !!el.cursorCenter;
+  const fade = !!el.cursorFade;
+  const totalDur = el.animDuration || 1;
+  const baseDelay = Number(el.animDelay || 0);
+  const EASE = 'cubic-bezier(0.19, 1, 0.22, 1)'; // same expo-out as Reveal — this is its horizontal sibling
+
+  // The caret leads: it appears and holds a beat (one blink) before the text
+  // moves. The lead scales with the configured duration but is clamped so a
+  // short animation still reads "caret first", and a long one doesn't stall.
+  const lead = Math.min(0.4, Math.max(0.15, totalDur * 0.25));
+
+  // The caret sits clear of the text rather than flush against it. The gap is
+  // taken to the LEFT — the caret is pulled out past the mask's edge — so the
+  // text's resting position is untouched. Insetting the text instead would
+  // leave a stray indent behind once the caret fades, since the caret is gone
+  // by the time anyone reads the ad. Both are em-based, so the gap tracks the
+  // font size.
+  const CARET_W = 0.085;    // em — bar thickness
+  const CARET_GAP = 0.26;   // em — clear space between bar and first glyph
+  const caretLeft = -(CARET_W + CARET_GAP);
+
+  // When the caret leaves, as a fraction of the slide. Not 1.0: the slide runs
+  // on a hard expo-out, which covers the last percent of its travel over the
+  // final fifth of its duration — motion is imperceptible from about 0.85 in.
+  // Waiting for the formal end would leave the caret sitting on text that has
+  // visibly already stopped, so it goes when the movement stops reading and
+  // has finished fading right as the slide formally ends.
+  const CARET_SETTLE = 0.85;
+
+  // White by default rather than currentColor: the bar reads as a UI caret
+  // sitting over the artwork, not as a piece of the type. In Line by line the
+  // hook clones this one caret per line, so the colour follows automatically.
+  // The hex field stores with a leading '#', but accept a bare one too rather
+  // than emitting `background:e61e2a`, which is silently invalid CSS.
+  const rawCaretColor = String(el.cursorColor || '#ffffff').trim();
+  const caretColor = /^[0-9a-f]{3,8}$/i.test(rawCaretColor) ? '#' + rawCaretColor : rawCaretColor;
+
+  const caretSpan = (animCss, dataAttr) =>
+    `<span${dataAttr ? ' data-cur-caret="1"' : ''} style="position:absolute; left:${caretLeft.toFixed(3)}em; top:-0.07em; height:calc(100% + 0.14em); width:${CARET_W}em; min-width:1.5px; border-radius:0.02em; background:${caretColor}; opacity:0; pointer-events:none;${animCss ? ` animation:${animCss};` : ''}"></span>`;
+
+  if (perLine) {
+    // Parked markup for setupCursorLines. Words are inline-block so offsetTop
+    // reads their visual line reliably; spaces stay as plain text nodes so the
+    // copy wraps exactly as it will at rest.
+    const parked = (tok) => `<span data-cur-word="1" style="display:inline-block; opacity:0;">${esc(tok)}</span>`;
+    const inner = lines.map(line => {
+      if (!/\S/.test(line)) return esc(line);
+      return line.split(/(\s+)/).map(tok => /\S/.test(tok) ? parked(tok) : tok).join('');
+    }).join('<br/>');
+    return `<span data-cursor-lines="1" data-cur-dur="${totalDur}" data-cur-delay="${baseDelay}"` +
+      ` data-cur-lead="${lead.toFixed(3)}" data-cur-fade="${fade ? 1 : 0}" data-cur-center="${center ? 1 : 0}"` +
+      `${cursorLineExitAttrs(el, opts)}` +
+      ` style="display:inline-block; position:relative; max-width:100%; vertical-align:bottom;">` +
+      `${inner}${caretSpan('', true)}</span>`;
+  }
+
+  const slideDur = Math.round(Math.max(0.3, totalDur - lead) * 1000) / 1000;
+  const slideStart = baseDelay + lead;
+  const exitCss = spanExitAnimCss(el, opts, 0, 1);
+  const sliderAnims = `anim-cursor-slide ${slideDur}s ${EASE} ${slideStart.toFixed(3)}s both` +
+    (fade ? `, anim-fade-in ${slideDur}s linear ${slideStart.toFixed(3)}s both` : '') + exitCss;
+  const wrapAnim = center ? `animation:anim-cursor-center ${slideDur}s ${EASE} ${slideStart.toFixed(3)}s both;` : '';
+  // Caret: appear at its beat (0.01s fade-in, `both` keeps it hidden through
+  // the delay), one blink across the lead (fill none, so the fade-in's state
+  // shows around it), then leave the instant the text lands — no beat held
+  // afterwards. anim-cursor-hide is its own keyframe — anim-fade-out lives in
+  // EXIT_STATIC_KEYFRAMES, which is only injected into exports that use
+  // element exits.
+  const caretAnims = `anim-fade-in 0.01s linear ${baseDelay.toFixed(3)}s both, ` +
+    `anim-cursor-blink ${lead.toFixed(3)}s linear ${baseDelay.toFixed(3)}s, ` +
+    `anim-cursor-hide 0.12s ease ${(slideStart + slideDur * CARET_SETTLE).toFixed(3)}s forwards`;
+  const inner = lines.map(l => esc(l)).join('<br/>');
+  // data-fit-ignore: these two carry the entrance transforms, and a transform
+  // expands an ancestor's scrollable overflow — a wrapper parked at
+  // translateX(53%) for "Center out" inflates the auto-sizer's scrollWidth
+  // reading by half the text's width at EVERY candidate font size, so the fit
+  // never succeeds and the text is shrunk to the search floor. adjustAutoSizes
+  // neutralises them while it measures.
+  return `<span data-fit-ignore="1" style="display:inline-block; position:relative; vertical-align:bottom; max-width:100%; ${wrapAnim}">` +
+    `<span style="display:block; overflow:hidden; padding-bottom:0.08em; margin-bottom:-0.08em;">` +
+    `<span data-fit-ignore="1" style="display:inline-block; transform:translateX(-106%); animation:${sliderAnims};">${inner}</span>` +
+    `</span>` +
+    caretSpan(caretAnims, false) +
+    `</span>`;
+}
+
+// Cursor LINE mode's Untype-exit params — the same reason riseLineExitAttrs and
+// popLineExitAttrs exist: per-line delays can't be baked before layout, so they
+// travel to setupCursorLines as data attributes.
+function cursorLineExitAttrs(el, opts) {
+  if (!opts || !opts.includeExit) return '';
+  if (typeof isSpanDrivenExit !== 'function' || typeof animOutEnabled !== 'function') return '';
+  const exitType = (typeof resolveExitType === 'function') ? resolveExitType(el) : (el.exitType || 'fade-out');
+  if (!animOutEnabled(el) || exitType !== 'untype') return '';
+  const inDelay = (typeof animInEnabled === 'function' && animInEnabled(el)) ? Number(el.animDelay || 0) : 0;
+  const start = inDelay + (el.exitStart !== undefined ? Number(el.exitStart) : 1.5);
+  const total = el.exitDuration !== undefined ? Number(el.exitDuration) : 0.6;
+  return ` data-cur-exit-start="${start}" data-cur-exit-dur="${total}"` +
+    ` data-cur-exit-fade="${el.exitFade !== false ? 1 : 0}"`;
+}
+
 // A button's own chrome (fill + stroke) during a span-driven text entrance.
 // The spans animate the LABEL only, so without this the button's background
 // would pop in instantly while its text is still arriving — the chrome has to
@@ -348,6 +487,9 @@ function buildTextEntranceHTML(el, esc, animType, isImageExport, textOverride, d
   const text = textOverride !== undefined ? textOverride : (src.text || '');
   if (animType === 'rise') {
     return buildRiseContentHTML(textOverride !== undefined ? { ...src, text } : src, esc, isImageExport, opts);
+  }
+  if (animType === 'cursor') {
+    return buildCursorContentHTML(textOverride !== undefined ? { ...src, text } : src, esc, isImageExport, opts);
   }
   // Typing advances by LETTER or by WORD (el.typingUnit). The legacy 'word-fade'
   // preset was exactly this with the unit forced to word, so it resolves through
@@ -1268,12 +1410,14 @@ function getFrameTransitionKeyframes(f, c) {
 
       keyframes = `@keyframes ${animName} {\n`;
       for (let pct = 0; pct <= 100; pct += 5) {
-        const time = pct / 100;
+        // Eased here rather than by a timing function: this shape is sampled,
+        // so a CSS curve would be re-applied to every step. Runs on `linear`.
+        const time = frameTransSCurve(pct / 100);
         const s = sMax * time;
         const tx = ox - 289.26 * s;
         const ty = oy - 278.38 * s;
         const cp = `path('${_buildPixelClipPath(s, s, tx, ty, 0, 0, 0)}')`;
-        const opacityStr = fade ? `opacity: ${time};` : '';
+        const opacityStr = fade ? `opacity: ${time.toFixed(4)};` : '';
         keyframes += `      ${pct}% {
           -webkit-clip-path: ${cp};
           clip-path: ${cp};
@@ -1449,16 +1593,54 @@ function getFrameTransitionKeyframes(f, c) {
 // and another in the exported ad.
 // ---------------------------------------------------------------------------
 
+// The house curve for frame moves: a symmetric quint S, eased at both ends. It
+// builds out of rest, sweeps through the middle and decelerates into place. An
+// ease-out alone starts at full speed, which covers most of the travel in the
+// first fraction of the duration and then creeps the remainder — that reads as
+// a snap followed by a drift rather than as easing.
+const FRAME_TRANS_S_CURVE = 'cubic-bezier(0.83, 0, 0.17, 1)';
+
 // Per-preset easing. Anything not listed rides the original 'ease'.
 const FRAME_TRANS_TIMING = {
-  'iris': 'ease-in-out',
   'flip': 'ease-in-out',
-  'parallax': 'cubic-bezier(0.25, 1, 0.5, 1)',
-  'lift': 'cubic-bezier(0.25, 1, 0.5, 1)',
+  'slide': FRAME_TRANS_S_CURVE,
+  'push': FRAME_TRANS_S_CURVE,
+  'swipe': FRAME_TRANS_S_CURVE,
+  'split': FRAME_TRANS_S_CURVE,
+  'lift': FRAME_TRANS_S_CURVE,
+  'parallax': FRAME_TRANS_S_CURVE,
+  'iris': FRAME_TRANS_S_CURVE,
+  'corner-fold': FRAME_TRANS_S_CURVE,
   'punch': 'cubic-bezier(0.55, 0, 0.2, 1)'
 };
 
-function getFrameTransTiming(t) {
+// The house curve sampled in JS, for shapes that are written into keyframes
+// rather than interpolated between two values. Those cannot take a CSS timing
+// function — it would be applied to every sampled step individually — so the
+// easing has to be folded into the values instead, and the animation then runs
+// on `linear`. Solves x(u) = t on the bezier and returns y(u), so it tracks
+// FRAME_TRANS_S_CURVE exactly rather than approximating it.
+function frameTransSCurve(t) {
+  if (t <= 0) return 0;
+  if (t >= 1) return 1;
+  const x = u => 3 * 0.83 * u * (1 - u) * (1 - u) + 3 * 0.17 * u * u * (1 - u) + u * u * u;
+  let lo = 0, hi = 1, u = t;
+  for (let i = 0; i < 40; i++) {
+    u = (lo + hi) / 2;
+    if (x(u) < t) lo = u; else hi = u;
+  }
+  return 3 * u * u - 2 * u * u * u;
+}
+
+// Two presets carry their shape in sampled keyframes and so must stay off a
+// CSS curve. Bounce is a damped oscillation; the RMIT Pixel iris is a stepped
+// clip path. Bounce keeps the gentle default it shipped on, because its
+// rebound predates the house curve and rewriting it would change live ads.
+// The pixel iris instead gets the house curve folded into its own samples by
+// frameTransSCurve, so it matches the other iris shapes exactly.
+function getFrameTransTiming(t, f) {
+  if (f && f.transitionBounce && (t === 'slide' || t === 'push')) return 'ease';
+  if (f && t === 'iris' && f.transitionIrisShape === 'rmit-pixel') return 'linear';
   return FRAME_TRANS_TIMING[t] || 'ease';
 }
 
@@ -2404,11 +2586,15 @@ function _generateExportHTMLRaw(targetCanvas, zipRef, isImageExport = false, opt
     }
 
     frameData.push({
-      id: f.id, 
-      duration: durationVal, 
-      transition: transitionVal, 
-      transitionDuration: f.transitionDuration || 0.5, 
+      id: f.id,
+      duration: durationVal,
+      transition: transitionVal,
+      transitionDuration: f.transitionDuration || 0.5,
       transitionFade: f.transitionFade,
+      // Resolved here rather than looked up in the player, because the choice
+      // depends on the frame's own settings (see getFrameTransTiming) and not
+      // on the preset name alone.
+      transitionTiming: getFrameTransTiming(transitionVal, f),
       excludePersistent: excludePers
     });
   });
@@ -2492,6 +2678,10 @@ ${dynamicKeyframes}
   @keyframes anim-rise-left { from { transform: translateX(-115%); } to { transform: translateX(0); } }
   @keyframes anim-rise-right { from { transform: translateX(115%); } to { transform: translateX(0); } }
   @keyframes anim-word-pop { from { opacity: 0; transform: scale(0.72); } to { opacity: 1; transform: scale(1); } }
+  @keyframes anim-cursor-slide { from { transform: translateX(-106%); } to { transform: translateX(0); } }
+  @keyframes anim-cursor-center { from { transform: translateX(var(--cur-shift, 53%)); } to { transform: translateX(0); } }
+  @keyframes anim-cursor-blink { 0%, 39% { opacity: 1; } 40%, 69% { opacity: 0; } 70%, 100% { opacity: 1; } }
+  @keyframes anim-cursor-hide { from { opacity: 1; } to { opacity: 0; } }
   @keyframes anim-unreveal-up { from { transform: translateY(0); } to { transform: translateY(115%); } }
   @keyframes anim-unreveal-down { from { transform: translateY(0); } to { transform: translateY(-115%); } }
   @keyframes anim-unreveal-left { from { transform: translateX(0); } to { transform: translateX(-115%); } }
@@ -2601,7 +2791,6 @@ ${elsTop}
     var currentFrame = 0;
     var loopAd = ${state.loopAd === true};
     var frameTimer = null;
-    var transTiming = ${JSON.stringify(FRAME_TRANS_TIMING)};
     var transWithOut = ${JSON.stringify(FRAME_TRANS_WITH_OUT)};
 
     function updatePersistentLayersVisibility(frameIdx) {
@@ -2638,7 +2827,7 @@ ${elsTop}
         }
       }
 
-      var timingFunc = transTiming[t] || 'ease';
+      var timingFunc = frames[currentFrame].transitionTiming || 'ease';
       nextFrameEl.style.animation = anim ? (anim + ' ' + td + ' ' + timingFunc + ' both') : '';
       if (animOut) {
         prevFrameEl.style.animation = animOut + ' ' + td + ' ' + timingFunc + ' both';
@@ -2696,7 +2885,7 @@ ${elsTop}
       var t = fr.transition;
       if (t && t !== 'none') {
         var td = (fr.transitionDuration || 0.5) + 's';
-        var timingFunc = transTiming[t] || 'ease';
+        var timingFunc = fr.transitionTiming || 'ease';
         frameEl.style.animation = 'anim-frame-trans-' + fr.id + ' ' + td + ' ' + timingFunc + ' both';
         setTimeout(function() { frameEl.style.animation = ''; }, (fr.transitionDuration || 0.5) * 1000);
       }
@@ -2708,6 +2897,7 @@ ${elsTop}
 
     ${setupRiseLines.toString()}
     ${setupPopLines.toString()}
+    ${setupCursorLines.toString()}
     ${setupLineStaggers.toString()}
 
     function adjustAutoSizes() {
@@ -2739,6 +2929,23 @@ ${elsTop}
         block.style.transform = 'none';
         span.style.animation = 'none';
         span.style.transform = 'none';
+
+        // Clearing the three auto-size nodes is not enough: an entrance can put
+        // a transform on markup INSIDE the text, and a transform expands its
+        // ancestors' scrollable overflow, which is exactly what the fit test
+        // below reads. The Cursor preset's "Center out" parks its wrapper at
+        // translateX(53%), inflating block.scrollWidth by half the text's width
+        // at every candidate size — the width test then fails for all of them
+        // and the search returns its floor, rendering the text at 4px. Nodes
+        // that move during their entrance mark themselves data-fit-ignore and
+        // are measured at rest.
+        var shifted = wrapper.querySelectorAll('[data-fit-ignore]');
+        var shiftedSaved = [];
+        for (var sIdx = 0; sIdx < shifted.length; sIdx++) {
+          shiftedSaved.push([shifted[sIdx], shifted[sIdx].style.animation || '', shifted[sIdx].style.transform || '']);
+          shifted[sIdx].style.animation = 'none';
+          shifted[sIdx].style.transform = 'none';
+        }
 
         var hiddenAncestors = [];
         var parent = wrapper.parentElement;
@@ -2843,6 +3050,10 @@ ${elsTop}
         block.style.transform = oldBlockTrans;
         span.style.animation = oldSpanAnim;
         span.style.transform = oldSpanTrans;
+        for (var rIdx = 0; rIdx < shiftedSaved.length; rIdx++) {
+          shiftedSaved[rIdx][0].style.animation = shiftedSaved[rIdx][1];
+          shiftedSaved[rIdx][0].style.transform = shiftedSaved[rIdx][2];
+        }
         
         hiddenAncestors.forEach(function(item) {
           if (item.prevDisplay) {

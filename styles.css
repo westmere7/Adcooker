@@ -360,6 +360,33 @@ body.theme-rmit-navy {
       to { opacity: 1; transform: scale(1); }
     }
 
+    /* 'Cursor' text entrance — a caret appears, then the text slides
+       horizontally out of it (see buildCursorContentHTML / setupCursorLines).
+       -center carries the "Center out" wrapper motion; -blink/-hide drive the
+       caret's own timeline. Mirrored in the export bundle's inline <style>
+       (export-pipeline.js) — keep both in step. */
+    @keyframes anim-cursor-slide {
+      from { transform: translateX(-106%); }
+      to { transform: translateX(0); }
+    }
+    /* Whole block centres on its own width (the 53% default). Line by line
+       overrides --cur-shift with a pixel offset per line, so every line's
+       cursor waits on one shared column instead of half its own width in —
+       see setupCursorLines. */
+    @keyframes anim-cursor-center {
+      from { transform: translateX(var(--cur-shift, 53%)); }
+      to { transform: translateX(0); }
+    }
+    @keyframes anim-cursor-blink {
+      0%, 39% { opacity: 1; }
+      40%, 69% { opacity: 0; }
+      70%, 100% { opacity: 1; }
+    }
+    @keyframes anim-cursor-hide {
+      from { opacity: 1; }
+      to { opacity: 0; }
+    }
+
     /* 'Unreveal' — the inverse of Reveal: each unit travels back behind its mask,
        returning the way it came in. Mirrored in the export bundle's inline
        <style> (export-pipeline.js) — keep both in step. */

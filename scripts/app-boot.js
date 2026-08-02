@@ -181,7 +181,7 @@ document.addEventListener('contextmenu', (e) => {
         if (animBtn && el) {
           // Rise's own settings were missing here, so "Reset Settings" left
           // riseSplit / riseFade / riseDirection behind on the element.
-          const inAnimProps = ['animDuration', 'animDelay', 'animFade', 'animFadeLetters', 'animFadeBg', 'zoomFrom', 'animBounce', 'animDirection', 'animDistance', 'animRotateOffset', 'animAngle', 'animateBg', 'bgOffset', 'zoomAnchor', 'animStaggerText', 'riseSplit', 'riseFade', 'riseDirection', 'typingUnit', 'popUnit'];
+          const inAnimProps = ['animDuration', 'animDelay', 'animFade', 'animFadeLetters', 'animFadeBg', 'zoomFrom', 'animBounce', 'animDirection', 'animDistance', 'animRotateOffset', 'animAngle', 'animateBg', 'bgOffset', 'zoomAnchor', 'animStaggerText', 'riseSplit', 'riseFade', 'riseDirection', 'typingUnit', 'popUnit', 'cursorSplit', 'cursorCenter', 'cursorFade', 'cursorColor'];
           inAnimProps.forEach(p => delete el[p]);
         } else if (effBtn && el) {
           const effectProps = ['effDuration', 'effDelay', 'panDist', 'panDir', 'effEase', 'effOnce', 'effSpeed', 'zoomTarget', 'spinTarget', 'spinRepeat', 'panFromX', 'panFromY', 'panRotate', 'panFade', 'panTowards', 'panMidX', 'panMidY', 'pulseScale', 'heartbeatScale', 'floatRange', 'floatDirection'];
@@ -1269,7 +1269,7 @@ const appSplash = (() => {
         const verEl = document.createElement('span');
         verEl.className = 'app-splash-version';
         verEl.style.cssText = 'font-size: 10px; color: var(--text-muted, #8b8f9c); border: 1px solid rgba(139, 143, 156, 0.4); padding: 2px 8px; border-radius: 10px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: inline-flex; align-items: center; justify-content: center; line-height: 1; margin-top: 2px;';
-        verEl.textContent = 'v0.43.0';
+        verEl.textContent = 'v0.44.0';
         logoEl.appendChild(verEl);
       }
     }
