@@ -3107,7 +3107,7 @@ function openExportModal() {
       }
 
       const kb = await calculateCanvasZipSize(c, exportVersionIdx);
-      
+
       let ct = '';
       const savedActive = dm ? dm.activeVersion : null;
       if (dm && exportVersionIdx != null) dm.activeVersion = exportVersionIdx;
