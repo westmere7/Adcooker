@@ -1374,10 +1374,131 @@ function getFrameTransitionKeyframes(f, c) {
         ${fade ? 'opacity: 1;' : ''}
       }
     }`;
+  } else if (t === 'parallax') {
+    // The incoming frame travels the full width while the outgoing one drifts
+    // only a third of it and dims, so the two read as separate planes at
+    // different depths rather than one flat card being pushed along.
+    const animNameOut = `anim-frame-trans-out-${f.id}`;
+    const g = getParallaxGeometry(dir);
+    keyframes = `@keyframes ${animName} {
+      from { transform: ${g.from}; ${fade ? 'opacity: 0;' : ''} }
+      to { transform: translate(0); ${fade ? 'opacity: 1;' : ''} }
+    }`;
+    keyframes += '\n' + `@keyframes ${animNameOut} {
+      from { transform: translate(0); filter: brightness(1); }
+      to { transform: ${g.out}; filter: brightness(0.55); }
+    }`;
+  } else if (t === 'lift') {
+    // Card-stack move: the incoming frame rides in over a soft contact shadow
+    // that dissolves as it lands, while the outgoing one settles back and dims.
+    const animNameOut = `anim-frame-trans-out-${f.id}`;
+    const g = getLiftGeometry(dir);
+    keyframes = `@keyframes ${animName} {
+      0% { transform: ${g.from}; box-shadow: ${g.shadow}; ${fade ? 'opacity: 0;' : ''} }
+      70% { box-shadow: ${g.shadow}; ${fade ? 'opacity: 1;' : ''} }
+      100% { transform: translate(0); box-shadow: 0 0 0 rgba(0,0,0,0); ${fade ? 'opacity: 1;' : ''} }
+    }`;
+    keyframes += '\n' + `@keyframes ${animNameOut} {
+      from { transform: scale(1); filter: brightness(1); }
+      to { transform: scale(0.92); filter: brightness(0.62); }
+    }`;
+  } else if (t === 'flip') {
+    // Two halves of one card turn: the outgoing face rotates to edge-on at the
+    // midpoint, where the incoming face picks the rotation up and carries it
+    // home. Both use the same axis so the transform lists interpolate cleanly.
+    const animNameOut = `anim-frame-trans-out-${f.id}`;
+    const g = getFlipGeometry(dir);
+    keyframes = `@keyframes ${animName} {
+      0% { transform: perspective(1400px) ${g.axis}(${g.inDeg}deg); opacity: 0; }
+      49.9% { transform: perspective(1400px) ${g.axis}(${g.inDeg}deg); opacity: 0; }
+      50% { transform: perspective(1400px) ${g.axis}(${g.inDeg}deg); opacity: 1; }
+      100% { transform: perspective(1400px) ${g.axis}(0deg); opacity: 1; }
+    }`;
+    keyframes += '\n' + `@keyframes ${animNameOut} {
+      0% { transform: perspective(1400px) ${g.axis}(0deg); opacity: 1; }
+      50% { transform: perspective(1400px) ${g.axis}(${g.outDeg}deg); opacity: 1; }
+      50.1% { transform: perspective(1400px) ${g.axis}(${g.outDeg}deg); opacity: 0; }
+      100% { transform: perspective(1400px) ${g.axis}(${g.outDeg}deg); opacity: 0; }
+    }`;
+  } else if (t === 'punch') {
+    // Cross-zoom: the camera flies THROUGH the outgoing frame rather than
+    // cutting past it. The outgoing rushes up past the viewer blurring out
+    // while the incoming rises from further back and pulls into focus.
+    // Opacity is baked in rather than offered as a Fade toggle — the incoming
+    // sits on top, so it has to be transparent early or the punch happens
+    // behind it where nobody can see it.
+    const animNameOut = `anim-frame-trans-out-${f.id}`;
+    const g = getPunchGeometry(f);
+    keyframes = `@keyframes ${animName} {
+      0% { transform: scale(${g.from}); filter: blur(${g.blur}px); opacity: 0; }
+      60% { opacity: 1; }
+      100% { transform: scale(1); filter: blur(0px); opacity: 1; }
+    }`;
+    keyframes += '\n' + `@keyframes ${animNameOut} {
+      0% { transform: scale(1); filter: blur(0px); opacity: 1; }
+      100% { transform: scale(${g.to}); filter: blur(${g.blur}px); opacity: 0; }
+    }`;
   }
 
   return keyframes;
 }
+
+// ---------------------------------------------------------------------------
+// Frame-transition geometry — shared by the export writer above and the props
+// panel's on-canvas preview, so a preset can never look one way in the editor
+// and another in the exported ad.
+// ---------------------------------------------------------------------------
+
+// Per-preset easing. Anything not listed rides the original 'ease'.
+const FRAME_TRANS_TIMING = {
+  'iris': 'ease-in-out',
+  'flip': 'ease-in-out',
+  'parallax': 'cubic-bezier(0.25, 1, 0.5, 1)',
+  'lift': 'cubic-bezier(0.25, 1, 0.5, 1)',
+  'punch': 'cubic-bezier(0.55, 0, 0.2, 1)'
+};
+
+function getFrameTransTiming(t) {
+  return FRAME_TRANS_TIMING[t] || 'ease';
+}
+
+// Presets that also animate the frame being left behind, and so need the
+// second "-out-" keyframe set played on the outgoing frame.
+const FRAME_TRANS_WITH_OUT = ['push', 'blur', 'parallax', 'lift', 'flip', 'punch'];
+
+function getParallaxGeometry(dir) {
+  if (dir === 'up') return { from: 'translateY(100%)', out: 'translateY(-32%)' };
+  if (dir === 'down') return { from: 'translateY(-100%)', out: 'translateY(32%)' };
+  if (dir === 'right') return { from: 'translateX(-100%)', out: 'translateX(32%)' };
+  return { from: 'translateX(100%)', out: 'translateX(-32%)' };
+}
+
+function getLiftGeometry(dir) {
+  if (dir === 'down') return { from: 'translateY(-100%)', shadow: '0 24px 48px rgba(0,0,0,0.32)' };
+  if (dir === 'left') return { from: 'translateX(100%)', shadow: '-24px 0 48px rgba(0,0,0,0.32)' };
+  if (dir === 'right') return { from: 'translateX(-100%)', shadow: '24px 0 48px rgba(0,0,0,0.32)' };
+  return { from: 'translateY(100%)', shadow: '0 -24px 48px rgba(0,0,0,0.32)' };
+}
+
+function getPunchGeometry(f) {
+  const rawTo = f.transitionPunchTo !== undefined ? parseFloat(f.transitionPunchTo) : 160;
+  const to = Math.max(105, Math.min(400, isNaN(rawTo) ? 160 : rawTo)) / 100;
+  const rawBlur = f.transitionPunchBlur !== undefined ? parseFloat(f.transitionPunchBlur) : 8;
+  const blur = Math.max(0, Math.min(60, isNaN(rawBlur) ? 8 : rawBlur));
+  // How far back the incoming frame starts is derived from the punch rather
+  // than set separately: the harder the outgoing flies at the viewer, the
+  // deeper the next frame sits, so the two halves read as one camera move
+  // instead of two unrelated scales.
+  const from = Math.max(0.5, Math.min(0.98, 1 - (to - 1) * 0.25));
+  return { to: to.toFixed(3), from: from.toFixed(3), blur };
+}
+
+function getFlipGeometry(dir) {
+  const axis = (dir === 'up' || dir === 'down') ? 'rotateX' : 'rotateY';
+  if (dir === 'down' || dir === 'left') return { axis, outDeg: -90, inDeg: 90 };
+  return { axis, outDeg: 90, inDeg: -90 };
+}
+
 
 
 // ============================================================================
@@ -2480,6 +2601,8 @@ ${elsTop}
     var currentFrame = 0;
     var loopAd = ${state.loopAd === true};
     var frameTimer = null;
+    var transTiming = ${JSON.stringify(FRAME_TRANS_TIMING)};
+    var transWithOut = ${JSON.stringify(FRAME_TRANS_WITH_OUT)};
 
     function updatePersistentLayersVisibility(frameIdx) {
       var exclude = !!frames[frameIdx].excludePersistent;
@@ -2510,12 +2633,12 @@ ${elsTop}
       var animOut = '';
       if (t && t !== 'none') {
         anim = 'anim-frame-trans-' + frames[currentFrame].id;
-        if (t === 'push' || t === 'blur') {
+        if (transWithOut.indexOf(t) !== -1) {
           animOut = 'anim-frame-trans-out-' + frames[currentFrame].id;
         }
       }
-      
-      var timingFunc = t === 'iris' ? 'ease-in-out' : 'ease';
+
+      var timingFunc = transTiming[t] || 'ease';
       nextFrameEl.style.animation = anim ? (anim + ' ' + td + ' ' + timingFunc + ' both') : '';
       if (animOut) {
         prevFrameEl.style.animation = animOut + ' ' + td + ' ' + timingFunc + ' both';
@@ -2573,7 +2696,7 @@ ${elsTop}
       var t = fr.transition;
       if (t && t !== 'none') {
         var td = (fr.transitionDuration || 0.5) + 's';
-        var timingFunc = t === 'iris' ? 'ease-in-out' : 'ease';
+        var timingFunc = transTiming[t] || 'ease';
         frameEl.style.animation = 'anim-frame-trans-' + fr.id + ' ' + td + ' ' + timingFunc + ' both';
         setTimeout(function() { frameEl.style.animation = ''; }, (fr.transitionDuration || 0.5) * 1000);
       }

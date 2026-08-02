@@ -57,7 +57,11 @@ const PRESET_DESCRIPTIONS = {
   'frame-split': "Splits open the previous frame to reveal the next.",
   'frame-iris': "Reveals the next frame through an expanding shape (circle, square, diamond, or pixel).",
   'frame-blur': "Blurs the previous frame and cross-fades into the next.",
-  'frame-corner-fold': "Folds the corner of the previous frame back to reveal the next."
+  'frame-corner-fold': "Folds the corner of the previous frame back to reveal the next.",
+  'frame-parallax': "Slides the next frame in at full speed while the previous drifts slowly behind it and dims.",
+  'frame-lift': "Rides the next frame in over a soft contact shadow while the previous settles back and dims.",
+  'frame-flip': "Turns the previous frame away edge-on and brings the next one around on the same axis.",
+  'frame-punch': "Flies the previous frame up past the viewer, blurring out, as the next one pulls into focus from further back."
 };
 
 function getPreviewDomNodes(el, previewType = 'inAnim') {
@@ -570,11 +574,57 @@ function startFrameTransitionPreview(type) {
               ${fade ? 'opacity: 1;' : ''}
             }
           }`;
+        } else if (type === 'parallax') {
+          const g = getParallaxGeometry(dir);
+          keyframes = `@keyframes ${animName} {
+            from { transform: ${g.from}; ${fade ? 'opacity: 0;' : ''} }
+            to { transform: translate(0); ${fade ? 'opacity: 1;' : ''} }
+          }`;
+          keyframesOut = `@keyframes ${animNameOut} {
+            from { transform: translate(0); filter: brightness(1); }
+            to { transform: ${g.out}; filter: brightness(0.55); }
+          }`;
+        } else if (type === 'lift') {
+          const g = getLiftGeometry(dir);
+          keyframes = `@keyframes ${animName} {
+            0% { transform: ${g.from}; box-shadow: ${g.shadow}; ${fade ? 'opacity: 0;' : ''} }
+            70% { box-shadow: ${g.shadow}; ${fade ? 'opacity: 1;' : ''} }
+            100% { transform: translate(0); box-shadow: 0 0 0 rgba(0,0,0,0); ${fade ? 'opacity: 1;' : ''} }
+          }`;
+          keyframesOut = `@keyframes ${animNameOut} {
+            from { transform: scale(1); filter: brightness(1); }
+            to { transform: scale(0.92); filter: brightness(0.62); }
+          }`;
+        } else if (type === 'flip') {
+          const g = getFlipGeometry(dir);
+          keyframes = `@keyframes ${animName} {
+            0% { transform: perspective(1400px) ${g.axis}(${g.inDeg}deg); opacity: 0; }
+            49.9% { transform: perspective(1400px) ${g.axis}(${g.inDeg}deg); opacity: 0; }
+            50% { transform: perspective(1400px) ${g.axis}(${g.inDeg}deg); opacity: 1; }
+            100% { transform: perspective(1400px) ${g.axis}(0deg); opacity: 1; }
+          }`;
+          keyframesOut = `@keyframes ${animNameOut} {
+            0% { transform: perspective(1400px) ${g.axis}(0deg); opacity: 1; }
+            50% { transform: perspective(1400px) ${g.axis}(${g.outDeg}deg); opacity: 1; }
+            50.1% { transform: perspective(1400px) ${g.axis}(${g.outDeg}deg); opacity: 0; }
+            100% { transform: perspective(1400px) ${g.axis}(${g.outDeg}deg); opacity: 0; }
+          }`;
+        } else if (type === 'punch') {
+          const g = getPunchGeometry(currentFrame);
+          keyframes = `@keyframes ${animName} {
+            0% { transform: scale(${g.from}); filter: blur(${g.blur}px); opacity: 0; }
+            60% { opacity: 1; }
+            100% { transform: scale(1); filter: blur(0px); opacity: 1; }
+          }`;
+          keyframesOut = `@keyframes ${animNameOut} {
+            0% { transform: scale(1); filter: blur(0px); opacity: 1; }
+            100% { transform: scale(${g.to}); filter: blur(${g.blur}px); opacity: 0; }
+          }`;
         }
 
         keyframesText += keyframes + '\n' + (keyframesOut || '') + '\n';
 
-        const timingFunc = type === 'iris' ? 'ease-in-out' : 'ease';
+        const timingFunc = getFrameTransTiming(type);
         if (keyframesOut) {
           prevContainer.style.animation = `${animNameOut} ${duration}s ${timingFunc} both`;
         }
@@ -699,6 +749,10 @@ function getFrameTransitionHtml(currentFrame) {
   else if (tType === 'iris') activePreset = 'iris';
   else if (tType === 'blur') activePreset = 'blur';
   else if (tType === 'corner-fold') activePreset = 'corner-fold';
+  else if (tType === 'parallax') activePreset = 'parallax';
+  else if (tType === 'lift') activePreset = 'lift';
+  else if (tType === 'flip') activePreset = 'flip';
+  else if (tType === 'punch') activePreset = 'punch';
 
   const presets = [
     { val: 'none', label: 'None' },
@@ -710,7 +764,11 @@ function getFrameTransitionHtml(currentFrame) {
     { val: 'split', label: 'Split' },
     { val: 'iris', label: 'Iris' },
     { val: 'blur', label: 'Blur' },
-    { val: 'corner-fold', label: 'Corner Fold' }
+    { val: 'corner-fold', label: 'Corner Fold' },
+    { val: 'parallax', label: 'Parallax' },
+    { val: 'lift', label: 'Lift' },
+    { val: 'flip', label: 'Flip' },
+    { val: 'punch', label: 'Punch' }
   ];
 
   let filteredPresets = presets;
@@ -734,7 +792,10 @@ function getFrameTransitionHtml(currentFrame) {
   const durVal = currentFrame.transitionDuration !== undefined ? currentFrame.transitionDuration : 0.5;
   const durHtml = `<div class="prop-row" style="margin:0;"><label>Duration (s)</label><input type="number" step="0.1" id="frame-trans-duration" title="How long this frame takes to arrive, in seconds" value="${durVal}" min="0.1" /></div>`;
 
-  const showFade = ['slide', 'push', 'swipe', 'zoom', 'split', 'iris', 'blur', 'corner-fold'].includes(activePreset);
+  // Flip and Punch deliberately have no Fade. Flip's turn already hides the
+  // swap, and Punch bakes its opacity into the keyframes because the cross-zoom
+  // does not read at all without it.
+  const showFade = ['slide', 'push', 'swipe', 'zoom', 'split', 'iris', 'blur', 'corner-fold', 'parallax', 'lift'].includes(activePreset);
   const showFeather = false;
   let fadeToggleHtml = '';
   let featherToggleHtml = '';
@@ -786,8 +847,9 @@ function getFrameTransitionHtml(currentFrame) {
   `;
 
   let conditionalControls = '';
-  if (activePreset === 'slide' || activePreset === 'push' || activePreset === 'swipe' || activePreset === 'split') {
-    const currentDir = currentFrame.transitionDirection || 'left';
+  const DIRECTIONAL_PRESETS = ['slide', 'push', 'swipe', 'split', 'parallax', 'lift', 'flip'];
+  if (DIRECTIONAL_PRESETS.includes(activePreset)) {
+    const currentDir = currentFrame.transitionDirection || (activePreset === 'lift' ? 'up' : 'left');
     let bounceHtml = '';
     if (activePreset === 'slide' || activePreset === 'push') {
       const hasBounce = !!currentFrame.transitionBounce;
@@ -878,6 +940,23 @@ function getFrameTransitionHtml(currentFrame) {
         </div>
       </div>
     `;
+  } else if (activePreset === 'punch') {
+    const punchTo = currentFrame.transitionPunchTo !== undefined ? currentFrame.transitionPunchTo : 160;
+    const punchBlur = currentFrame.transitionPunchBlur !== undefined ? currentFrame.transitionPunchBlur : 8;
+    conditionalControls = `
+      <div class="prop-row" style="margin-bottom:8px;">
+        <div class="prop-grid-2">
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label>Punch To (%)</label>
+            <input type="number" min="105" max="400" id="frame-trans-punch-to" title="How far the outgoing frame flies past the viewer. The next frame starts further back the harder this is set." value="${punchTo}" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:4px 6px; font-size:11px; height:24px; outline:none;" />
+          </div>
+          <div style="display:flex; flex-direction:column; gap:4px;">
+            <label>Blur (px)</label>
+            <input type="number" min="0" max="60" id="frame-trans-punch-blur" title="Peak defocus on both frames during the punch, in pixels" value="${punchBlur}" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:4px 6px; font-size:11px; height:24px; outline:none;" />
+          </div>
+        </div>
+      </div>
+    `;
   } else if (activePreset === 'corner-fold') {
     const currentDir = currentFrame.transitionDirection || 'bottom-right';
     conditionalControls = `
@@ -895,9 +974,18 @@ function getFrameTransitionHtml(currentFrame) {
     `;
   }
 
+  // Name the frame in the heading. A transition belongs to the frame it brings
+  // ON, and with the panel showing whichever frame is active it was too easy to
+  // read it as a setting for the whole ad and wonder why it only played once.
+  const frameIdx = state.frames.findIndex(fr => fr.id === currentFrame.id);
+  const headLabel = frameIdx >= 0 ? `FRAME ${frameIdx + 1} TRANSITION` : 'FRAME TRANSITION';
+  const headTitle = frameIdx >= 0
+    ? `Plays as Frame ${frameIdx + 1} arrives on screen`
+    : 'Plays as this frame arrives on screen';
+
   return `
     <div id="frame-transition-preview-area" class="animation-sub-panel">
-      <div class="prop-row" style="margin-bottom:6px;"><label class="anim-sub-head"><svg id="fi_11908101" width="12" height="12" viewBox="0 0 48 48" style="color: var(--accent-base); flex-shrink: 0;" fill="currentColor"><g transform="translate(-504 -648)"><g transform="scale(1.5)"><g id="SOLID" transform="scale(.667)"><g><path d="m511.861 693.334c-.902.713-2.133.848-3.168.347s-1.693-1.55-1.693-2.7v-37.963c0-1.15.657-2.199 1.693-2.7 1.035-.501 2.265-.366 3.167.347l24.005 18.976c.719.569 1.139 1.436 1.139 2.353 0 .918-.419 1.785-1.139 2.354z"></path></g><g><path d="m546 694h-3c-1.657 0-3-1.343-3-3v-38c0-1.657 1.343-3 3-3h3c1.657 0 3 1.343 3 3v38c0 1.657-1.343 3-3 3z"></path></g></g></g></g></svg>FRAME TRANSITION</label></div>
+      <div class="prop-row" style="margin-bottom:6px;"><label class="anim-sub-head" title="${headTitle}"><svg id="fi_11908101" width="12" height="12" viewBox="0 0 48 48" style="color: var(--accent-base); flex-shrink: 0;" fill="currentColor"><g transform="translate(-504 -648)"><g transform="scale(1.5)"><g id="SOLID" transform="scale(.667)"><g><path d="m511.861 693.334c-.902.713-2.133.848-3.168.347s-1.693-1.55-1.693-2.7v-37.963c0-1.15.657-2.199 1.693-2.7 1.035-.501 2.265-.366 3.167.347l24.005 18.976c.719.569 1.139 1.436 1.139 2.353 0 .918-.419 1.785-1.139 2.354z"></path></g><g><path d="m546 694h-3c-1.657 0-3-1.343-3-3v-38c0-1.657 1.343-3 3-3h3c1.657 0 3 1.343 3 3v38c0 1.657-1.343 3-3 3z"></path></g></g></g></g></svg>${headLabel}</label></div>
       <div style="margin-bottom:12px;">
         ${customSelect('transition', filteredPresets, activePreset, 'Select Frame Transition', true, 'frame-trans-select', 'frame-')}
         ${favMessageHtml}
@@ -1079,6 +1167,38 @@ function wireFrameTransitionEvents() {
     });
   }
 
+  const punchToInp = propsEl.querySelector('#frame-trans-punch-to');
+  if (punchToInp) {
+    punchToInp.addEventListener('mouseenter', () => {
+      startFrameTransitionPreview(currentFrame.transition || 'none');
+    });
+    punchToInp.addEventListener('input', (e) => {
+      const val = parseInt(e.target.value, 10);
+      currentFrame.transitionPunchTo = isNaN(val) ? 160 : val;
+      startFrameTransitionPreview(currentFrame.transition || 'none');
+      render(true);
+    });
+    punchToInp.addEventListener('change', () => {
+      pushHistory();
+    });
+  }
+
+  const punchBlurInp = propsEl.querySelector('#frame-trans-punch-blur');
+  if (punchBlurInp) {
+    punchBlurInp.addEventListener('mouseenter', () => {
+      startFrameTransitionPreview(currentFrame.transition || 'none');
+    });
+    punchBlurInp.addEventListener('input', (e) => {
+      const val = parseInt(e.target.value, 10);
+      currentFrame.transitionPunchBlur = isNaN(val) ? 8 : val;
+      startFrameTransitionPreview(currentFrame.transition || 'none');
+      render(true);
+    });
+    punchBlurInp.addEventListener('change', () => {
+      pushHistory();
+    });
+  }
+
   const area = propsEl.querySelector('#frame-transition-preview-area');
   if (area) {
     area.addEventListener('mouseleave', () => {
@@ -1218,11 +1338,24 @@ function wireCustomSelects(el, updateProp) {
           else if (key === 'irisOrigin') currentFrame.transitionIrisOrigin = val;
           else if (key === 'transition') {
             currentFrame.transition = val;
-            if (val === 'slide' || val === 'push' || val === 'swipe' || val === 'split') {
-              if (!currentFrame.transitionDirection) currentFrame.transitionDirection = 'left';
+            // Corner Fold speaks in corners and everything else in edges, so a
+            // direction carried over from the other family has to be replaced
+            // rather than kept — an edge preset left holding 'bottom-right'
+            // has no transform to animate and simply cuts.
+            const EDGE_DIRS = ['left', 'right', 'up', 'down', 'short', 'long'];
+            const CORNER_DIRS = ['top-left', 'top-right', 'bottom-left', 'bottom-right'];
+            const EDGE_PRESETS = ['slide', 'push', 'swipe', 'split', 'parallax', 'lift', 'flip'];
+            if (EDGE_PRESETS.includes(val) && !EDGE_DIRS.includes(currentFrame.transitionDirection)) {
+              currentFrame.transitionDirection = val === 'lift' ? 'up' : 'left';
             }
-            if (val === 'corner-fold') {
-              if (!currentFrame.transitionDirection) currentFrame.transitionDirection = 'bottom-right';
+            if (val === 'corner-fold' && !CORNER_DIRS.includes(currentFrame.transitionDirection)) {
+              currentFrame.transitionDirection = 'bottom-right';
+            }
+            if (val === 'parallax' || val === 'lift') {
+              // Both read as one solid card moving over another. Cross-fading
+              // the incoming frame on top of that just greys the two together,
+              // so they start opaque — Fade is still there to turn on.
+              if (currentFrame.transitionFade === undefined) currentFrame.transitionFade = false;
             }
             if (val === 'zoom') {
               if (currentFrame.transitionZoomFrom === undefined) currentFrame.transitionZoomFrom = 80;
@@ -1234,6 +1367,10 @@ function wireCustomSelects(el, updateProp) {
             if (val === 'blur') {
               if (currentFrame.transitionBlurAmount === undefined) currentFrame.transitionBlurAmount = 20;
               if (currentFrame.transitionBlurScale === undefined) currentFrame.transitionBlurScale = 100;
+            }
+            if (val === 'punch') {
+              if (currentFrame.transitionPunchTo === undefined) currentFrame.transitionPunchTo = 160;
+              if (currentFrame.transitionPunchBlur === undefined) currentFrame.transitionPunchBlur = 8;
             }
             render(true);
           }
