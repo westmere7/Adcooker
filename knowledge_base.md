@@ -1,4 +1,4 @@
-# RMIT Adflow — Technical App Breakdown (Updated v0.50.0, Engine v3.0)
+# RMIT Adflow — Technical App Breakdown (Updated v0.50.1, Engine v3.0)
 
 This document is the official context dump for agents (Claude, Codex, etc.) picking up the codebase cold. It covers the current architecture, state schema, core engines (Auto-Resize, Masking, Link Sync, Dynamic Data), the animation sequencer, the three page surfaces (editor + two portals), the cloud backend, and workflow rules. **Read this in full before making non-trivial changes.**
 
@@ -39,7 +39,7 @@ project-dialogs.js →  modals.js              →  share-preview.js        →
 video-export.js    →  app-boot.js
 ```
 
-Approximate sizes (LOC): `props-panel.js` 4799 · `export-pipeline.js` 4731 · `docs-content.js` 3305 · `canvas-render.js` 3158 · `project-dialogs.js` 2661 · `auto-resize-engine.js` 2373 · `app-boot.js` 2213 · `interactions.js` 1810 · `toolbar-import.js` 1771 · `data-merge.js` 1478 · `modals.js` 1404 · `layers-assets.js` 1355 · `sequencer.js` 1351 · `render-runtime.js` 1260 · `video-export.js` 1202 · `link-system.js` 1202 · `auth-ui.js` 1119 · `project-io.js` 1022 · `canvases-panel.js` 974 · `color-picker.js` 751 · `core-state.js` 594 · `autosave.js` 423 · `share-preview.js` 351 · `auto-arrange-config.js` 294 · `font-subset.js` 215 · `numeric-wheel.js` 89.
+Approximate sizes (LOC): `props-panel.js` 4799 · `export-pipeline.js` 4731 · `docs-content.js` 3305 · `canvas-render.js` 3158 · `project-dialogs.js` 2661 · `auto-resize-engine.js` 2373 · `app-boot.js` 2213 · `interactions.js` 1810 · `toolbar-import.js` 1771 · `data-merge.js` 1478 · `modals.js` 1404 · `layers-assets.js` 1355 · `sequencer.js` 1351 · `render-runtime.js` 1412 · `video-export.js` 1202 · `link-system.js` 1202 · `auth-ui.js` 1119 · `project-io.js` 1022 · `canvases-panel.js` 974 · `color-picker.js` 751 · `core-state.js` 468 · `autosave.js` 423 · `share-preview.js` 351 · `auto-arrange-config.js` 294 · `font-subset.js` 215 · `numeric-wheel.js` 89.
 
 ### Vendored libraries (`lib/`, no build step, no npm)
 
@@ -60,6 +60,7 @@ When looking for specific features or bugs, refer to this table:
 | Feature Area | File | Notable Globals / APIs |
 | :--- | :--- | :--- |
 | **Shared render helpers** (used by both editor and preview portal) | `scripts/render-runtime.js` | render/animation helpers shared to avoid editor↔portal drift |
+| **Auto-size fitter + line height** (one copy for editor, batch and preview portals) | `scripts/render-runtime.js` | `calculateAutoSize`, `measureTextFits`, `getMeasureDiv`, `DEFAULT_WRAP_MIN`, `getResolvedLineHeight`, `isLineHeightAuto` — moved out of `core-state.js` in v0.50.1; the export builder bakes the result as `data-fit-size` (`bakedAutoSize` in `export-pipeline.js`) and the in-ad `adjustAutoSizes()` applies it verbatim instead of re-measuring |
 | **Auto-resize engine** (rules, placement, settings, picker) | `scripts/auto-resize-engine.js` | `ENGINE_VERSION`, `ROLE_IDS`, `runRuleBasedAutoResize`, `autoAssignRole`, `openAutoResizeModal` |
 | **Auto-arrange configurations** (coordinates, safezones, font sizes per format) | `scripts/auto-arrange-config.js` | `AUTO_ARRANGE_CONFIG` |
 | **In-app documentation** (Help modal) | `scripts/docs-content.js` | `DOCS_SECTIONS`, `openDocumentation`, `renderDocsPanel` |

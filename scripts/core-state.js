@@ -60,22 +60,7 @@ const urlSizeCache = {};
 
 const uid = (prefix = '') => prefix + Math.random().toString(36).slice(2, 8);
 
-const isLineHeightAuto = (el) => {
-  if (el.lineHeightAuto !== undefined) return !!el.lineHeightAuto;
-  return el.lineHeight === undefined;
-};
-
-const getResolvedLineHeight = (el) => {
-  if (isLineHeightAuto(el)) return 'normal';
-  const val = el.lineHeight;
-  if (val === undefined || val === null || val === '') return '1.2';
-  const str = String(val);
-  if (str.includes('px') || str.includes('em') || str.includes('%')) return str;
-  const num = Number(val);
-  if (Number.isNaN(num)) return '1.2';
-  if (num <= 3.5) return String(num);
-  return num + 'px';
-};
+// isLineHeightAuto() / getResolvedLineHeight() now provided by scripts/render-runtime.js
 
 let isSpaceDown = false;
 let isPanning = false;
@@ -336,124 +321,9 @@ function measureButtonWidth(el) {
   return Math.ceil(textW) + (el.paddingLR || 16) * 2 + 2;
 }
 
-let measureDiv = null;
-function getMeasureDiv() {
-  if (!measureDiv) {
-    measureDiv = document.createElement('div');
-    measureDiv.style.position = 'absolute';
-    measureDiv.style.visibility = 'hidden';
-    measureDiv.style.top = '-9999px';
-    measureDiv.style.left = '-9999px';
-    measureDiv.style.whiteSpace = 'pre-wrap';
-    measureDiv.style.wordBreak = 'normal';
-    measureDiv.style.overflowWrap = 'normal';
-    measureDiv.style.boxSizing = 'border-box';
-    document.body.appendChild(measureDiv);
-  }
-  return measureDiv;
-}
-
-// Smallest one-line font (px) an auto-sized button will use before it wraps to a
-// (larger) multi-line layout instead. Overridable per button via el.wrapMinSize.
-const DEFAULT_WRAP_MIN = 14;
-
-// buttonMode: 'wrap' measures the label wrapped (to test a multi-line fit);
-// anything else ('oneline'/undefined) measures it unwrapped (single-line fit).
-function measureTextFits(el, text, fontSize, buttonMode) {
-  const m = getMeasureDiv();
-  m.innerHTML = '';
-  
-  let targetWidth = el.width;
-  let targetHeight = el.height;
-  if (el.type === 'button') {
-    const padLR = el.paddingLR !== undefined ? el.paddingLR : 16;
-    const padTB = el.paddingTB !== undefined ? el.paddingTB : 0;
-    targetWidth = Math.max(0, el.width - padLR * 2);
-    targetHeight = Math.max(0, el.height - padTB * 2);
-  }
-  m.style.width = targetWidth + 'px';
-  
-  const isButton = el.type === 'button';
-  const ta = el.textAlign || (isButton ? 'center' : 'left');
-  const lh = isButton ? '1.2' : getResolvedLineHeight(el);
-  const fw = el.weight || (isButton ? '600' : '400');
-  
-  const textBlock = document.createElement('div');
-  textBlock.style.textAlign = 'left';
-  textBlock.style.width = '100%';
-  textBlock.style.fontSize = fontSize + 'px';
-  textBlock.style.lineHeight = lh;
-  
-  const span = document.createElement(isButton ? 'span' : (el.htmlTag || 'span'));
-  span.innerText = text;
-  span.style.fontSize = fontSize + 'px';
-  span.style.fontWeight = fw;
-  span.style.fontFamily = el.fontFamily || 'Arial';
-  span.style.lineHeight = lh;
-  span.style.letterSpacing = (el.letterSpacing || 0) + 'px';
-  if (isButton) {
-    // 'wrap' mode lets the label wrap (multi-line fit test); 'oneline' (default)
-    // measures it unwrapped so it can be auto-sized to a single line. Mirrors
-    // adjustAutoSizes() in export-pipeline.js.
-    span.style.whiteSpace = (buttonMode === 'wrap') ? 'normal' : 'nowrap';
-    span.style.wordBreak = 'normal';
-  } else {
-    span.style.wordBreak = 'normal';
-    span.style.overflowWrap = 'normal';
-  }
-  
-  if (!isButton && el.hasBg) {
-    const lr = el.bgPadL !== undefined ? el.bgPadL : 8;
-    const tb = el.bgPadV !== undefined ? el.bgPadV : 4;
-    span.style.display = 'inline';
-    span.style.padding = `${tb}px ${lr}px`;
-    span.style.setProperty('box-decoration-break', 'clone');
-    span.style.setProperty('-webkit-box-decoration-break', 'clone');
-  }
-  
-  textBlock.appendChild(span);
-  m.appendChild(textBlock);
-  
-  const rect = textBlock.getBoundingClientRect();
-  // One-line button fit needs a 2px width safety margin (negative tolerance) so
-  // sub-pixel / display-scaling (DPR) differences between the editor and the
-  // export preview can't tip a single line into wrapping — and it measures the
-  // unwrapped span's OWN width (textBlock.scrollWidth floors at the block width,
-  // so it couldn't see a narrower fit). Wrap-mode buttons and text use the
-  // wrapped block width with the usual +1.5 leniency. (Mirrors adjustAutoSizes()
-  // in export-pipeline.js so both sizers pick the same font.)
-  const fitsHeight = rect.height <= (targetHeight + 1.5);
-  const fitsWidth = (isButton && buttonMode !== 'wrap')
-    ? (span.getBoundingClientRect().width <= (targetWidth - 2))
-    : (textBlock.scrollWidth <= (targetWidth + 1.5));
-
-  return fitsHeight && fitsWidth;
-}
-
-function calculateAutoSize(el, text) {
-  if (!text) return 4;
-  const hi0 = Math.max(4, el.maxFontSize !== undefined ? el.maxFontSize : (el.fontSize || 72));
-  const search = (mode) => {
-    let low = 4, high = hi0, best = 4;
-    while (low <= high) {
-      const mid = Math.floor((low + high) / 2);
-      if (measureTextFits(el, text, mid, mode)) { best = mid; low = mid + 1; }
-      else high = mid - 1;
-    }
-    return best;
-  };
-  
-  // Buttons with Wrap on: keep the label on ONE line as long as it can be sized
-  // at/above the per-button threshold (wrapMinSize); if a single line would need
-  // a smaller font than that, wrap instead (usually larger multi-line text).
-  // Mirrors adjustAutoSizes() in export-pipeline.js so editor and preview agree.
-  if (el.type === 'button' && el.wrapText) {
-    const oneLine = search('oneline');
-    const threshold = el.wrapMinSize !== undefined ? el.wrapMinSize : DEFAULT_WRAP_MIN;
-    return (oneLine >= threshold) ? oneLine : Math.max(oneLine, search('wrap'));
-  }
-  return search('oneline');
-}
+// getMeasureDiv() / DEFAULT_WRAP_MIN / measureTextFits() / calculateAutoSize()
+// now provided by scripts/render-runtime.js — see the note there on why the
+// Auto-size fitter has to be shared with batch.html and preview.html.
 
 
 

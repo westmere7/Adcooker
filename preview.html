@@ -18,7 +18,7 @@
        themes, buttons and dialogs instead of maintaining a parallel look.
        Loaded BEFORE the page-specific block below so the portal's own layout
        rules can still override where they must. -->
-  <link rel="stylesheet" href="styles.css?v=0.50.0" />
+  <link rel="stylesheet" href="styles.css?v=0.50.1" />
 
   <style>
     /* This page's layout was written against its own palette names. Rather than
@@ -803,23 +803,11 @@
     
 
     
-    function isLineHeightAuto(el) {
-      if (el.lineHeightAuto !== undefined) return !!el.lineHeightAuto;
-      return el.lineHeight === undefined;
-    }
-    
-    function getResolvedLineHeight(el) {
-      if (isLineHeightAuto(el)) return 'normal';
-      const val = el.lineHeight;
-      if (val === undefined || val === null || val === '') return '1.2';
-      const str = String(val);
-      if (str.includes('px') || str.includes('em') || str.includes('%')) return str;
-      const num = Number(val);
-      if (Number.isNaN(num)) return '1.2';
-      if (num <= 3.5) return String(num);
-      return num + 'px';
-    }
-    
+    // isLineHeightAuto() / getResolvedLineHeight() now provided by scripts/render-runtime.js
+    // (along with the Auto-size fitter: calculateAutoSize / measureTextFits), so the
+    // size baked into an exported ad here matches the editor's canvas exactly.
+
+
     // strokeOverlayHTML() now provided by scripts/render-runtime.js
 
     
@@ -904,13 +892,13 @@
   <!-- LOAD WORKSPACE ENGINE SCRIPTS
        ?v= is bumped with each release (same as index.html) so reviewers'
        browsers never pair stale engine scripts with new inline portal code. -->
-  <script src="scripts/numeric-wheel.js?v=0.50.0"></script>
-  <script src="scripts/render-runtime.js?v=0.50.0"></script>
-  <script src="scripts/auto-arrange-config.js?v=0.50.0"></script>
-  <script src="scripts/auto-resize-engine.js?v=0.50.0"></script>
-  <script src="scripts/data-merge.js?v=0.50.0"></script>
-  <script src="scripts/font-subset.js?v=0.50.0"></script>
-  <script src="scripts/export-pipeline.js?v=0.50.0"></script>
+  <script src="scripts/numeric-wheel.js?v=0.50.1"></script>
+  <script src="scripts/render-runtime.js?v=0.50.1"></script>
+  <script src="scripts/auto-arrange-config.js?v=0.50.1"></script>
+  <script src="scripts/auto-resize-engine.js?v=0.50.1"></script>
+  <script src="scripts/data-merge.js?v=0.50.1"></script>
+  <script src="scripts/font-subset.js?v=0.50.1"></script>
+  <script src="scripts/export-pipeline.js?v=0.50.1"></script>
 
   <!-- MAIN PREVIEW ENGINE PORTAL -->
   <script>

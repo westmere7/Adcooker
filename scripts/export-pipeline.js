@@ -2262,6 +2262,36 @@ function getExportFilename(el, ext) {
   return `${el.assetId}.${ext}`;
 }
 
+// Auto-size elements ship the font the EDITOR computed, not el.fontSize — while
+// Auto-size is on, el.fontSize is just whatever was last typed into the (disabled)
+// Font Size box and is never updated, so it can be wildly larger than what the
+// canvas shows. The runtime fitter (adjustAutoSizes) used to be the only thing
+// correcting it, which made the ad's text size depend on whether the preview
+// iframe happened to have layout at startAd() time: an iframe with no layout
+// reports every metric as 0, every candidate size "fits", and the search returns
+// data-max-size — the text renders at the maximum font instead of the fitted one.
+// Baking the editor's own calculateAutoSize() result makes preview and export
+// start at the size the user approved. Mirrors what the PNG path already does
+// (it overwrites the in-iframe fit with the parent page's calculation).
+// Baking is only safe once the element's own web font has actually loaded in THIS
+// page: calculateAutoSize measures a hidden div, so an unloaded @font-face means
+// it measures the fallback and bakes a size for the wrong typeface. The editor
+// preloads its fonts at boot (ensureAppFontsLoaded), but batch.html/preview.html
+// don't, so check rather than assume — when it's not ready we bake nothing and the
+// ad's own runtime fitter handles it as before, measuring the embedded font.
+function bakedFontReady(el) {
+  if (!el.fontFamily || !document.fonts || !document.fonts.check) return true;
+  try { return document.fonts.check(`${el.weight || 400} 16px "${el.fontFamily}"`); }
+  catch (e) { return false; }
+}
+
+function bakedAutoSize(el) {
+  if (!el || !el.autoSize || typeof calculateAutoSize !== 'function') return null;
+  if (!bakedFontReady(el)) return null;
+  const size = calculateAutoSize(el, el.text);
+  return (size > 0) ? size : null;
+}
+
 function _generateExportHTMLRaw(targetCanvas, zipRef, isImageExport = false, options = {}) {
   const c = targetCanvas || getActiveCanvas();
   if (!c) return '';
@@ -2358,8 +2388,12 @@ function _generateExportHTMLRaw(targetCanvas, zipRef, isImageExport = false, opt
         }
       }
       const resolvedLH = getResolvedLineHeight(el);
+      // data-fit-size is the editor's computed font; the runtime fitter applies it
+      // verbatim instead of re-measuring (see bakedAutoSize).
+      const fitSize = bakedAutoSize(el);
+      const baseFont = fitSize != null ? fitSize : el.fontSize;
       const autoAttrs = el.autoSize
-        ? ` class="auto-size-text" data-max-size="${el.maxFontSize !== undefined ? el.maxFontSize : (el.fontSize || 72)}" data-width="${el.width}" data-height="${el.height}"`
+        ? ` class="auto-size-text" data-max-size="${el.maxFontSize !== undefined ? el.maxFontSize : (el.fontSize || 72)}" data-width="${el.width}" data-height="${el.height}"${fitSize != null ? ` data-fit-size="${fitSize}"` : ''}`
         : '';
       const blockClass = el.autoSize ? ' class="auto-size-block"' : '';
       // Underline rides the text span so it hugs the type rather than the box.
@@ -2369,11 +2403,11 @@ function _generateExportHTMLRaw(targetCanvas, zipRef, isImageExport = false, opt
 
 
       const innerSpan = (el.hasBg && !bgOwnedByEntrance)
-        ? `<span${bgDataAttrs}${spanClass} style="color:${el.color};font-size:${el.fontSize}px;font-weight:${el.weight};line-height:${resolvedLH};font-family:${ff};${lsStyle}word-break:normal;overflow-wrap:normal;${bgStyle}">${content}</span>`
-        : `<span${spanClass} style="display:inline;color:${el.color};font-size:${el.fontSize}px;font-weight:${el.weight};line-height:${resolvedLH};font-family:${ff};${lsStyle}word-break:normal;overflow-wrap:normal;">${content}</span>`;
+        ? `<span${bgDataAttrs}${spanClass} style="color:${el.color};font-size:${baseFont}px;font-weight:${el.weight};line-height:${resolvedLH};font-family:${ff};${lsStyle}word-break:normal;overflow-wrap:normal;${bgStyle}">${content}</span>`
+        : `<span${spanClass} style="display:inline;color:${el.color};font-size:${baseFont}px;font-weight:${el.weight};line-height:${resolvedLH};font-family:${ff};${lsStyle}word-break:normal;overflow-wrap:normal;">${content}</span>`;
       // font-size + line-height on the wrapper div eliminates the inherited body strut
       // (browser default ~16px * normal) which would push small-font text downward.
-      const inner = `<div${blockClass} style="text-align:${ta};width:100%;font-size:${el.fontSize}px;line-height:${resolvedLH};">${innerSpan}</div>`;
+      const inner = `<div${blockClass} style="text-align:${ta};width:100%;font-size:${baseFont}px;line-height:${resolvedLH};">${innerSpan}</div>`;
       return `    <div ${wrapAttrs}${autoAttrs}>${openDivs}<div style="display:flex;flex-direction:column;justify-content:${jc};width:100%;height:100%;">${inner}</div>${closeDivs}</div>`;
     }
     if (el.type === 'rect') {
@@ -2439,8 +2473,11 @@ function _generateExportHTMLRaw(targetCanvas, zipRef, isImageExport = false, opt
       }
 
       if (el.autoSize) {
-        const autoAttrs = ` class="auto-size-text" data-max-size="${el.maxFontSize !== undefined ? el.maxFontSize : (el.fontSize || 72)}" data-width="${el.width}" data-height="${el.height}" data-padding-lr="${paddingLR}" data-padding-tb="${paddingTB}" data-wrap="${el.wrapText ? '1' : '0'}" data-wrap-min="${el.wrapMinSize !== undefined ? el.wrapMinSize : 14}"`;
-        return `    <div ${wrapAttrs}${autoAttrs}>${openDivs}<div style="position:absolute;inset:0;background:${el.bg};border-radius:${el.radius || 0}px;opacity:${fillOpacity}${bgAnimStyle};"></div><div class="auto-size-block" style="position:relative;width:100%;height:100%;color:${el.color};font-size:${el.fontSize}px;font-weight:${el.weight || '600'};display:flex;align-items:center;justify-content:${jc};text-align:${el.textAlign || 'center'};font-family:${ff};cursor:pointer;padding:${paddingTB}px ${paddingLR}px;box-sizing:border-box;${el.wrapText ? 'word-break:normal;' : ''}"><span class="auto-size-span${effClass ? ' ' + effClass : ''}" style="${spanStyle}">${btnContent}</span></div>${animatedStrokeHtml}${closeDivs}</div>`;
+        // See bakedAutoSize: ship the editor's computed label size, not el.fontSize.
+        const fitSize = bakedAutoSize(el);
+        const baseFont = fitSize != null ? fitSize : el.fontSize;
+        const autoAttrs = ` class="auto-size-text" data-max-size="${el.maxFontSize !== undefined ? el.maxFontSize : (el.fontSize || 72)}" data-width="${el.width}" data-height="${el.height}" data-padding-lr="${paddingLR}" data-padding-tb="${paddingTB}" data-wrap="${el.wrapText ? '1' : '0'}" data-wrap-min="${el.wrapMinSize !== undefined ? el.wrapMinSize : 14}"${fitSize != null ? ` data-fit-size="${fitSize}"` : ''}`;
+        return `    <div ${wrapAttrs}${autoAttrs}>${openDivs}<div style="position:absolute;inset:0;background:${el.bg};border-radius:${el.radius || 0}px;opacity:${fillOpacity}${bgAnimStyle};"></div><div class="auto-size-block" style="position:relative;width:100%;height:100%;color:${el.color};font-size:${baseFont}px;font-weight:${el.weight || '600'};display:flex;align-items:center;justify-content:${jc};text-align:${el.textAlign || 'center'};font-family:${ff};cursor:pointer;padding:${paddingTB}px ${paddingLR}px;box-sizing:border-box;${el.wrapText ? 'word-break:normal;' : ''}"><span class="auto-size-span${effClass ? ' ' + effClass : ''}" style="${spanStyle}">${btnContent}</span></div>${animatedStrokeHtml}${closeDivs}</div>`;
       } else {
         const normalBlockStyle = `position:relative;width:100%;height:100%;color:${el.color};font-size:${el.fontSize}px;font-weight:${el.weight || '600'};display:flex;align-items:center;justify-content:${jc};text-align:${el.textAlign || 'center'};font-family:${ff};cursor:pointer;padding:${paddingTB}px ${paddingLR}px;box-sizing:border-box;`;
         return `    <div ${wrapAttrs}>${openDivs}<div style="position:absolute;inset:0;background:${el.bg};border-radius:${el.radius || 0}px;opacity:${fillOpacity}${bgAnimStyle};"></div><div style="${normalBlockStyle}"><span${btnFxClass} style="${spanStyle}">${btnContent}</span></div>${animatedStrokeHtml}${closeDivs}</div>`;
@@ -2988,7 +3025,25 @@ ${elsTop}
         var block = wrapper.querySelector('.auto-size-block');
         var span = wrapper.querySelector('.auto-size-span');
         if (!block || !span) return;
-        
+
+        // data-fit-size is the size the editor computed and the user signed off on.
+        // Apply it verbatim: re-deriving it here can only introduce drift, because
+        // this fitter measures the live (animated, masked, possibly not-yet-laid-out)
+        // markup while the editor measured plain text in a settled box.
+        var baked = parseFloat(wrapper.getAttribute('data-fit-size'));
+        if (!isNaN(baked) && baked > 0) {
+          block.style.fontSize = baked + 'px';
+          span.style.fontSize = baked + 'px';
+          return;
+        }
+
+        // No baked size (an export from before this attribute existed): only measure
+        // if the box actually has layout. A display:none ancestor or an iframe that
+        // hasn't been laid out yet reports every metric as 0, so every candidate size
+        // "fits" and the search below would return data-max-size — blowing the text up
+        // to the maximum font. Leaving the authored size alone is the safer failure.
+        if (!(block.clientWidth > 0) && !(block.clientHeight > 0)) return;
+
         // Temporarily clear animation and transform to get accurate, scale-free measurements
         var oldWrapperAnim = wrapper.style.animation || '';
         var oldWrapperTrans = wrapper.style.transform || '';

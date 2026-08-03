@@ -889,6 +889,14 @@ document.getElementById('menu-help-documentation').addEventListener('click', ope
 
 const CHANGELOG_DATA = [
   {
+    version: 'v0.50.1',
+    date: 'August 2026 — Engine v3.0',
+    items: [
+      'Auto-Sized Text No Longer Changes Size When You Preview: an auto-sized headline could come back from Preview at a different size to the one on the canvas — usually larger, re-wrapped onto an extra line, and wide enough to run off the edge of the banner. The canvas and the preview were each working out the size for themselves, and the preview did its sum inside the iframe at the moment the ad started. If that iframe had no layout yet, every measurement read as zero, every candidate size therefore "fitted", and the search happily returned your Max size — the largest font the element was allowed. The preview now uses the size the canvas already computed, baked into the ad when it is built, so the two cannot disagree; the text settles at exactly what you approved. The old in-ad fitter is still there for ads exported before this change, and it now refuses to measure a box with no layout rather than guessing upward. Buttons with Auto-size get the same treatment.',
+      'Exports From the Batch and Preview Portals Size Their Text the Same Way: the two portal pages build ads with the same export code as the editor, but they each carried their own hand-copy of part of the text-measuring logic and none of the Auto-size fitter, so their exports had to fall back to working the size out inside the ad. All three now share one copy, which means a ZIP downloaded from the batch portal has the same text size as the same canvas exported from the editor. If a project\'s fonts have not finished downloading when an export is built, the size is left to the ad\'s own fitter rather than measured against the wrong typeface.'
+    ]
+  },
+  {
     version: 'v0.50.0',
     date: 'August 2026 — Engine v3.0',
     items: [
