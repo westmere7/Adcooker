@@ -2684,6 +2684,36 @@ function renderProps() {
     // fields with nothing on hover despite the map already describing them.
     const secNum = (key, label, def = '') => `<div class="prop-row" style="margin:0;"><label>${label}</label><input type="number" step="0.1" data-k="${key}" value="${el[key] !== undefined ? el[key] : def}" title="${propTooltips[key] || label}" /></div>`;
 
+    // "Animate BG" + its offset, shared by every entrance that can bring a text
+    // layer's background in with the text (Typing, Reveal, Pop — see
+    // lineBgModeFor). Identical markup in all three so the control doesn't drift
+    // between presets; buttons keep their own "Fade BG" wording since what moves
+    // there is the button's chrome, not a text background.
+    const animBgToggleHtml = (id) => {
+      if (el.type === 'button') {
+        return `<div class="checkbox-row" style="margin:0;">
+          <input type="checkbox" data-k="animFadeBg" id="${id}" title="Fade the button's background and border in with the text" ${(el.animFadeBg !== undefined ? el.animFadeBg : true) ? 'checked' : ''}/>
+          <label for="${id}" title="Fade the button's background and border in with the text" style="cursor:pointer; font-size:11px; white-space:nowrap;">Fade BG</label>
+        </div>`;
+      }
+      const on = el.animFadeBg !== undefined ? el.animFadeBg : !!el.animateBg;
+      const tip = 'Bring the text background in with the text — one bar per line, filling in as that line arrives';
+      return `<div class="checkbox-row" style="margin:0; ${!el.hasBg ? 'opacity:0.5; pointer-events:none;' : ''}">
+        <input type="checkbox" data-k="animFadeBg" id="${id}" title="${!el.hasBg ? 'Turn on BG for this text layer to animate it' : tip}" ${on ? 'checked' : ''} ${!el.hasBg ? 'disabled' : ''}/>
+        <label for="${id}" title="${tip}" style="cursor:pointer; font-size:11px; white-space:nowrap;">Animate BG</label>
+      </div>`;
+    };
+    const animBgOffsetHtml = () => {
+      const on = el.animFadeBg !== undefined ? el.animFadeBg : !!el.animateBg;
+      if (el.type !== 'text' || !el.hasBg || !on) return '';
+      return `<div class="prop-row" style="margin-bottom:8px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+          ${secNum('bgOffset', 'BG Offset', 0)}
+          <div></div>
+        </div>
+      </div>`;
+    };
+
     const isZoomLike = el.animType === 'zoom' || el.animType === 'zoom-in' || el.animType === 'pop-in';
     const isBlur = el.animType === 'blur';
     const isSlideLike = el.animType === 'slide' || el.animType === 'slide-up' || el.animType === 'slide-down' || el.animType === 'slide-left' || el.animType === 'slide-right';
@@ -2869,26 +2899,35 @@ function renderProps() {
               <input type="checkbox" data-k="riseFade" id="prop-rise-fade" title="Also fade each unit in as it is revealed" ${el.riseFade ? 'checked' : ''}/>
               <label for="prop-rise-fade" title="Also fade each unit in as it is revealed" style="cursor:pointer; font-size:11px; white-space:nowrap;">Fade</label>
             </div>
-            ${el.type === 'button' ? `
-            <div class="checkbox-row" style="margin:0;">
-              <input type="checkbox" data-k="animFadeBg" id="prop-rise-fade-bg" title="Fade the button's background and border in with the text" ${(el.animFadeBg !== undefined ? el.animFadeBg : true) ? 'checked' : ''}/>
-              <label for="prop-rise-fade-bg" title="Fade the button's background and border in with the text" style="cursor:pointer; font-size:11px; white-space:nowrap;">Fade BG</label>
-            </div>` : ''}
+            ${animBgToggleHtml('prop-rise-fade-bg')}
           </div>
         </div>
+        ${animBgOffsetHtml()}
       `);
     } else if (el.animType === 'cursor') {
       // The bar defaults to white rather than the text colour: it reads as a UI
       // caret sitting over the artwork, not as part of the type.
       const caretCol = el.cursorColor || '#ffffff';
+      // The bar can be switched off entirely, leaving just the slide. The colour
+      // control goes with it — there is nothing left to colour. Timing is
+      // unaffected either way (see buildCursorContentHTML).
+      const showCaret = el.cursorShow !== false;
+      const caretTip = 'Draw the cursor bar. Off leaves just the slide — the text still emerges on the same timing, with nothing marking the edge.';
       f.push(`
+        <div class="prop-row" style="margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; gap:8px;">
+          <div class="checkbox-row" style="margin:0;">
+            <input type="checkbox" data-k="cursorShow" id="prop-cursor-show" title="${caretTip}" ${showCaret ? 'checked' : ''}/>
+            <label for="prop-cursor-show" title="${caretTip}" style="cursor:pointer; font-size:11px; white-space:nowrap;">Show cursor</label>
+          </div>
+        </div>
+        ${showCaret ? `
         <div class="prop-row" style="margin-bottom:8px;">
           <label>Cursor Color</label>
           <div style="display:flex; gap:6px; align-items:center;">
             <button class="cp-trigger" data-k="cursorColor" title="Choose cursor color" style="width:24px; height:24px; border-radius:4px; border:1px solid var(--border-light); cursor:pointer; background:${getBgStyle(caretCol) || '#fff'}"></button>
             ${hexInputBox('cursorColor', caretCol)}
           </div>
-        </div>
+        </div>` : ''}
         <div class="prop-row" style="margin-bottom:8px;">
           <div style="display:flex; flex-direction:column; gap:4px;">
             <label>Slide out</label>
@@ -2929,6 +2968,12 @@ function renderProps() {
             ], el.popUnit === 'line' ? 'line' : 'word', 'What pops as one unit — each word in turn, or a whole visual line at a time')}
           </div>
         </div>
+        <div class="prop-row" style="margin-bottom:8px;">
+          <div style="display:flex; flex-direction:row; gap:16px; align-items:center; height:24px;">
+            ${animBgToggleHtml('prop-pop-anim-bg')}
+          </div>
+        </div>
+        ${animBgOffsetHtml()}
       `);
     } else if (isTypingFamilyEntrance(el.animType)) {
       const fadeBg = el.animFadeBg !== undefined ? el.animFadeBg : (el.type === 'button' ? true : !!el.animateBg);
@@ -3372,6 +3417,29 @@ function checkButtonFontSizeWarning(el) {
         else reconcileWeightForFont(targetEl);
       });
     }
+    // Switching the text background on also dials in the leading and vertical
+    // padding that make each line read as its own bar: T/B pad 0 and a fixed
+    // 1.3 leading. Auto leading packs the lines tight enough that their
+    // backgrounds touch and merge into one block, which is never what someone
+    // is after when they turn BG on. Switching it back off restores the
+    // defaults (auto leading, 4px T/B pad).
+    if (k === 'hasBg') {
+      const affected = (state.layerSelection && state.layerSelection.length > 1 && c)
+        ? c.elements.filter(e => state.layerSelection.includes(e.id))
+        : [el];
+      affected.forEach(targetEl => {
+        if (!targetEl || targetEl.type !== 'text') return;
+        if (val) {
+          targetEl.bgPadV = 0;
+          targetEl.lineHeightAuto = false;
+          targetEl.lineHeight = 1.3;
+        } else {
+          delete targetEl.bgPadV;
+          delete targetEl.lineHeight;
+          delete targetEl.lineHeightAuto;
+        }
+      });
+    }
     if ((k === 'width' || k === 'height') && (el.type === 'button' || (state.layerSelection && state.layerSelection.length > 1 && c && c.elements.filter(e => state.layerSelection.includes(e.id)).some(selEl => selEl.type === 'button')))) {
       const autoHugInp = propsEl.querySelector('input[data-k="autoHug"]');
       if (autoHugInp) autoHugInp.checked = false;
@@ -3432,29 +3500,11 @@ function checkButtonFontSizeWarning(el) {
     });
     inp.addEventListener('change', () => {
       pushHistory();
-      if (inp.dataset.k === 'fontFamily' || inp.dataset.k === 'hasBg' || inp.dataset.k === 'animateBg' || inp.dataset.k === 'animFadeBg' || inp.dataset.k === 'animFadeLetters' || inp.dataset.k === 'lineHeightAuto' || inp.dataset.k === 'autoSize' || inp.dataset.k === 'maxFontSize' || inp.dataset.k === 'lockRatio' || inp.dataset.k === 'wrapText' || inp.dataset.k === 'wrapMinSize' || inp.dataset.k === 'animStaggerText' || inp.dataset.k === 'exitEnabled' || inp.dataset.k === 'exitType' || inp.dataset.k === 'exitStart') renderProps();
+      if (inp.dataset.k === 'fontFamily' || inp.dataset.k === 'hasBg' || inp.dataset.k === 'animateBg' || inp.dataset.k === 'animFadeBg' || inp.dataset.k === 'animFadeLetters' || inp.dataset.k === 'lineHeightAuto' || inp.dataset.k === 'autoSize' || inp.dataset.k === 'maxFontSize' || inp.dataset.k === 'lockRatio' || inp.dataset.k === 'wrapText' || inp.dataset.k === 'wrapMinSize' || inp.dataset.k === 'animStaggerText' || inp.dataset.k === 'cursorShow' || inp.dataset.k === 'exitEnabled' || inp.dataset.k === 'exitType' || inp.dataset.k === 'exitStart') renderProps();
     });
-    if (inp.type === 'number') {
-      inp.addEventListener('wheel', (e) => {
-        if (!e.shiftKey) return;
-        e.preventDefault();
-        // Use the input's step attribute as the base nudge (1 if unset). Shift+Alt = 10×.
-        // Result is rounded to the step's decimal precision to avoid 0.30000000000004.
-        const stepAttr = parseFloat(inp.step);
-        const baseStep = (stepAttr && stepAttr > 0) ? stepAttr : 1;
-        const step = e.altKey ? baseStep * 10 : baseStep;
-        const delta = e.deltaY < 0 ? step : -step;
-        const decimals = (String(inp.step).split('.')[1] || '').length;
-        const next = Number(inp.value) + delta;
-        const rounded = decimals ? parseFloat(next.toFixed(decimals)) : next;
-        inp.value = clampNum(inp, rounded);
-        updateProp(inp.dataset.k, Number(inp.value));
-        syncLockRatio(inp.dataset.k);
-        inp.dispatchEvent(new Event('input', { bubbles: true }));
-        clearTimeout(inp.wheelHistTimer);
-        inp.wheelHistTimer = setTimeout(() => pushHistory(), 400);
-      });
-    }
+    // Shift+scroll to nudge number fields is handled app-wide by
+    // scripts/numeric-wheel.js — it re-dispatches 'input' and (debounced)
+    // 'change', so the two listeners above do the actual work.
   });
 
   // Dynamic-data controls (data-merge). Toggling a field flag propagates across the
@@ -3624,7 +3674,7 @@ function checkButtonFontSizeWarning(el) {
           if (target.dataset.origStyle !== undefined) {
             target.setAttribute('style', target.dataset.origStyle);
           }
-          ['origHtml', 'origStyle', 'bgInited', 'bgColor', 'bgPadL', 'bgPadV', 'bgCov', 'bgDelay', 'bgDuration', 'bgAnim'].forEach(k => delete target.dataset[k]);
+          ['origHtml', 'origStyle', 'bgInited', 'bgColor', 'bgPadL', 'bgPadV', 'bgCov', 'bgDelay', 'bgDuration', 'bgAnim', 'bgMode', 'bgUnit'].forEach(k => delete target.dataset[k]);
         }
         if (nodeEl.type === 'button') {
           const fillBg = node.querySelector('div[style*="position: absolute"], div[style*="position:absolute"]');
@@ -3676,6 +3726,7 @@ function checkButtonFontSizeWarning(el) {
             cursorSplit: el.cursorSplit,
             cursorCenter: el.cursorCenter,
             cursorFade: el.cursorFade,
+            cursorShow: el.cursorShow,
             cursorColor: el.cursorColor
           };
           let previewVal = val;
@@ -3723,17 +3774,14 @@ function checkButtonFontSizeWarning(el) {
                 }
               }
 
-              const fadeBg = mergedEl.animFadeBg !== undefined ? mergedEl.animFadeBg : (mergedEl.type === 'button' ? true : !!mergedEl.animateBg);
-              if (mergedEl.type === 'text' && mergedEl.hasBg && fadeBg && isTypingFamilyEntrance(previewVal)) {
+              if (textBgAnimates(mergedEl, previewVal)) {
                 const lr = mergedEl.bgPadL !== undefined ? mergedEl.bgPadL : 8;
                 const tb = mergedEl.bgPadV !== undefined ? mergedEl.bgPadV : 4;
                 const cov = mergedEl.bgCoverage !== undefined ? mergedEl.bgCoverage : 100;
                 const opa = (mergedEl.bgOpacity !== undefined ? mergedEl.bgOpacity : 100) / 100;
                 const bgRgba = hexToRgba(mergedEl.bg || '#000000', opa);
                 let offset = Number(mergedEl.bgOffset) || 0;
-                if (offset === 0 && isTypingFamilyEntrance(previewVal)) {
-                  offset = -0.1;
-                }
+                if (offset === 0) offset = lineBgDefaultOffset(previewVal);
                 const bgDelay = offset;
                 const totalDur = Number(mergedEl.animDuration || 1);
                 target.style.backgroundImage = '';
@@ -3744,6 +3792,8 @@ function checkButtonFontSizeWarning(el) {
                 target.style.isolation = 'isolate';
                 target.style.maxWidth = '100%';
                 delete target.dataset.bgInited;
+                target.dataset.bgMode = lineBgModeFor(previewVal);
+                target.dataset.bgUnit = lineBgUnitFor(mergedEl, previewVal);
                 target.dataset.bgColor = bgRgba;
                 target.dataset.bgPadL = lr;
                 target.dataset.bgPadV = tb;
@@ -3961,7 +4011,7 @@ function checkButtonFontSizeWarning(el) {
           if (target.dataset.origStyle !== undefined) {
             target.setAttribute('style', target.dataset.origStyle);
           }
-          ['origHtml', 'origStyle', 'bgInited', 'bgColor', 'bgPadL', 'bgPadV', 'bgCov', 'bgDelay', 'bgDuration', 'bgAnim'].forEach(k => delete target.dataset[k]);
+          ['origHtml', 'origStyle', 'bgInited', 'bgColor', 'bgPadL', 'bgPadV', 'bgCov', 'bgDelay', 'bgDuration', 'bgAnim', 'bgMode', 'bgUnit'].forEach(k => delete target.dataset[k]);
         }
       }
     });

@@ -1544,6 +1544,22 @@ function canvasFrameNode(c) {
   rightSideBtn.title = isSinglePreview ? 'Go back to edit mode' : 'Preview interactive animation for this canvas';
   rightSideBtn.onmouseover = () => rightSideBtn.style.color = '#9aa1b6';
   rightSideBtn.onmouseout = () => rightSideBtn.style.color = '#5a6178';
+  // With hover preview armed, pointing at this link plays THIS canvas in place —
+  // the per-canvas counterpart of pointing at "Full preview" (see
+  // startCanvasHoverPreview in toolbar-import.js, which loads after this file,
+  // hence the call-time lookup). "Back" is a real single-preview already, so
+  // there is nothing to preview on hover.
+  if (!isSinglePreview) {
+    rightSideBtn.addEventListener('mouseenter', () => {
+      if (typeof startCanvasHoverPreview === 'function') startCanvasHoverPreview(c);
+    });
+    rightSideBtn.addEventListener('mouseleave', () => {
+      if (typeof stopCanvasHoverPreview === 'function') stopCanvasHoverPreview();
+    });
+    rightSideBtn.addEventListener('mousedown', () => {
+      if (typeof stopCanvasHoverPreview === 'function') stopCanvasHoverPreview();
+    });
+  }
   footer.appendChild(rightSideBtn);
 
   if (state.activeCanvasId === c.id && !isSinglePreview) {

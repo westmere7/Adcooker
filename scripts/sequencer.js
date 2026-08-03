@@ -1129,17 +1129,14 @@ function seqStartPlayback() {
           // Rise Line mode groups by the visual lines only measurable post-layout.
           if (typeof setupLineStaggers === 'function') setupLineStaggers(target);
 
-          const fadeBg = el.animFadeBg !== undefined ? el.animFadeBg : (el.type === 'button' ? true : !!el.animateBg);
-          if (el.type === 'text' && el.hasBg && fadeBg && typeof isTypingFamilyEntrance === 'function' && isTypingFamilyEntrance(animType) && typeof setupTextLineBgs === 'function') {
+          if (typeof textBgAnimates === 'function' && textBgAnimates(el, animType) && typeof setupTextLineBgs === 'function') {
             const lr = el.bgPadL !== undefined ? el.bgPadL : 8;
             const tb = el.bgPadV !== undefined ? el.bgPadV : 4;
             const cov = el.bgCoverage !== undefined ? el.bgCoverage : 100;
             const opa = (el.bgOpacity !== undefined ? el.bgOpacity : 100) / 100;
             const bgRgba = (typeof hexToRgba === 'function') ? hexToRgba(el.bg || '#000000', opa) : (el.bg || '#000000');
             let offset = Number(el.bgOffset) || 0;
-            if (offset === 0) {
-              offset = -0.1;
-            }
+            if (offset === 0) offset = lineBgDefaultOffset(animType);
             const inDelay = animInEnabled(el) ? (el.animDelay || 0) : 0;
             const bgDelay = Number(inDelay) + offset;
             const totalDur = el.animDuration || 1;
@@ -1150,6 +1147,8 @@ function seqStartPlayback() {
             target.style.position = 'relative';
             target.style.isolation = 'isolate';
             target.style.maxWidth = '100%';
+            target.dataset.bgMode = lineBgModeFor(animType);
+            target.dataset.bgUnit = lineBgUnitFor(el, animType);
             target.dataset.bgColor = bgRgba;
             target.dataset.bgPadL = lr;
             target.dataset.bgPadV = tb;

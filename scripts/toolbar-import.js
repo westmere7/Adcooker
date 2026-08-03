@@ -1580,8 +1580,8 @@ function syncHoverPreviewToggle() {
   btn.classList.toggle('active', hoverPreviewArmed);
   btn.setAttribute('aria-pressed', hoverPreviewArmed ? 'true' : 'false');
   btn.title = hoverPreviewArmed
-    ? 'Hover preview is ON — pointing at Full preview plays all canvases in place. Click to turn off.'
-    : 'Hover preview — play all canvases in place when you point at Full preview';
+    ? 'Hover preview is ON — point at Full preview to play all canvases in place, or at a canvas’s own Preview link to play just that one. Click to turn off.'
+    : 'Hover preview — play canvases in place when you point at Full preview, or at a canvas’s own Preview link';
 }
 
 // Rebuilding every canvas as an iframe is the expensive part, so bail out early
@@ -1628,6 +1628,51 @@ function stopHoverPreview(immediate = false) {
   else hoverPreviewLeaveTimer = setTimeout(finish, 140);
 }
 
+// ---- Per-canvas hover preview ----------------------------------------------
+// The same idea scoped to ONE canvas: with hover preview armed, pointing at a
+// canvas's own "Preview" link (bottom-right of its footer) plays that canvas
+// through all its frames, in place. Nothing else moves — no camera change, no
+// dimming of the other canvases, no chrome.
+//
+// Deliberately NOT routed through render()/hoverPreviewActive like the
+// Full-preview hover is. That path rebuilds the whole workspace, which would
+// destroy the very button the pointer is sitting on — mouseleave would fire the
+// instant the preview started and the two would fight each other. Laying the
+// export iframe over the canvas surface instead leaves the editor DOM, and the
+// button, exactly where they are. Any real render() wipes the workspace and
+// takes the iframe with it, so nothing has to unwind it by hand.
+const CANVAS_HOVER_IFRAME_CLASS = 'canvas-hover-preview-iframe';
+
+function stopCanvasHoverPreview() {
+  document.querySelectorAll('.' + CANVAS_HOVER_IFRAME_CLASS).forEach(f => f.remove());
+}
+
+function startCanvasHoverPreview(c) {
+  if (!c || !canHoverPreview()) return;
+  const frame = document.querySelector(`.canvas-frame[data-canvas-id="${c.id}"]`);
+  const surface = frame && frame.querySelector('.canvas');
+  if (!surface || surface.querySelector('.' + CANVAS_HOVER_IFRAME_CLASS)) return;
+  stopCanvasHoverPreview();   // only ever one at a time
+
+  const iframe = document.createElement('iframe');
+  iframe.className = CANVAS_HOVER_IFRAME_CLASS;
+  iframe.scrolling = 'no';
+  // Pixel dims rather than 100%, matching previewFrameNode: percentage iframe
+  // sizes round differently from the parent under zoom and leave a hairline.
+  iframe.style.cssText = `position:absolute; left:0; top:0; width:${c.width}px; height:${c.height}px;` +
+    'border:none; display:block; z-index:60; pointer-events:none;';
+  // Paint the first played frame's bg so the ad doesn't flash the wrong colour
+  // before its own frame CSS lands.
+  const firstF = (state.frames || []).find(f => !f.skip) || (state.frames || [])[0];
+  iframe.style.background = getCanvasBg(c, firstF && firstF.id);
+  iframe.srcdoc = generateExportHTML(c, null, false, { previewControls: false });
+  surface.appendChild(iframe);
+}
+
+// Same escape hatches the Full-preview hover uses.
+window.addEventListener('keydown', stopCanvasHoverPreview);
+document.addEventListener('visibilitychange', () => { if (document.hidden) stopCanvasHoverPreview(); });
+
 (function setupHoverPreview() {
   const wrap = document.getElementById('preview-btn-wrap');
   const btn = document.getElementById('btn-preview');
@@ -1641,9 +1686,9 @@ function stopHoverPreview(immediate = false) {
     hoverPreviewArmed = !hoverPreviewArmed;
     localStorage.setItem(HOVER_PREVIEW_LS_KEY, hoverPreviewArmed ? 'true' : 'false');
     syncHoverPreviewToggle();
-    if (!hoverPreviewArmed) stopHoverPreview(true);
+    if (!hoverPreviewArmed) { stopHoverPreview(true); stopCanvasHoverPreview(); }
     showCanvasNotification(
-      hoverPreviewArmed ? 'Hover preview on — point at Full preview to play in place' : 'Hover preview off',
+      hoverPreviewArmed ? 'Hover preview on — point at Full preview, or a canvas’s Preview link, to play in place' : 'Hover preview off',
       { type: hoverPreviewArmed ? 'success' : 'info' });
   });
 

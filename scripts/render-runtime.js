@@ -405,27 +405,65 @@ function setupLineStaggers(root) {
   root.querySelectorAll('[data-cursor-lines]').forEach(setupCursorLines);
 }
 
-// Runtime per-line BG measurement: reads the per-char spans inside `wrapper`,
-// groups them by offsetTop into "lines", and inserts an absolute-positioned bg
-// overlay per line with a staggered scaleX animation that tracks each line's
-// share of the total typing duration. Used by both the editor's hover preview
-// and the exported HTML (serialized via .toString() in the export template).
+// Runtime per-line BG measurement: reads the entrance's per-unit spans inside
+// `wrapper`, groups them by offsetTop into "lines", and inserts an
+// absolute-positioned bg overlay per line with a staggered scaleX animation that
+// tracks each line's share of the entrance duration. Used by both the editor's
+// hover preview and the exported HTML (serialized via .toString() in the export
+// template), so every parameter arrives as a data attribute and nothing outside
+// this function may be referenced.
+//
+// Three entrances stage a background this way, differing only in which spans
+// carry a unit and how the stagger is measured (see lineBgModeFor /
+// lineBgUnitFor):
+//   data-bg-mode="typing"  direct-child spans, one per character or word
+//   data-bg-mode="rise"    .rise-mask spans (letter / word / line modes alike)
+//   data-bg-mode="pop"     [data-pop-word] spans
+// data-bg-unit="line" means the preset already advances a whole visual line at a
+// time, so a line's bar spans that line's slot in the stagger rather than the
+// slots of the individual spans that landed on it.
 function setupTextLineBgs(wrapper) {
   if (wrapper.dataset.bgInited) return;
   if (wrapper.offsetWidth === 0) return;
   wrapper.dataset.bgInited = '1';
-  var charSpans = Array.prototype.filter.call(wrapper.children, function (c) { return c.tagName === 'SPAN'; });
-  if (!charSpans.length) return;
+  var mode = wrapper.dataset.bgMode || 'typing';
+  var unitSpans;
+  if (mode === 'rise') {
+    unitSpans = Array.prototype.slice.call(wrapper.querySelectorAll('.rise-mask'));
+  } else if (mode === 'pop') {
+    unitSpans = Array.prototype.slice.call(wrapper.querySelectorAll('[data-pop-word]'));
+  } else {
+    unitSpans = Array.prototype.filter.call(wrapper.children, function (c) { return c.tagName === 'SPAN'; });
+  }
+  if (!unitSpans.length) return;
+  var byLine = wrapper.dataset.bgUnit === 'line';
+  // Bar height has to be the GLYPH box, which is what the static background
+  // paints — an inline span's content area, ascent to descent. Typing's units
+  // are inline spans, so their own offsetHeight is already it. Reveal's masks
+  // and Pop's words are inline-BLOCKS, and those report the full line box, which
+  // on a 1.3 leading is several pixels taller. A throwaway inline probe inside
+  // the wrapper measures the real thing under the layer's own font. It is
+  // removed before any line offset is read, so the layout the grouping sees is
+  // the untouched one.
+  var glyphH = 0;
+  if (mode !== 'typing') {
+    var probe = document.createElement('span');
+    probe.style.cssText = 'display:inline;visibility:hidden;';
+    probe.textContent = 'Xg';
+    wrapper.appendChild(probe);
+    glyphH = probe.offsetHeight;
+    wrapper.removeChild(probe);
+  }
   var bgColor = wrapper.dataset.bgColor;
   var lr = parseFloat(wrapper.dataset.bgPadL) || 0;
   var tb = parseFloat(wrapper.dataset.bgPadV) || 0;
   var cov = (parseFloat(wrapper.dataset.bgCov) || 100) / 100;
   var baseDelay = parseFloat(wrapper.dataset.bgDelay) || 0;
   var totalDuration = parseFloat(wrapper.dataset.bgDuration) || 1;
-  var totalChars = charSpans.length;
+  var totalUnits = unitSpans.length;
   var lines = [];
   var cur = null;
-  charSpans.forEach(function (s, i) {
+  unitSpans.forEach(function (s, i) {
     var t = Math.round(s.offsetTop);
     if (!cur || Math.abs(cur.top - t) > 1) {
       cur = { top: t, spans: [], firstIdx: i, lastIdx: i };
@@ -435,15 +473,25 @@ function setupTextLineBgs(wrapper) {
     }
     cur.spans.push(s);
   });
-  lines.forEach(function (line) {
+  lines.forEach(function (line, li) {
     var first = line.spans[0];
     var last = line.spans[line.spans.length - 1];
     var lineLeft = first.offsetLeft;
     var lineTop = first.offsetTop;
     var lineWidth = (last.offsetLeft + last.offsetWidth) - lineLeft;
+    // Reveal's mask carries a little bottom padding to protect descenders from
+    // its own overflow:hidden (see MASK_STYLE), which has to come off the box
+    // before the glyph box is centred inside it.
     var lineHeight = first.offsetHeight;
-    var startFrac = line.firstIdx / totalChars;
-    var endFrac = (line.lastIdx + 1) / totalChars;
+    if (mode === 'rise' && window.getComputedStyle) {
+      lineHeight -= parseFloat(window.getComputedStyle(first).paddingBottom) || 0;
+    }
+    if (glyphH) {
+      lineTop += (lineHeight - glyphH) / 2;
+      lineHeight = glyphH;
+    }
+    var startFrac = byLine ? (li / lines.length) : (line.firstIdx / totalUnits);
+    var endFrac = byLine ? ((li + 1) / lines.length) : ((line.lastIdx + 1) / totalUnits);
     var lineDur = totalDuration * (endFrac - startFrac);
     var lineDelay = baseDelay + totalDuration * startFrac;
     var bg = document.createElement('div');
@@ -528,6 +576,52 @@ function isSpanDrivenEntrance(animType) {
 // wipe fights it. A word-pop element with a background just paints it normally.
 function isTypingFamilyEntrance(animType) {
   return animType === 'typing' || animType === 'fade-typing' || animType === 'word-fade';
+}
+
+// ---- Animated text background (the "Animate BG" toggle) --------------------
+// Three span-driven entrances can bring a text layer's background in with the
+// text instead of painting it up front: Typing, Reveal and Pop. All three use
+// the same device — one bar per VISUAL line, wiping in left to right in step
+// with the units landing on that line (setupTextLineBgs). Keeping it per line
+// rather than per unit is the whole point: a per-word chip would leave the
+// resting layer looking nothing like it does with the toggle off.
+//
+// Cursor Slide is absent on purpose. It owns the background outright, painting
+// it on the strip that slides out of the caret (see cursorOwnsTextBg) — there
+// is no separate bar to stage.
+//
+// Returns the marker its unit spans carry, which is all setupTextLineBgs needs
+// to find them; null for every other preset.
+function lineBgModeFor(animType) {
+  if (isTypingFamilyEntrance(animType)) return 'typing';
+  if (animType === 'rise') return 'rise';
+  if (animType === 'word-pop') return 'pop';
+  return null;
+}
+
+// Whether the preset advances a whole visual line at a time. Reveal by Lines and
+// Pop by Lines do, so a line's bar takes that line's slot in the stagger; every
+// other mode advances span by span, so the bar spans the slots of the units that
+// landed on the line.
+function lineBgUnitFor(el, animType) {
+  if (animType === 'rise' && el && el.riseSplit === 'line') return 'line';
+  if (animType === 'word-pop' && el && el.popUnit === 'line') return 'line';
+  return 'unit';
+}
+
+// Resolved "Animate BG" state. Buttons default it on (their chrome has always
+// joined the entrance); a text layer only offers it once it has a background.
+function textBgAnimates(el, animType) {
+  if (!el || el.type !== 'text' || !el.hasBg) return false;
+  const on = el.animFadeBg !== undefined ? el.animFadeBg : !!el.animateBg;
+  return !!on && !!lineBgModeFor(animType);
+}
+
+// The bar's head start over the text. Typing keeps its long-standing 0.1s lead —
+// a bar arriving with the first character reads as lagging it. Reveal and Pop
+// hit harder when bar and text land together, so they start level.
+function lineBgDefaultOffset(animType) {
+  return isTypingFamilyEntrance(animType) ? -0.1 : 0;
 }
 // Which unit a Pop entrance advances by. Deliberately no 'letter' option — a
 // per-character scale-and-overshoot on a headline is far too granular to read.

@@ -473,21 +473,10 @@ function initColorPicker() {
     emitColorUpdate();
   });
 
-  // Scroll-wheel to nudge the gradient number fields (1 per tick, 10 with Shift),
-  // clamped to each input's min/max. Re-dispatches 'input' so the handlers above run.
-  ['cp-grad-angle', 'cp-grad-opacity'].forEach(id => {
-    const inp = document.getElementById(id);
-    if (!inp) return;
-    inp.addEventListener('wheel', (e) => {
-      e.preventDefault();
-      const step = e.shiftKey ? 10 : 1;
-      let v = (parseFloat(inp.value) || 0) + (e.deltaY < 0 ? step : -step);
-      if (inp.min !== '') v = Math.max(parseFloat(inp.min), v);
-      if (inp.max !== '') v = Math.min(parseFloat(inp.max), v);
-      inp.value = v;
-      inp.dispatchEvent(new Event('input'));
-    });
-  });
+  // Scroll-wheel nudging of the gradient number fields lives in
+  // scripts/numeric-wheel.js along with every other numeric input. Both fields
+  // carry data-wheel-plain in index.html so a bare wheel still steps them here
+  // (Shift is optional in the picker); Shift+Alt gives the 10× jump.
 
   // Save / Discard. Edits are live the whole time the picker is open — these
   // decide whether they stick.

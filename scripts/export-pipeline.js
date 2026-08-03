@@ -168,7 +168,10 @@ function buildRiseContentHTML(el, esc, isImageExport, opts) {
     const idx = i;
     const del = (baseDelay + i * step).toFixed(3); i++;
     const exitCss = spanExitAnimCss(el, opts, idx, unitCount);
-    return `<span style="${MASK_STYLE}">` +
+    // The .rise-mask class is the same hook Line mode uses. It costs nothing
+    // here (no stylesheet matches it) and lets setupTextLineBgs find the units
+    // in every split mode through one selector.
+    return `<span class="rise-mask" style="${MASK_STYLE}">` +
       `<span style="display:inline-block;transform:${dirSpec.from};animation:${riseAnimCss(unitDur, del)}${exitCss};">${content}</span></span>`;
   };
 
@@ -285,7 +288,16 @@ function buildCursorContentHTML(el, esc, isImageExport, opts) {
   const rawCaretColor = String(el.cursorColor || '#ffffff').trim();
   const caretColor = /^[0-9a-f]{3,8}$/i.test(rawCaretColor) ? '#' + rawCaretColor : rawCaretColor;
 
+  // The bar itself is optional (el.cursorShow), leaving the slide on its own —
+  // Reveal's masked motion turned sideways, with nothing marking the edge. The
+  // TIMING is untouched: the text still waits out the caret's lead before it
+  // moves and still lands on the configured duration, so ticking the bar off
+  // doesn't re-time an ad that was built around the preset's rhythm. In Line by
+  // line there is simply no template for setupCursorLines to clone, which it
+  // already tolerates.
+  const showCaret = el.cursorShow !== false;
   const caretSpan = (animCss, dataAttr) =>
+    !showCaret ? '' :
     `<span${dataAttr ? ' data-cur-caret="1"' : ''} style="position:absolute; left:${caretLeft.toFixed(3)}em; top:-0.07em; height:calc(100% + 0.14em); width:${CARET_W}em; min-width:1.5px; border-radius:0.02em; background:${caretColor}; opacity:0; pointer-events:none;${animCss ? ` animation:${animCss};` : ''}"></span>`;
 
   if (perLine) {
@@ -607,7 +619,11 @@ function buildTextEntranceHTML(el, esc, animType, isImageExport, textOverride, d
       const animStyle = isImageExport
         ? ''
         : `opacity:0; display:inline-block; animation: anim-word-pop ${wordDur}s ${POP_EASE} ${del}s both${exitCss};`;
-      return `<span style="${animStyle}">${esc(w)}</span>`;
+      // data-pop-word is Line mode's marker; carrying it in Word mode too gives
+      // setupTextLineBgs one selector for both. setupPopLines only ever runs on
+      // a [data-pop-lines] wrapper, which Word mode does not emit, so the extra
+      // attribute cannot pull these spans into the line staging.
+      return `<span data-pop-word="1" style="${animStyle}">${esc(w)}</span>`;
     }).join('');
   }
   return null;
@@ -2298,18 +2314,19 @@ function _generateExportHTMLRaw(targetCanvas, zipRef, isImageExport = false, opt
       const hjc = hAlignMap[el.textAlign || 'left'];
       const ta = el.textAlign || 'left';
       // Multi-line BG strategies:
-      //   - Static (no anim, or non-typing entry anim, or animateBg=off): use
-      //     `box-decoration-break: clone` + linear-gradient bg so each line gets
-      //     its own background rectangle automatically.
-      //   - Animated typing + animateBg: render the wrapper without inline bg,
-      //     emit data-bg-* attrs, and let setupTextLineBgs() (in the runtime
-      //     script) measure post-layout and inject per-line overlays with
-      //     staggered animation timing so the bg arrival matches each line's
-      //     share of the typing duration.
+      //   - Static (no anim, or an entrance that can't stage a bg, or
+      //     animateBg=off): use `box-decoration-break: clone` + linear-gradient
+      //     bg so each line gets its own background rectangle automatically.
+      //   - Animate BG on a Typing / Reveal / Pop entrance: render the wrapper
+      //     without inline bg, emit data-bg-* attrs, and let setupTextLineBgs()
+      //     (in the runtime script) measure post-layout and inject per-line
+      //     overlays with staggered animation timing so the bg arrival matches
+      //     each line's share of the entrance duration.
       let bgStyle = '';
       let bgDataAttrs = '';
       const fadeBg = el.animFadeBg !== undefined ? el.animFadeBg : (el.type === 'button' ? true : !!el.animateBg);
-      const useLineBgScript = el.hasBg && fadeBg && !isImageExport && isTypingFamilyEntrance(animType);
+      const lineBgMode = lineBgModeFor(animType);
+      const useLineBgScript = el.hasBg && fadeBg && !isImageExport && !!lineBgMode;
       // Cursor Slide paints the background itself, on the strip that slides out
       // of the cursor (see cursorOwnsTextBg) — the layer must not also paint it
       // here, outside the mask.
@@ -2323,15 +2340,13 @@ function _generateExportHTMLRaw(targetCanvas, zipRef, isImageExport = false, opt
         if (useLineBgScript) {
           const dur = el.animDuration || 1;
           let offset = Number(el.bgOffset) || 0;
-          if (offset === 0 && isTypingFamilyEntrance(animType)) {
-            offset = -0.1;
-          }
+          if (offset === 0) offset = lineBgDefaultOffset(animType);
           const delay = (Number(el.animDelay) || 0) + offset;
           // Padding on the wrapper matches the static path's per-line padding — without
           // it, char.offsetLeft starts at 0 and the text appears shifted left by `lr`
           // compared to the editor (and to the static-bg variant of the same element).
           bgStyle = `display:inline-block;max-width:100%;position:relative;isolation:isolate;text-align:${ta};padding:${tb}px ${lr}px;`;
-          bgDataAttrs = ` data-bg-anim="1" data-bg-color="${bgRgba}" data-bg-pad-l="${lr}" data-bg-pad-v="${tb}" data-bg-cov="${cov}" data-bg-delay="${delay}" data-bg-duration="${dur}"`;
+          bgDataAttrs = ` data-bg-anim="1" data-bg-mode="${lineBgMode}" data-bg-unit="${lineBgUnitFor(el, animType)}" data-bg-color="${bgRgba}" data-bg-pad-l="${lr}" data-bg-pad-v="${tb}" data-bg-cov="${cov}" data-bg-delay="${delay}" data-bg-duration="${dur}"`;
         } else {
           bgStyle = `display:inline;background-image:linear-gradient(${bgRgba},${bgRgba});background-repeat:no-repeat;background-position:left center;background-size:${cov}% 100%;padding:${tb}px ${lr}px;box-decoration-break:clone;-webkit-box-decoration-break:clone;`;
         }
