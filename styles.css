@@ -3754,6 +3754,26 @@ body.theme-rmit-navy {
 
     }
 
+    /* ---------- export render progress ----------
+       A determinate ring, not a barber's pole: the exporter knows exactly which
+       frame it is on, so the indicator should say so. The sweeping arc on top
+       keeps it alive during the encode step, where frames tick over faster than
+       the eye reads the number. */
+    @keyframes vqe-spin { to { transform: rotate(360deg); } }
+
+    .vqe-spin { animation: vqe-spin .85s linear infinite; transform-origin: 50% 50%; }
+
+    .vqe-ring { flex-shrink: 0; }
+    .vqe-ring circle { fill: none; stroke-width: 2.5; }
+    .vqe-ring .vqe-ring-track { stroke: rgba(255, 255, 255, .13); }
+    .vqe-ring .vqe-ring-fill {
+      stroke: var(--accent-base);
+      stroke-linecap: round;
+      transform: rotate(-90deg);          /* start the sweep at 12 o'clock */
+      transform-origin: 50% 50%;
+      transition: stroke-dashoffset .16s linear;
+    }
+
     /* Context-menu heading — names what the menu is acting on (the canvas, or
        the selected element) so a right-click that landed on the wrong thing is
        obvious before anything is clicked. Deliberately quiet: it is a label,

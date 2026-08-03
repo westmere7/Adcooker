@@ -840,12 +840,23 @@ function openVideoExportSettingsPopup(c, format = 'video') {
             ? 'One loop cycle, looping forever. Rendered and previewed on this machine — nothing is uploaded. GIF holds 256 colours at most, so gradients and photos band; video keeps them clean.'
             : 'One loop cycle. Rendered and previewed on this machine — nothing is uploaded. H.264 MP4; falls back to WebM where MP4 encoding isn’t available.'}</div>
 
-          <div id="vqe-foot" style="display:flex; justify-content:flex-end; gap:8px; align-items:center; flex-wrap:wrap;">
-            <span id="vqe-progress" style="flex:1; font-size:11px; color:var(--text-muted, #8b8f9c); min-width:110px;"></span>
-            <button id="vqe-cancel" class="btn">Close</button>
-            <button id="vqe-copy" class="btn" style="display:none;">Copy</button>
-            <button id="vqe-render" class="btn primary" style="min-width:104px; font-weight:600;">Render</button>
-            <button id="vqe-download" class="btn primary" style="display:none; min-width:104px; font-weight:600;">Download</button>
+          <!-- Status gets its own line and collapses when empty, so the actions
+               always sit on exactly one row however many of them are showing. -->
+          <div id="vqe-foot" style="display:flex; flex-direction:column; gap:10px;">
+            <span id="vqe-progress" style="display:none; align-items:center; gap:7px; font-size:11px; color:var(--text-muted, #8b8f9c);">
+              <svg id="vqe-ring" class="vqe-ring" width="16" height="16" viewBox="0 0 16 16" style="display:none;">
+                <circle class="vqe-ring-track" cx="8" cy="8" r="6.4"></circle>
+                <circle id="vqe-ring-fill" class="vqe-ring-fill" cx="8" cy="8" r="6.4"
+                        stroke-dasharray="40.21" stroke-dashoffset="40.21"></circle>
+              </svg>
+              <span id="vqe-ptext"></span>
+            </span>
+            <div style="display:flex; justify-content:flex-end; gap:8px; flex-wrap:nowrap;">
+              <button id="vqe-cancel" class="btn" style="flex-shrink:0;">Close</button>
+              <button id="vqe-copy" class="btn" style="display:none; flex-shrink:0;">Copy</button>
+              <button id="vqe-render" class="btn primary" style="min-width:92px; font-weight:600; flex-shrink:0;">Render</button>
+              <button id="vqe-download" class="btn primary" style="display:none; min-width:92px; font-weight:600; flex-shrink:0;">Download</button>
+            </div>
           </div>
         </div>
 
@@ -875,6 +886,9 @@ function openVideoExportSettingsPopup(c, format = 'video') {
   const stats = overlay.querySelector('#vqe-stats');
   const stale = overlay.querySelector('#vqe-stale');
   const progressEl = overlay.querySelector('#vqe-progress');
+  const ringEl = overlay.querySelector('#vqe-ring');
+  const ringFill = overlay.querySelector('#vqe-ring-fill');
+  const ptext = overlay.querySelector('#vqe-ptext');
   const btnRender = overlay.querySelector('#vqe-render');
   const btnDownload = overlay.querySelector('#vqe-download');
   const btnCopy = overlay.querySelector('#vqe-copy');
@@ -958,9 +972,14 @@ function openVideoExportSettingsPopup(c, format = 'video') {
     const note = overlay.querySelector('#vqe-note');
     if (sideBySide) {
       bodyEl.style.flexDirection = 'row';
+      stage.style.alignSelf = 'flex-start';
       if (stage.parentElement !== bodyEl) bodyEl.appendChild(stage);
     } else {
       bodyEl.style.flexDirection = 'column';
+      // Stacked, the column is as wide as the widest of controls-vs-preview, so
+      // a preview narrower than the controls would sit hard left with a gap to
+      // its right. Centre it on the column instead.
+      stage.style.alignSelf = 'center';
       if (stage.parentElement !== col) col.insertBefore(stage, note);
     }
 
@@ -1005,21 +1024,50 @@ function openVideoExportSettingsPopup(c, format = 'video') {
     if (!sideBySide) col.style.width = Math.max(SETTINGS_W, box.w) + 'px';
   };
 
+  // The ring is determinate — the exporter always knows which frame it is on, so
+  // a spinner would be throwing that away. RING_C is 2πr for r=6.4.
+  const RING_C = 40.21;
+  const setProgress = (frac, label) => {
+    progressEl.style.display = 'flex';
+    ringEl.style.display = '';
+    ringFill.setAttribute('stroke-dashoffset', (RING_C * (1 - Math.min(1, Math.max(0, frac)))).toFixed(2));
+    ptext.textContent = label;
+  };
+  const hideRing = () => {
+    ringEl.style.display = 'none';
+    ringFill.setAttribute('stroke-dashoffset', RING_C);
+  };
+  const clearProgress = () => { hideRing(); ptext.textContent = ''; progressEl.style.display = 'none'; };
+
+  // A rotating arc inside the button, so the wait reads as activity even in the
+  // gaps between frame numbers ticking over.
+  const BTN_SPINNER = '<svg class="vqe-spin" width="12" height="12" viewBox="0 0 16 16" style="margin-right:6px; vertical-align:-2px;" fill="none">'
+    + '<circle cx="8" cy="8" r="6.4" stroke="currentColor" stroke-opacity=".28" stroke-width="2.5"/>'
+    + '<path d="M8 1.6a6.4 6.4 0 0 1 6.4 6.4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>';
+
   const setBusy = (on) => {
     rendering = on;
     overlay.querySelectorAll('#vqe-settings select, #vqe-settings input, #vqe-settings button').forEach(n => { n.disabled = on; });
     btnRender.disabled = on;
     btnDownload.disabled = on;
     btnCopy.disabled = on;
-    btnRender.textContent = on ? 'Rendering…' : (current ? 'Re-render' : 'Render');
+    if (on) {
+      btnRender.innerHTML = BTN_SPINNER + 'Rendering…';
+    } else {
+      btnRender.textContent = current ? 'Re-render' : 'Render';
+      // Ring only — the caller owns the text, so a "cancelled" notice survives.
+      hideRing();
+    }
   };
 
-  // Transient message in the footer's status slot.
+  // Transient message in the footer's status slot (no ring — it isn't progress).
   let noteTimer = null;
   const flash = (msg, ms = 2600) => {
-    progressEl.textContent = msg;
+    hideRing();
+    progressEl.style.display = 'flex';
+    ptext.textContent = msg;
     clearTimeout(noteTimer);
-    noteTimer = setTimeout(() => { if (progressEl.textContent === msg) progressEl.textContent = ''; }, ms);
+    noteTimer = setTimeout(() => { if (ptext.textContent === msg) clearProgress(); }, ms);
   };
 
   btnRender.addEventListener('click', async () => {
@@ -1027,7 +1075,7 @@ function openVideoExportSettingsPopup(c, format = 'video') {
     const opts = readVideoSettings(overlay, 'vqe', format);
     aborter = new AbortController();
     setBusy(true);
-    progressEl.textContent = 'Preparing…';
+    setProgress(0, 'Preparing…');
     try {
       const versionIdx = (typeof dmActiveRowForOutput === 'function' && state.dataMerge && state.dataMerge.rows && state.dataMerge.rows.length)
         ? dmActiveRowForOutput() : null;
@@ -1036,26 +1084,33 @@ function openVideoExportSettingsPopup(c, format = 'video') {
       const res = await capture(c, {
         html, styles, durationSec, ...opts,
         signal: aborter.signal,
-        onProgress: (done, total) => { progressEl.textContent = `Recording frame ${done} of ${total}`; },
-        onEncodeProgress: (done, total) => { progressEl.textContent = `Building GIF — frame ${done} of ${total}`; }
+        // GIF quantises and packs after capture, so capture is the first ~85% of
+        // the bar and the encode carries it the rest of the way. Video finishes
+        // encoding as it goes, so capture is the whole bar.
+        onProgress: (done, total) => {
+          setProgress((done / total) * (isGif ? 0.85 : 1), `Recording frame ${done} of ${total}`);
+        },
+        onEncodeProgress: (done, total) => {
+          setProgress(0.85 + (done / total) * 0.15, `Building GIF — frame ${done} of ${total}`);
+        }
       });
       if (!res) return;   // unsupported browser; alert already shown
       current = res;
       showPreview(res, opts);
       btnDownload.style.display = '';
       if (isGif) btnCopy.style.display = '';
-      progressEl.textContent = '';
+      clearProgress();
     } catch (err) {
       if (err && err.name === 'AbortError') {
-        progressEl.textContent = 'Render cancelled';
+        flash('Render cancelled');
       } else {
         console.error('Render failed:', err);
-        progressEl.textContent = '';
+        clearProgress();
         showAdflowAlert(`${isGif ? 'GIF' : 'Video'} render failed: ` + (err && err.message ? err.message : err));
       }
     } finally {
       aborter = null;
-      setBusy(false);
+      setBusy(false);   // also clears the ring
     }
   });
 
