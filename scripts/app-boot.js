@@ -128,6 +128,10 @@ document.addEventListener('contextmenu', (e) => {
     return;
   }
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+  // The export panel's rendered preview is a real <img>/<video>, so let the
+  // browser's own menu through — Save image as…, Copy image, Open in new tab are
+  // exactly what you want on it, and none of the editor's canvas actions apply.
+  if (e.target.closest('#vqe-preview')) return;
   e.preventDefault();
 
   const animBtn = e.target.closest('.anim-btn');

@@ -162,25 +162,20 @@ const GIF_COLORS_DEFAULT = 256;
 // quantise time flat no matter how long the ad is.
 const GIF_PALETTE_SAMPLE_PX = 700000;
 
-// GIF compression. The container itself is always LZW — there is no choice of
-// codec — so what actually moves the file size is how much colour detail is
-// thrown away BEFORE the palette is built. Rounding each channel to a step
-// merges near-identical pixels into flat runs, which is exactly what LZW packs
-// well; it is the same trick "lossy GIF" tools use.
-//
-// The steps are measured, not guessed: on a flat-vector banner these came out
-// at 0% / 5% / 13% / 17% smaller, with the palette that actually survives
-// falling 256 → 145 → 91 → 66 (that fall IS the quality cost). Anything finer
-// than ~12 is pointless — gifenc's own default of 5 measured 1% WORSE than off,
-// because it perturbs colours without merging enough of them to pay for it.
-// Photographic artwork saves considerably more than these figures.
+// GIF "compression" is colour reduction applied before the palette is built —
+// the container is always LZW, so pre-rounding channels to merge near-identical
+// pixels into flat runs is the only lever on file size. It is kept here, and
+// still honoured by captureCanvasGif, but no longer offered in the UI: on real
+// banner artwork the saving measured 5–17% while visibly collapsing the surviving
+// palette (256 → 145 → 66 colours), which is a poor trade for an ad. Exports run
+// at 'none' — sharpest — and the Colours setting is the knob that stays.
 const GIF_COMPRESSION = {
   none:   { label: 'None — sharpest',   roundRGB: 0,  estFactor: 1.00 },
   light:  { label: 'Light',             roundRGB: 16, estFactor: 0.95 },
   medium: { label: 'Medium',            roundRGB: 24, estFactor: 0.87 },
   strong: { label: 'Strong — smallest', roundRGB: 32, estFactor: 0.83 }
 };
-const GIF_COMPRESSION_DEFAULT = 'light';
+const GIF_COMPRESSION_DEFAULT = 'none';
 
 // The motion-format settings block, styled to match the Export dialog's own
 // labels and inputs (11px uppercase labels, 12px controls). Both the video and
@@ -224,16 +219,10 @@ function buildVideoSettingsHTML(p) {
             ${GIF_FPS_OPTIONS.map(v => opt(v, GIF_FPS_DEFAULT)).join('')}
           </select>
         </div>
-        <div style="width:88px; flex-shrink:0;">
+        <div style="flex:1; min-width:0;">
           <label for="${p}-gif-colors" style="${FIELD_LABEL_CSS}">Colours</label>
           <select id="${p}-gif-colors" title="Palette size. GIF can hold 256 colours at most; fewer means a smaller file and more banding on gradients." style="${FIELD_SELECT_CSS}">
             ${GIF_COLORS_OPTIONS.map(v => opt(v, GIF_COLORS_DEFAULT)).join('')}
-          </select>
-        </div>
-        <div style="flex:1; min-width:0;">
-          <label for="${p}-gif-compress" style="${FIELD_LABEL_CSS}">Compression</label>
-          <select id="${p}-gif-compress" title="GIF is always LZW-compressed — this rounds colour detail before packing so LZW finds longer runs. Stronger means a smaller file and slightly flatter gradients." style="${FIELD_SELECT_CSS}">
-            ${Object.keys(GIF_COMPRESSION).map(k => `<option value="${k}" ${k === GIF_COMPRESSION_DEFAULT ? 'selected' : ''}>${GIF_COMPRESSION[k].label}</option>`).join('')}
           </select>
         </div>
       </div>
@@ -259,7 +248,6 @@ function wireVideoSettings(root, p, opts = {}) {
   const presets = root.querySelectorAll(`button[data-vbr-prefix="${p}"]`);
   const gifFps = root.querySelector(`#${p}-gif-fps`);
   const gifColors = root.querySelector(`#${p}-gif-colors`);
-  const gifCompress = root.querySelector(`#${p}-gif-compress`);
 
   const fmtNow = () => (typeof opts.getFormat === 'function' ? opts.getFormat() : 'video');
   const human = (bytes) => bytes >= 1024 * 1024
@@ -290,7 +278,7 @@ function wireVideoSettings(root, p, opts = {}) {
       const fps = parseInt(gifFps && gifFps.value, 10) || GIF_FPS_DEFAULT;
       const colors = parseInt(gifColors && gifColors.value, 10) || GIF_COLORS_DEFAULT;
       const frames = Math.max(1, Math.round(dur * fps));
-      const cmp = GIF_COMPRESSION[(gifCompress && gifCompress.value) || GIF_COMPRESSION_DEFAULT] || GIF_COMPRESSION.light;
+      const cmp = GIF_COMPRESSION[GIF_COMPRESSION_DEFAULT] || GIF_COMPRESSION.none;
       const perPx = 0.036 * (0.72 + 0.28 * (colors / 128)) * (cmp.estFactor || 1);
       est.textContent = `Est. size: ~${human(px * frames * perPx * count)}${count > 1 ? ` across ${count} sizes` : ''} · ${frames} frames — rough; busy artwork runs larger.`;
     } else {
@@ -305,7 +293,7 @@ function wireVideoSettings(root, p, opts = {}) {
     slider.value = VIDEO_BITRATE_PRESETS[b.dataset.vbrPreset];
     sync();
   }));
-  [gifFps, gifColors, gifCompress].forEach(n => n && n.addEventListener('change', sync));
+  [gifFps, gifColors].forEach(n => n && n.addEventListener('change', sync));
   sync();
   return { refresh: sync };
 }
@@ -316,7 +304,7 @@ function readVideoSettings(root, p, fmt = 'video') {
     return {
       fps: parseInt(root.querySelector(`#${p}-gif-fps`)?.value, 10) || GIF_FPS_DEFAULT,
       colors: parseInt(root.querySelector(`#${p}-gif-colors`)?.value, 10) || GIF_COLORS_DEFAULT,
-      compression: root.querySelector(`#${p}-gif-compress`)?.value || GIF_COMPRESSION_DEFAULT
+      compression: GIF_COMPRESSION_DEFAULT
     };
   }
   const fps = parseInt(root.querySelector(`#${p}-video-fps`)?.value, 10) || 30;
@@ -826,41 +814,57 @@ function openVideoExportSettingsPopup(c, format = 'video') {
     background: rgba(11, 12, 15, 0.82); backdrop-filter: blur(8px);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   `;
+  // Layout: the preview is shown at 1:1 wherever it fits, so the panel has to
+  // shape itself around the ad rather than the other way round. A portrait ad
+  // beside the settings uses the height the settings column already needs; the
+  // same ad stacked underneath would leave a wide band of empty checkerboard
+  // either side of it. Landscape and square go underneath, where their width is
+  // the thing that needs room.
+  const SETTINGS_W = 372, PANEL_PAD = 24, GAP = 18;
+  const sideBySide = c.width / c.height < 1;
   overlay.innerHTML = `
-    <div style="background:var(--bg-panel, #15171f); border:1px solid var(--border-light, #2a2f3e); border-radius:12px; padding:22px 24px; width:420px; max-width:92vw; max-height:92vh; overflow-y:auto; box-shadow:0 20px 40px rgba(0,0,0,0.55); display:flex; flex-direction:column; gap:14px;">
-      <div style="display:flex; justify-content:space-between; align-items:baseline; gap:10px;">
+    <div id="vqe-panel" style="background:var(--bg-panel, #15171f); border:1px solid var(--border-light, #2a2f3e); border-radius:12px; padding:22px ${PANEL_PAD}px; max-width:96vw; max-height:94vh; overflow:auto; box-shadow:0 20px 40px rgba(0,0,0,0.55); display:flex; flex-direction:column; gap:14px;">
+      <div style="display:flex; justify-content:space-between; align-items:baseline; gap:16px;">
         <span style="font-size:15px; font-weight:600; color:var(--text-bright, #fff);">Export ${isGif ? 'GIF' : 'video'}</span>
         <span style="font-size:12px; color:var(--text-muted, #8b8f9c); white-space:nowrap;">${c.width}×${c.height} · ${Math.round(durationSec * 10) / 10}s loop</span>
       </div>
 
-      <div id="vqe-settings">${buildVideoSettingsHTML('vqe')}</div>
+      <!-- Opens in the same shape for every ad: one column, settings only. The
+           preview's aspect ratio only gets a say once there IS a preview, so the
+           panel you first see never depends on which canvas you right-clicked. -->
+      <div id="vqe-body" style="display:flex; flex-direction:column; gap:${GAP}px; align-items:flex-start;">
+        <div id="vqe-col" style="width:${SETTINGS_W}px; flex-shrink:0; display:flex; flex-direction:column; gap:14px;">
+          <div id="vqe-settings">${buildVideoSettingsHTML('vqe')}</div>
 
-      <div id="vqe-stage" style="display:none; border-top:1px solid var(--border-light, #2a2f3e); padding-top:14px;">
-        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px;">
-          <span style="font-size:11px; color:var(--text-muted, #8b8f9c); text-transform:uppercase; letter-spacing:.04em;">Preview</span>
-          <span id="vqe-stale" style="display:none; font-size:11px; color:#e0b153;">Settings changed — re-render to update</span>
+          <div id="vqe-note" style="font-size:11px; color:var(--text-muted, #8b8f9c); line-height:1.45; border-top:1px solid var(--border-light, #2a2f3e); padding-top:12px;">${isGif
+            ? 'One loop cycle, looping forever. Rendered and previewed on this machine — nothing is uploaded. GIF holds 256 colours at most, so gradients and photos band; video keeps them clean.'
+            : 'One loop cycle. Rendered and previewed on this machine — nothing is uploaded. H.264 MP4; falls back to WebM where MP4 encoding isn’t available.'}</div>
+
+          <div id="vqe-foot" style="display:flex; justify-content:flex-end; gap:8px; align-items:center; flex-wrap:wrap;">
+            <span id="vqe-progress" style="flex:1; font-size:11px; color:var(--text-muted, #8b8f9c); min-width:110px;"></span>
+            <button id="vqe-cancel" class="btn">Close</button>
+            <button id="vqe-copy" class="btn" style="display:none;">Copy</button>
+            <button id="vqe-render" class="btn primary" style="min-width:104px; font-weight:600;">Render</button>
+            <button id="vqe-download" class="btn primary" style="display:none; min-width:104px; font-weight:600;">Download</button>
+          </div>
         </div>
-        <!-- Checkerboard so a light ad still reads against the panel. -->
-        <div id="vqe-preview" style="
-          display:flex; align-items:center; justify-content:center; min-height:120px; max-height:300px;
-          border-radius:6px; overflow:hidden; padding:8px;
-          background-color:#1b1f2b;
-          background-image:linear-gradient(45deg, rgba(255,255,255,.04) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.04) 75%),
-                           linear-gradient(45deg, rgba(255,255,255,.04) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.04) 75%);
-          background-size:16px 16px; background-position:0 0, 8px 8px;
-        "></div>
-        <div id="vqe-stats" style="font-size:11px; color:var(--text-muted, #8b8f9c); margin-top:8px; text-align:center;"></div>
-      </div>
 
-      <div style="font-size:11px; color:var(--text-muted, #8b8f9c); line-height:1.45; border-top:1px solid var(--border-light, #2a2f3e); padding-top:12px;">${isGif
-        ? 'One loop cycle, looping forever. GIF holds 256 colours at most, so gradients and photos band — video keeps them clean.'
-        : 'One loop cycle. H.264 MP4; falls back to WebM where MP4 encoding isn’t available.'}</div>
-
-      <div style="display:flex; justify-content:flex-end; gap:8px; align-items:center;">
-        <span id="vqe-progress" style="flex:1; font-size:11px; color:var(--text-muted, #8b8f9c);"></span>
-        <button id="vqe-cancel" class="btn">Close</button>
-        <button id="vqe-render" class="btn primary" style="min-width:104px; font-weight:600;">Render</button>
-        <button id="vqe-download" class="btn primary" style="display:none; min-width:104px; font-weight:600;">Download</button>
+        <div id="vqe-stage" style="display:none; flex-shrink:0;">
+          <div style="display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin-bottom:6px;">
+            <span style="font-size:11px; color:var(--text-muted, #8b8f9c); text-transform:uppercase; letter-spacing:.04em;">Preview</span>
+            <span id="vqe-stale" style="display:none; font-size:11px; color:#e0b153;">Changed — re-render</span>
+          </div>
+          <!-- Sized to the media exactly, so there is never a gap around it.
+               Checkerboard shows only where the ad is genuinely transparent. -->
+          <div id="vqe-preview" style="
+            border-radius:6px; overflow:hidden; line-height:0;
+            background-color:#1b1f2b;
+            background-image:linear-gradient(45deg, rgba(255,255,255,.04) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.04) 75%),
+                             linear-gradient(45deg, rgba(255,255,255,.04) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.04) 75%);
+            background-size:16px 16px; background-position:0 0, 8px 8px;
+          "></div>
+          <div id="vqe-stats" style="font-size:11px; color:var(--text-muted, #8b8f9c); margin-top:7px; text-align:center;"></div>
+        </div>
       </div>
     </div>`;
   document.body.appendChild(overlay);
@@ -873,7 +877,9 @@ function openVideoExportSettingsPopup(c, format = 'video') {
   const progressEl = overlay.querySelector('#vqe-progress');
   const btnRender = overlay.querySelector('#vqe-render');
   const btnDownload = overlay.querySelector('#vqe-download');
+  const btnCopy = overlay.querySelector('#vqe-copy');
   const btnClose = overlay.querySelector('#vqe-cancel');
+  const bodyEl = overlay.querySelector('#vqe-body');
 
   let current = null;        // { blob, ext, frames, width, height } of the last render
   let currentUrl = null;
@@ -922,12 +928,49 @@ function openVideoExportSettingsPopup(c, format = 'video') {
     ? (Math.round(b / (1024 * 1024) * 10) / 10) + ' MB'
     : Math.max(1, Math.round(b / 1024)) + ' KB';
 
+  // 1:1 unless the viewport genuinely cannot take it, in which case scale down
+  // and say so rather than silently lying about the size.
+  //
+  // Side by side, the preview shares the panel's height with the controls rather
+  // than adding to it, so its budget is the whole window minus the header and
+  // the preview's own label/stats. Stacked, it has to fit under the controls, so
+  // their height comes off the top.
+  const previewBox = (adW, adH) => {
+    const CHROME_H = sideBySide ? 118 : 118 + (overlay.querySelector('#vqe-col').offsetHeight + GAP);
+    const CHROME_W = PANEL_PAD * 2 + 2 + (sideBySide ? SETTINGS_W + GAP : 0);
+    const maxW = Math.max(160, window.innerWidth * 0.96 - CHROME_W);
+    const maxH = Math.max(140, window.innerHeight * 0.94 - CHROME_H);
+    const scale = Math.min(1, maxW / adW, maxH / adH);
+    return { w: Math.round(adW * scale), h: Math.round(adH * scale), scale };
+  };
+
   const showPreview = (res, opts) => {
     releaseUrl();
     currentUrl = URL.createObjectURL(res.blob);
     host.innerHTML = '';
-    // Scale to fit the stage but never upscale past 1:1.
-    const fit = 'max-width:100%; max-height:284px; width:auto; height:auto; display:block; border-radius:3px;';
+
+    // Place the stage now that there is something in it. Side by side, the
+    // controls column keeps every control — settings, note AND buttons — so a
+    // 600px-tall preview costs the panel nothing in height beyond the preview
+    // itself; stacked, the stage slots between the settings and the note so the
+    // buttons stay at the bottom where they belong.
+    const col = overlay.querySelector('#vqe-col');
+    const note = overlay.querySelector('#vqe-note');
+    if (sideBySide) {
+      bodyEl.style.flexDirection = 'row';
+      if (stage.parentElement !== bodyEl) bodyEl.appendChild(stage);
+    } else {
+      bodyEl.style.flexDirection = 'column';
+      if (stage.parentElement !== col) col.insertBefore(stage, note);
+    }
+
+    const box = previewBox(res.width, res.height);
+    host.style.width = box.w + 'px';
+    host.style.height = box.h + 'px';
+    // The stage column is exactly the media's width so the stats line centres on
+    // it and the panel has no slack to leave as a gap.
+    stage.style.width = box.w + 'px';
+
     let node;
     if (res.ext === 'gif') {
       node = document.createElement('img');
@@ -936,21 +979,30 @@ function openVideoExportSettingsPopup(c, format = 'video') {
     } else {
       node = document.createElement('video');
       node.src = currentUrl;
+      // Real controls: scrubbing is how you check a specific beat, and a still
+      // frame is how you check a specific frame's quality.
+      node.controls = true;
       node.autoplay = true; node.loop = true; node.muted = true;
       node.setAttribute('playsinline', '');
     }
-    node.style.cssText = fit;
+    node.style.cssText = `display:block; width:${box.w}px; height:${box.h}px; border-radius:3px;`;
     host.appendChild(node);
     host.style.opacity = '1';
     stage.style.display = '';
     stale.style.display = 'none';
+
     const bits = [
       `${res.width}×${res.height}`,
       `${res.frames} frames @ ${opts.fps}fps`,
       humanBytes(res.blob.size)
     ];
     if (res.ext !== 'gif') bits.push(res.ext.toUpperCase());
+    if (box.scale < 1) bits.push(`shown at ${Math.round(box.scale * 100)}%`);
     stats.textContent = bits.join('  ·  ');
+
+    // Stacked layout: widen the column to the preview so the two share an edge
+    // instead of the controls sitting short of it.
+    if (!sideBySide) col.style.width = Math.max(SETTINGS_W, box.w) + 'px';
   };
 
   const setBusy = (on) => {
@@ -958,7 +1010,16 @@ function openVideoExportSettingsPopup(c, format = 'video') {
     overlay.querySelectorAll('#vqe-settings select, #vqe-settings input, #vqe-settings button').forEach(n => { n.disabled = on; });
     btnRender.disabled = on;
     btnDownload.disabled = on;
+    btnCopy.disabled = on;
     btnRender.textContent = on ? 'Rendering…' : (current ? 'Re-render' : 'Render');
+  };
+
+  // Transient message in the footer's status slot.
+  let noteTimer = null;
+  const flash = (msg, ms = 2600) => {
+    progressEl.textContent = msg;
+    clearTimeout(noteTimer);
+    noteTimer = setTimeout(() => { if (progressEl.textContent === msg) progressEl.textContent = ''; }, ms);
   };
 
   btnRender.addEventListener('click', async () => {
@@ -982,6 +1043,7 @@ function openVideoExportSettingsPopup(c, format = 'video') {
       current = res;
       showPreview(res, opts);
       btnDownload.style.display = '';
+      if (isGif) btnCopy.style.display = '';
       progressEl.textContent = '';
     } catch (err) {
       if (err && err.name === 'AbortError') {
@@ -1003,5 +1065,52 @@ function openVideoExportSettingsPopup(c, format = 'video') {
     a.href = currentUrl;                     // reuse the preview's URL — same blob
     a.download = `${defaultPrefix}_${c.width}x${c.height}.${current.ext}`;
     a.click();
+  });
+
+  // Copy (GIF only) — onto the system clipboard, so it can go straight into
+  // Slack, Teams, a deck or an email without a trip through the file system.
+  //
+  // Most browsers (Chrome included, as of writing) refuse image/gif on the
+  // clipboard and accept only image/png — an animated GIF simply cannot be put
+  // there. Rather than offer a button that does nothing, the fallback copies the
+  // frame currently on screen as a PNG and says exactly that, so the user is
+  // never left thinking they pasted an animation when they pasted a still.
+  const copyStillFallback = async () => {
+    const media = host.querySelector('img');
+    if (!media) throw new Error('Nothing to copy — render first.');
+    const cnv = document.createElement('canvas');
+    cnv.width = current.width; cnv.height = current.height;
+    cnv.getContext('2d').drawImage(media, 0, 0, current.width, current.height);
+    const png = await new Promise(res => cnv.toBlob(res, 'image/png'));
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })]);
+  };
+
+  btnCopy.title = 'Copy the GIF to the clipboard. Where a browser refuses animated GIFs (most do), the frame on screen is copied as a still instead.';
+  btnCopy.addEventListener('click', async () => {
+    if (!current) return;
+    if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+      flash('This browser has no clipboard image support — use Download.', 5000);
+      return;
+    }
+    const gifAllowed = typeof ClipboardItem.supports !== 'function' || ClipboardItem.supports('image/gif');
+    try {
+      if (!gifAllowed) throw new Error('gif-unsupported');
+      await navigator.clipboard.write([new ClipboardItem({ 'image/gif': current.blob })]);
+      flash('Copied — animated GIF on the clipboard');
+      return;
+    } catch (err) {
+      if (err && err.name === 'NotAllowedError' && gifAllowed) {
+        flash('Clipboard blocked by the browser — use Download.', 5000);
+        return;
+      }
+      // Fall through to the still-frame copy.
+    }
+    try {
+      await copyStillFallback();
+      flash('This browser won’t take animated GIFs — copied the current frame as a still.', 6000);
+    } catch (err2) {
+      console.warn('GIF clipboard copy failed:', err2);
+      flash('Copy failed — use Download.', 5000);
+    }
   });
 }
