@@ -3329,40 +3329,15 @@ function openExportModal() {
         <div style="font-size:10px; color:var(--text-muted); margin-top:4px;">Each file is named <code style="background:var(--bg-input); padding:1px 4px; border-radius:3px;">prefix_WxH</code>. Renaming here doesn't change the project name.</div>
       </div>
       <div>
-        <label style="display:block; font-size:11px; color:var(--text-muted); margin-bottom:4px; text-transform:uppercase; letter-spacing:.04em;">Format</label>
-        <div style="display:flex; gap:6px;">
-          <label style="flex:1; display:flex; align-items:center; gap:6px; padding:7px 9px; background:var(--bg-input); border:1px solid var(--border-light); border-radius:4px; cursor:pointer; font-size:12px;">
-            <input type="radio" name="exp-format" value="zip" checked style="margin:0;" />
-            <span>HTML5 ZIP</span>
-          </label>
-          <label style="flex:1; display:flex; align-items:center; gap:6px; padding:7px 9px; background:var(--bg-input); border:1px solid var(--border-light); border-radius:4px; cursor:pointer; font-size:12px;">
-            <input type="radio" name="exp-format" value="png" title="Export a static PNG of each size instead of the animated HTML5 package" style="margin:0;" />
-            <span>PNG</span>
-          </label>
-          <label style="flex:1; display:flex; align-items:center; gap:6px; padding:7px 9px; background:var(--bg-input); border:1px solid var(--border-light); border-radius:4px; cursor:pointer; font-size:12px;">
-            <input type="radio" name="exp-format" value="video" title="Record one loop of each size as a ready-to-play video file" style="margin:0;" />
-            <span>Video</span>
-          </label>
-        </div>
-        <div id="exp-format-note" style="font-size:10px; color:var(--text-muted); margin-top:4px;">PNG exports the active frame as a static image (one file per canvas).</div>
-        <div id="exp-video-opts" style="display:none; margin-top:6px; gap:6px; align-items:end;">
-          <div style="flex:1;">
-            <label style="display:block; font-size:10px; color:var(--text-muted); margin-bottom:2px;">FPS</label>
-            <select id="exp-video-fps" title="Output frame rate" style="width:100%; padding:5px 6px; background:var(--bg-input); border:1px solid var(--border-light); border-radius:4px; color:var(--text-main); font-size:11px; outline:none; font-family:inherit;">
-              <option value="24">24</option>
-              <option value="30" selected>30</option>
-              <option value="60">60</option>
-            </select>
-          </div>
-          <div style="flex:1;">
-            <label style="display:block; font-size:10px; color:var(--text-muted); margin-bottom:2px;">Quality</label>
-            <select id="exp-video-quality" title="Bitrate preset, scaled to each size's dimensions" style="width:100%; padding:5px 6px; background:var(--bg-input); border:1px solid var(--border-light); border-radius:4px; color:var(--text-main); font-size:11px; outline:none; font-family:inherit;">
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high" selected>High</option>
-            </select>
-          </div>
-        </div>
+        <label for="exp-format" style="display:block; font-size:11px; color:var(--text-muted); margin-bottom:4px; text-transform:uppercase; letter-spacing:.04em;">Format</label>
+        <select id="exp-format" title="What to produce for each selected size" style="width:100%; padding:6px 8px; background:var(--bg-input); border:1px solid var(--border-light); border-radius:4px; color:var(--text-main); font-size:12px; outline:none; font-family:inherit;">
+          <option value="zip" selected>HTML5 ZIP</option>
+          <option value="png">PNG (static)</option>
+          <option value="video">Video (MP4)</option>
+          <option value="gif">Animated GIF</option>
+        </select>
+        <div id="exp-format-note" style="font-size:10px; color:var(--text-muted); margin-top:4px;">A self-contained HTML5 package per size — the standard ad-server deliverable.</div>
+        <div id="exp-video-opts" style="display:none; margin-top:6px;">${typeof buildVideoSettingsHTML === 'function' ? buildVideoSettingsHTML('exp') : ''}</div>
       </div>
       ${hasVersions ? `
       <div>
@@ -3868,22 +3843,41 @@ function openExportModal() {
     modalBg.querySelector('#exp-version')?.addEventListener('change', updateExportTableDetails);
   }
 
-  // The format note doubles as the video settings' home: picking Video reveals
-  // FPS + Quality and swaps the caption.
+  // Format dropdown: swaps the caption and reveals the settings block for the
+  // motion formats (Video / GIF), which share one control panel.
   const FORMAT_NOTES = {
-    zip: 'PNG exports the active frame as a static image (one file per canvas).',
-    png: 'PNG exports the active frame as a static image (one file per canvas).',
-    video: 'Records one loop cycle per size. H.264 MP4; falls back to WebM where MP4 encoding isn’t available.'
+    zip: 'A self-contained HTML5 package per size — the standard ad-server deliverable.',
+    png: 'A static image of the active frame, one file per size.',
+    video: 'Records one loop cycle per size. H.264 MP4; falls back to WebM where MP4 encoding isn’t available.',
+    gif: 'Records one loop cycle per size as a looping GIF. Capped at 256 colours, so gradients band — video keeps them clean.'
   };
-  modalBg.querySelectorAll('input[name="exp-format"]').forEach(r => {
-    r.addEventListener('change', () => {
-      const fmt = (modalBg.querySelector('input[name="exp-format"]:checked') || {}).value || 'zip';
-      const note = modalBg.querySelector('#exp-format-note');
-      const vidOpts = modalBg.querySelector('#exp-video-opts');
-      if (note) note.textContent = FORMAT_NOTES[fmt] || FORMAT_NOTES.zip;
-      if (vidOpts) vidOpts.style.display = fmt === 'video' ? 'flex' : 'none';
-    });
+  const formatSel = modalBg.querySelector('#exp-format');
+  const vidSettings = (typeof wireVideoSettings === 'function' && modalBg.querySelector('#exp-video-bitrate'))
+    ? wireVideoSettings(modalBg, 'exp', {
+        getDurationSec: () => (typeof videoLoopDurationSec === 'function' ? videoLoopDurationSec() : 0),
+        getCount: () => Array.from(chks).filter(x => x.checked).length,
+        getFormat: () => formatSel.value,
+        // Estimate against the largest selected size, the honest worst case.
+        getPixels: () => Array.from(chks).filter(x => x.checked)
+          .map(x => state.canvases.find(cv => cv.id === x.dataset.cid))
+          .filter(Boolean).reduce((mx, cv) => Math.max(mx, cv.width * cv.height), 0)
+      })
+    : null;
+  formatSel.addEventListener('change', () => {
+    const fmt = formatSel.value;
+    const note = modalBg.querySelector('#exp-format-note');
+    const vidOpts = modalBg.querySelector('#exp-video-opts');
+    if (note) note.textContent = FORMAT_NOTES[fmt] || FORMAT_NOTES.zip;
+    const isMotion = fmt === 'video' || fmt === 'gif';
+    if (vidOpts) vidOpts.style.display = isMotion ? 'block' : 'none';
+    if (isMotion && typeof setVideoSettingsFormat === 'function') setVideoSettingsFormat(modalBg, 'exp', fmt);
+    if (vidSettings) vidSettings.refresh();
   });
+  // The size estimate scales with how many sizes are ticked.
+  if (vidSettings) {
+    chks.forEach(x => x.addEventListener('change', vidSettings.refresh));
+    modalBg.querySelector('#chk-all')?.addEventListener('change', () => setTimeout(vidSettings.refresh, 0));
+  }
 
   modalBg.querySelector('#btn-export-selected').addEventListener('click', async () => {
     const selectedIds = Array.from(chks).filter(c => c.checked).map(c => c.dataset.cid);
@@ -3893,7 +3887,7 @@ function openExportModal() {
     const filenamePrefix = (fnameInput && fnameInput.value.trim()) ? fnameInput.value.trim() : defaultPrefix;
     const skipChk = modalBg.querySelector('#exp-skip-frames');
     const includeSkippedFrames = !(skipChk && skipChk.checked);
-    const format = (modalBg.querySelector('input[name="exp-format"]:checked') || {}).value || 'zip';
+    const format = modalBg.querySelector('#exp-format')?.value || 'zip';
     
     const versionModeRadio = modalBg.querySelector('input[name="exp-version-mode"]:checked');
     const mode = versionModeRadio ? versionModeRadio.value : 'single';
@@ -3903,8 +3897,8 @@ function openExportModal() {
     const selectedCanvases = selectedIds.map(id => state.canvases.find(x => x.id === id)).filter(Boolean);
 
     if (hasVersions && versionChoice === 'all') {
-      if (format === 'video') {
-        showAdflowAlert('"All selected versions" is HTML5 ZIP only. Pick a single data version to export video.');
+      if (format === 'video' || format === 'gif') {
+        showAdflowAlert(`"All selected versions" is HTML5 ZIP only. Pick a single data version to export ${format === 'gif' ? 'GIF' : 'video'}.`);
         return;
       }
       await dmExportAllVersions(selectedCanvases, filenamePrefix);
@@ -3917,12 +3911,10 @@ function openExportModal() {
       if (!isNaN(idx) && dm.rows[idx]) exportVersionIdx = idx;
     }
 
-    if (format === 'video') {
-      const fps = parseInt(modalBg.querySelector('#exp-video-fps')?.value, 10) || 30;
-      const vquality = modalBg.querySelector('#exp-video-quality')?.value || 'high';
+    if (format === 'video' || format === 'gif') {
       await exportSelectedVideos(selectedCanvases, {
-        fps,
-        quality: vquality,
+        format,
+        ...readVideoSettings(modalBg, 'exp', format),
         filenamePrefix,
         versionIdx: hasVersions ? exportVersionIdx : null,
         includeSkippedFrames

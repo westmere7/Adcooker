@@ -1844,25 +1844,53 @@ function renderProps() {
               </svg>
             </button>
           </div>
-          <div style="display:flex; gap:6px;">
-            <button id="c-btn-dl-zip" title="Download this size as a zip package containing HTML and assets" style="
-              flex:1; padding:7px 0; border-radius:6px; border:1px solid var(--border-light); cursor:pointer;
-              background:var(--bg-input); color:var(--text-main); font-size:11px; font-weight:500;
-              font-family:inherit; display:flex; align-items:center; justify-content:center; gap:4px;
-              transition:border-color 0.15s; white-space:nowrap;
+        </div>
+
+        <!-- Export — this canvas only. HTML5 ZIP leads because it is the actual
+             ad-server deliverable; the rest are review / social outputs. The two
+             motion formats open their settings popup rather than firing straight
+             off, since each needs a frame rate and a quality choice. -->
+        <div class="prop-row" style="margin-top:16px;">
+          <label>Export this canvas</label>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <button id="c-btn-dl-zip" title="Download this canvas as a self-contained HTML5 package — the standard ad-server deliverable" style="
+              width:100%; padding:8px 12px; border-radius:6px; border:1px solid var(--accent-base); cursor:pointer;
+              background:rgba(124, 92, 255, 0.14); color:var(--text-bright, #f1f5f9); font-size:12px; font-weight:600;
+              font-family:inherit; display:flex; align-items:center; justify-content:center; gap:6px;
+              transition:background 0.15s; white-space:nowrap;
             ">
               <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Download ZIP
+              HTML5 ZIP
             </button>
-            <button id="c-btn-dl-img" title="Download a PNG snapshot of the current canvas" style="
-              flex:1; padding:7px 0; border-radius:6px; border:1px solid var(--border-light); cursor:pointer;
-              background:var(--bg-input); color:var(--text-main); font-size:11px; font-weight:500;
-              font-family:inherit; display:flex; align-items:center; justify-content:center; gap:4px;
-              transition:border-color 0.15s; white-space:nowrap;
-            ">
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.5-3.5L11 18"/></svg>
-              Download PNG
-            </button>
+            <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:6px;">
+              <button id="c-btn-dl-img" title="A static PNG of the frame you are on" style="
+                padding:7px 0; border-radius:6px; border:1px solid var(--border-light); cursor:pointer;
+                background:var(--bg-input); color:var(--text-main); font-size:11px; font-weight:500;
+                font-family:inherit; display:flex; align-items:center; justify-content:center; gap:4px;
+                transition:border-color 0.15s; white-space:nowrap; min-width:0;
+              ">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.5-3.5L11 18"/></svg>
+                PNG
+              </button>
+              <button id="c-btn-dl-video" title="Record one loop of this canvas as an MP4 — opens frame rate and bitrate settings" style="
+                padding:7px 0; border-radius:6px; border:1px solid var(--border-light); cursor:pointer;
+                background:var(--bg-input); color:var(--text-main); font-size:11px; font-weight:500;
+                font-family:inherit; display:flex; align-items:center; justify-content:center; gap:4px;
+                transition:border-color 0.15s; white-space:nowrap; min-width:0;
+              ">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><path d="m22 8-6 4 6 4V8z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>
+                Video
+              </button>
+              <button id="c-btn-dl-gif" title="Record one loop of this canvas as a looping animated GIF — opens frame rate and palette settings" style="
+                padding:7px 0; border-radius:6px; border:1px solid var(--border-light); cursor:pointer;
+                background:var(--bg-input); color:var(--text-main); font-size:11px; font-weight:500;
+                font-family:inherit; display:flex; align-items:center; justify-content:center; gap:4px;
+                transition:border-color 0.15s; white-space:nowrap; min-width:0;
+              ">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M11.5 10H10a2 2 0 0 0-2 2v0a2 2 0 0 0 2 2h1.5v-2"/><path d="M15 10v4"/></svg>
+                GIF
+              </button>
+            </div>
           </div>
         </div>
 
@@ -2039,25 +2067,49 @@ function renderProps() {
       btnAiResizeSettings.addEventListener('click', openAutoResizeSettingsModal);
     }
 
-    // ── Download ZIP button ──
+    // ── Export section ──
+    // HTML5 ZIP is the accent-outlined primary, so it brightens its fill on
+    // hover rather than its border like the secondary three.
     const btnDlZip = document.getElementById('c-btn-dl-zip');
     if (btnDlZip) {
-      btnDlZip.addEventListener('mouseenter', () => { btnDlZip.style.borderColor = 'var(--accent-base)'; });
-      btnDlZip.addEventListener('mouseleave', () => { btnDlZip.style.borderColor = 'var(--border-light)'; });
+      btnDlZip.addEventListener('mouseenter', () => { btnDlZip.style.background = 'rgba(124, 92, 255, 0.26)'; });
+      btnDlZip.addEventListener('mouseleave', () => { btnDlZip.style.background = 'rgba(124, 92, 255, 0.14)'; });
       btnDlZip.addEventListener('click', () => exportCanvasAsZip(c));
     }
 
-    // ── Download PNG button ──
+    const hoverBorder = (btn) => {
+      if (!btn) return;
+      btn.addEventListener('mouseenter', () => { btn.style.borderColor = 'var(--accent-base)'; });
+      btn.addEventListener('mouseleave', () => { btn.style.borderColor = 'var(--border-light)'; });
+    };
+
     const btnDlImg = document.getElementById('c-btn-dl-img');
     if (btnDlImg) {
-      btnDlImg.addEventListener('mouseenter', () => { btnDlImg.style.borderColor = 'var(--accent-base)'; });
-      btnDlImg.addEventListener('mouseleave', () => { btnDlImg.style.borderColor = 'var(--border-light)'; });
+      hoverBorder(btnDlImg);
       btnDlImg.addEventListener('click', async () => {
-        btnDlImg.textContent = 'Rendering…';
+        const orig = btnDlImg.innerHTML;
+        btnDlImg.textContent = '…';
         btnDlImg.disabled = true;
         await exportCanvasAsPng(c);
-        btnDlImg.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.5-3.5L11 18"/></svg> Download PNG';
+        btnDlImg.innerHTML = orig;
         btnDlImg.disabled = false;
+      });
+    }
+
+    // Video / GIF open the shared settings popup (frame rate + quality) rather
+    // than exporting blind — same popup the right-click menu uses.
+    const btnDlVideo = document.getElementById('c-btn-dl-video');
+    if (btnDlVideo) {
+      hoverBorder(btnDlVideo);
+      btnDlVideo.addEventListener('click', () => {
+        if (typeof openVideoExportSettingsPopup === 'function') openVideoExportSettingsPopup(c, 'video');
+      });
+    }
+    const btnDlGif = document.getElementById('c-btn-dl-gif');
+    if (btnDlGif) {
+      hoverBorder(btnDlGif);
+      btnDlGif.addEventListener('click', () => {
+        if (typeof openVideoExportSettingsPopup === 'function') openVideoExportSettingsPopup(c, 'gif');
       });
     }
 

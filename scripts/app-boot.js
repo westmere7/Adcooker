@@ -531,6 +531,8 @@ document.addEventListener('contextmenu', (e) => {
       <div class="ctx-submenu">
         <div class="ctx-item" id="ctx-canvas-export-html">HTML5</div>
         <div class="ctx-item" id="ctx-canvas-export-png">PNG</div>
+        <div class="ctx-item" id="ctx-canvas-export-video" title="Record one loop of this canvas as a ready-to-play video">Video…</div>
+        <div class="ctx-item" id="ctx-canvas-export-gif" title="Record one loop of this canvas as a looping animated GIF">GIF…</div>
       </div>
     </div>`;
     html += `<div class="ctx-divider"></div>`;
@@ -877,6 +879,8 @@ document.addEventListener('contextmenu', (e) => {
   });
   bind('ctx-canvas-export-html', () => { const c = getActiveCanvas(); if (c) exportCanvasAsZip(c); });
   bind('ctx-canvas-export-png', () => { const c = getActiveCanvas(); if (c) exportCanvasAsPng(c); });
+  bind('ctx-canvas-export-video', () => { const c = getActiveCanvas(); if (c) openVideoExportSettingsPopup(c, 'video'); });
+  bind('ctx-canvas-export-gif', () => { const c = getActiveCanvas(); if (c) openVideoExportSettingsPopup(c, 'gif'); });
   bind('ctx-canvas-distribute', (e) => {
     e.stopPropagation();
     showSyncLayersMenu(e.target, 'canvases');
