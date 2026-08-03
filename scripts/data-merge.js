@@ -443,16 +443,23 @@ function dmEndVersionPreview(commit) {
 // the preview. Row clicks stopPropagation, so a real selection never lands here.
 if (!window.dmVersionHoverGlobalBound) {
   window.dmVersionHoverGlobalBound = true;
-  document.addEventListener('click', () => { if (dmVersionHoverOrig !== null) dmEndVersionPreview(false); });
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.custom-select-dropdown').forEach(d => d.style.display = 'none');
+    if (dmVersionHoverOrig !== null) dmEndVersionPreview(false);
+  });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && dmVersionHoverOrig !== null) dmEndVersionPreview(false);
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.custom-select-dropdown').forEach(d => d.style.display = 'none');
+      if (dmVersionHoverOrig !== null) dmEndVersionPreview(false);
+    }
   });
 }
 
 function dmRenderCustomSelect(container, options, activeVal, onSelect) {
   if (!container) return;
-  // Mid-hover: leave the open dropdown intact (see dmVersionHoverActive).
-  if (dmVersionHoverActive && container.querySelector('.custom-select-dropdown')) return;
+  const existingDropdown = container.querySelector('.custom-select-dropdown');
+  // Mid-hover or while open: leave the open dropdown intact (see dmVersionHoverActive).
+  if (existingDropdown && (existingDropdown.style.display === 'block' || dmVersionHoverActive)) return;
   const currentOpt = options.find(o => o.val === activeVal) || options[0] || { label: '— none —', val: '' };
   
   container.innerHTML = `
@@ -491,6 +498,7 @@ function dmRenderCustomSelect(container, options, activeVal, onSelect) {
 
   dropdown.querySelectorAll('.custom-select-item').forEach(item => {
     item.addEventListener('mouseenter', () => dmPreviewVersion(item.dataset.value));
+    item.addEventListener('mousedown', (e) => e.stopPropagation());
     item.onclick = (e) => {
       e.stopPropagation();
       dropdown.style.display = 'none';
@@ -556,6 +564,11 @@ function renderPreviewVersionBar() {
     document.body.appendChild(bar);
   }
   bar.style.display = 'flex';
+
+  const existingDropdown = bar.querySelector('.custom-select-dropdown');
+  if (existingDropdown && (existingDropdown.style.display === 'block' || dmVersionHoverActive)) {
+    return;
+  }
 
   let inner = '';
   if (showVersions) {
