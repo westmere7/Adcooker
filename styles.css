@@ -619,6 +619,41 @@ body.theme-rmit-navy {
       }
     }
 
+    /* ---- Surface effect: Underline ---------------------------------------
+       Keep byte-identical to the copy in export-pipeline.js's CSS template —
+       the editor and the exported ad have to agree.
+
+       The rule is the TEXT SPAN's own background, not an overlay on the layer
+       box: an inline box's background is laid out per line fragment, so wrapped
+       text gets one underline per line, each the width of its own line, with no
+       measuring. box-decoration-break:clone is what makes each fragment its own
+       painting area rather than one continuous strip.
+
+       Animating background-size / background-position-x rather than a transform
+       keeps this safe on the timeline, where the entrance and the effect end up
+       on the same node and a transform would drag the type with it. The flat
+       stretches in the middle and at the end are the hold and the pause. */
+    @keyframes eff-underline {
+      0%        { background-size: 0% var(--ul-size, 3px);   background-position-x: left; }
+      26%, 58%  { background-size: 100% var(--ul-size, 3px); background-position-x: left; }
+      59%       { background-size: 100% var(--ul-size, 3px); background-position-x: right; }
+      86%, 100% { background-size: 0% var(--ul-size, 3px);   background-position-x: right; }
+    }
+
+    /* The span runs its OWN copy of the animation off --fx-dur/--fx-delay
+       rather than inheriting, because the node carrying the effect differs
+       between the timeline and the export. --ul-offset lifts the rule off the
+       text's baseline box. */
+    .fx-underline {
+      background-image: linear-gradient(var(--ul-color, #e61e2a), var(--ul-color, #e61e2a));
+      background-repeat: no-repeat;
+      background-position: left calc(100% - var(--ul-offset, 0px));
+      background-size: 0% var(--ul-size, 3px);
+      box-decoration-break: clone;
+      -webkit-box-decoration-break: clone;
+      animation: eff-underline var(--fx-dur, 2s) ease-in-out var(--fx-delay, 0s) infinite;
+    }
+
 
 
     @keyframes eff-heartbeat {

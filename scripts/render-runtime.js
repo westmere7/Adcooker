@@ -727,7 +727,10 @@ const ANIM_FX_PRESETS = [
   { val: 'spin', label: 'Spin' },
   { val: 'heartbeat', label: 'Heartbeat' },
   { val: 'pan', label: 'Move' },
-  { val: 'zoom', label: 'Zoom' }
+  { val: 'zoom', label: 'Zoom' },
+  // Paints on the type rather than moving the layer. Text-only by nature: it
+  // hugs the words, so on a shape or an image there is nothing for it to hug.
+  { val: 'underline', label: 'Underline', textOnly: true }
 ];
 
 // Presets offered for an element: text-only entries are dropped for non-text
@@ -751,7 +754,75 @@ function getOutAnimPresets(el) {
   const general = avail.filter(p => !p.textOnly);
   return [...textOnly, ...general].map(p => ({ ...p }));
 }
-function getFxPresets() { return ANIM_FX_PRESETS.map(p => ({ ...p })); }
+// Called with no argument by older paths, which then offer everything — the
+// same convention getOutAnimPresets uses.
+function getFxPresets(el) {
+  const isTextLike = !el || el.type === 'text' || el.type === 'button';
+  return ANIM_FX_PRESETS.filter(p => isTextLike || !p.textOnly).map(p => ({ ...p }));
+}
+
+// ---- Surface effects: Underline --------------------------------------------
+// The first FX preset that paints ON a layer instead of moving it.
+//
+// The rule belongs to the TEXT, not to the layer box — a text layer's box is
+// usually taller and wider than the type sitting in it, so a rule on the box
+// would float somewhere below the words and run past both ends of them. So the
+// class goes on the text span itself (fxOverlayTarget), and the rule is painted
+// as that span's own background rather than as an overlay: an inline box's
+// background is already laid out per line fragment, which means wrapped text
+// gets one underline per line, each the width of its own line, for free.
+//
+// It animates `background-size` / `background-position-x` rather than a
+// transform. That matters on the timeline, where the entrance and the effect
+// are merged onto one node — a transform-based wipe there would drag the layer
+// with it — and it is also what lets the effect coexist with the entrance
+// animations already on the span.
+//
+// The span runs its own copy of the animation off --fx-dur / --fx-delay rather
+// than inheriting the host's, because the export puts effects on their own
+// wrapper and the timeline does not.
+function isSurfaceFx(effType) {
+  return effType === 'underline';
+}
+
+function fxOverlayClass(effType) {
+  return effType === 'underline' ? 'fx-underline' : '';
+}
+
+// The node a surface effect's class belongs on, given the layer's root node.
+// Underline hugs the type, so it wants the text span; anything added later that
+// works on the whole layer can just take the root.
+function fxOverlayTarget(rootNode, effType) {
+  if (!rootNode) return null;
+  if (effType === 'underline') {
+    return rootNode.querySelector('.editable') || rootNode.querySelector('span') || rootNode;
+  }
+  return rootNode;
+}
+
+// Every custom property a surface effect reads, as an object so the editor's
+// hover preview can setProperty() them and the export can serialise them
+// without the two lists drifting. Returns null for any other preset.
+function fxSurfaceVarMap(el, effType) {
+  if (!el || !isSurfaceFx(effType)) return null;
+  // Same 2s-at-100% speed model as Pulse / Float / Flash.
+  const speed = Math.max(1, Number(el.effSpeed !== undefined ? el.effSpeed : 100));
+  return {
+    '--fx-dur': (2 / (speed / 100)).toFixed(3) + 's',
+    '--fx-delay': (el.effDelay !== undefined ? el.effDelay : 0) + 's',
+    '--ul-color': el.ulColor || '#e61e2a',
+    '--ul-size': (el.ulSize !== undefined ? el.ulSize : 3) + 'px',
+    '--ul-offset': (el.ulOffset !== undefined ? el.ulOffset : 0) + 'px'
+  };
+}
+
+// The same map as an inline-style string. '' for every non-surface preset, so
+// callers can assign it unconditionally.
+function fxSurfaceVars(el, effType) {
+  const m = fxSurfaceVarMap(el, effType);
+  if (!m) return '';
+  return Object.keys(m).map(function (k) { return k + ':' + m[k] + ';'; }).join(' ');
+}
 
 // Animation-category enable flags. Each category (IN / OUT / FX / TRANS) has an
 // explicit on/off flag that is independent of its chosen preset, so turning a
@@ -895,6 +966,11 @@ function getElementAnimationCSS(el, isImageExport, frameCtx) {
       const speed = Math.max(1, Number(speedStr));
       const duration = 2 / (speed / 100);
       if (!isImageExport) effAnims.push(`eff-${effType} ${duration}s ease-in-out ${effDelay}s infinite`);
+      // Surface effects (Glow / Shine / Underline) reach this generic branch and
+      // only need their variables; '' for everything else. Shine and Underline
+      // are no-ops on the host itself — the animation they run here exists so
+      // the node is tracked and styled by the same plumbing as every other FX.
+      effVars = fxSurfaceVars(el, effType);
     }
   }
 
@@ -942,7 +1018,10 @@ function getElementAnimationCSS(el, isImageExport, frameCtx) {
   // effect animations onto a single node — the editor's sequencer playback —
   // where export's nested-wrapper approach isn't available. Joined configs
   // above are untouched, so export/preview output is byte-identical.
-  return { entryConfig, entryVars, effConfig, effVars, entryAnimList: entryAnims, exitAnimList: exitAnims, effAnimList: effAnims };
+  // effClass is '' for every preset but Shine and Underline, whose overlay is a
+  // pseudo-element and so cannot be reached from an inline style.
+  const effClass = fxOverlayClass(effType);
+  return { entryConfig, entryVars, effConfig, effVars, effClass, entryAnimList: entryAnims, exitAnimList: exitAnims, effAnimList: effAnims };
 }
 
 
@@ -1019,7 +1098,11 @@ function getInverseElementAnimationCSS(el, isImageExport, imageEl) {
       const duration = 2 / (speed / 100);
       effAnims.push(`eff-float-inverse ${duration}s ease-in-out ${effDelay}s infinite`);
       effVars = `--float-x-inverse:${-fx}px; --float-y-inverse:${-fy}px; --float-x:${fx}px; --float-y:${fy}px;`;
-    } else {
+    } else if (!isSurfaceFx(effType)) {
+      // Underline has no inverse: the counter-animation exists to hold a masked
+      // image still while its mask moves, and nothing here moves the mask. There
+      // is no eff-underline-inverse keyframe either, so naming one would leave
+      // the image with a dead animation.
       const speedStr = el.effSpeed !== undefined ? el.effSpeed : 100;
       const speed = Math.max(1, Number(speedStr));
       const duration = 2 / (speed / 100);

@@ -1243,6 +1243,11 @@ function applyEffectPresetDefaults(el, val, updateProp) {
     if (el.floatRange === undefined) updateProp('floatRange', 10);
     if (el.floatDirection === undefined) updateProp('floatDirection', 'up');
     if (el.effSpeed === undefined) updateProp('effSpeed', 100);
+  } else if (val === 'underline') {
+    if (el.ulColor === undefined) updateProp('ulColor', el.color && !String(el.color).includes('gradient') ? el.color : '#e61e2a');
+    if (el.ulSize === undefined) updateProp('ulSize', 3);
+    if (el.ulOffset === undefined) updateProp('ulOffset', 0);
+    if (el.effSpeed === undefined) updateProp('effSpeed', 100);
   } else if (val !== 'none') {
     if (el.effSpeed === undefined) updateProp('effSpeed', 100);
   }
@@ -2139,6 +2144,9 @@ function renderProps() {
     'pulseScale': 'Pulse peak scale percentage',
     'heartbeatScale': 'Heartbeat peak scale percentage',
     'floatRange': 'Float translation distance in pixels',
+    'ulSize': 'Underline thickness in pixels',
+    'ulOffset': 'How far the underline sits above the bottom of the text, in pixels',
+    'ulColor': 'Underline colour',
     'floatDirection': 'Float movement direction'
   };
 
@@ -3113,7 +3121,7 @@ function renderProps() {
 
     f.push(`<div id="effects-preview-area" class="animation-sub-panel" style="${showFx ? '' : 'display:none;'}">`);
     f.push(`<div class="prop-row" style="margin-bottom:6px;"><label class="anim-sub-head"><svg id="fi_18489086" width="12" height="12" viewBox="0 0 100 100" style="color: var(--accent-base); flex-shrink: 0;"><g fill="currentColor"><path d="m62.9545441 6.8181796v17.2727323h-60.4545455v17.2727203h95.0000014z"></path><path d="m37.0454559 75.9090881h60.4545441v-17.2727203h-95.0000014l34.5454573 34.5454559z"></path></g></svg>Animation FX</label></div>`);
-    const effectOptions = getFxPresets();       // shared registry
+    const effectOptions = getFxPresets(el);     // shared registry
 
     let filteredEffects = effectOptions;
     let effFavMessageHtml = '';
@@ -3206,6 +3214,20 @@ function renderProps() {
           </select>
         </div>
       </div></div>`);
+      } else if (el.effectType === 'underline') {
+        const ulCol = el.ulColor || '#e61e2a';
+        f.push(`<div class="prop-row" style="margin-bottom:16px; margin-top:-8px;"><div class="prop-grid-2">
+        ${num('effSpeed', 'Speed (%)', 100)}
+        ${num('effDelay', 'Delay (s)', 0)}
+        ${num('ulSize', 'Thickness (px)', 3)}
+        ${num('ulOffset', 'Offset (px)', 0)}
+        <div class="prop-row"><label>Colour</label>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <button class="cp-trigger" data-k="ulColor" title="Choose underline colour" style="width:24px; height:24px; flex-shrink:0; border-radius:4px; border:1px solid var(--border-light); cursor:pointer; background:${getBgStyle(ulCol) || ulCol}"></button>
+            ${hexInputBox('ulColor', ulCol)}
+          </div>
+        </div>
+      </div>${el.hasBg ? `<div style="margin-top:8px; font-size:11px; color:var(--text-muted); line-height:1.45;">The text background covers the underline — turn BG off to see it.</div>` : ''}</div>`);
       } else {
         f.push(`<div class="prop-row" style="margin-bottom:16px; margin-top:-8px;"><div class="prop-grid-2">
         ${num('effSpeed', 'Speed (%)', 100)}
@@ -3478,7 +3500,7 @@ function checkButtonFontSizeWarning(el) {
           inp.value = clamped;
         }
       }
-      if (inp.type === 'text' && (inp.dataset.k === 'color' || inp.dataset.k === 'bg' || inp.dataset.k === 'strokeColor' || inp.dataset.k === 'cursorColor') && val !== undefined) {
+      if (inp.type === 'text' && (inp.dataset.k === 'color' || inp.dataset.k === 'bg' || inp.dataset.k === 'strokeColor' || inp.dataset.k === 'cursorColor' || inp.dataset.k === 'ulColor') && val !== undefined) {
         if (!val.startsWith('#') && val.length > 0 && !val.includes('gradient')) val = '#' + val;
       }
       updateProp(inp.dataset.k, val);
@@ -4192,6 +4214,11 @@ function checkButtonFontSizeWarning(el) {
     domNodes.forEach(node => {
       if (node) {
         node.style.animation = '';
+        // Underline leaves a class on the text span and properties on the layer.
+        node.querySelectorAll('.fx-underline').forEach(n => n.classList.remove('fx-underline'));
+        node.classList.remove('fx-underline');
+        ['--fx-dur', '--fx-delay', '--ul-color', '--ul-size', '--ul-offset']
+          .forEach(v => node.style.removeProperty(v));
         const nodeEl = state.canvases.flatMap(c => c.elements).find(e => e.id === node.dataset.id) || el;
         const targetCanvas = state.canvases.find(c => c.elements.some(e => e.id === nodeEl.id)) || getActiveCanvas();
         const isMaskedImg = targetCanvas && findMaskAbove(targetCanvas, nodeEl);

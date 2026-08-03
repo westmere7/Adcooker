@@ -37,6 +37,7 @@ let seqShowAll = localStorage.getItem(SEQ_LS_SHOWALL) === '1';
 let seqLastSignature = null;
 let seqPlaying = false;
 let seqPlayNodes = [];             // nodes touched by playback, for cleanup
+let seqPlayFxClassNodes = [];      // nodes given a surface-FX overlay class
 let seqPlayTextTargets = [];       // text nodes whose innerHTML playback replaced
 let seqPlayTimer = null;
 let seqPopoverEl = null;
@@ -952,7 +953,7 @@ function seqPresetOptions(el, kind) {
   if (kind === 'in') return getInAnimPresets(el);
   // OUT has no 'none' preset — turning the category off is its own entry.
   if (kind === 'out') return [{ val: '__off', label: 'None' }, ...getOutAnimPresets(el)];
-  return getFxPresets();
+  return getFxPresets(el);
 }
 
 function seqCloseNPopover() {
@@ -1061,7 +1062,8 @@ document.addEventListener('keydown', (e) => {
 
 const SEQ_PLAY_VARS = ['--pan-x', '--pan-y', '--pan-rotate', '--pan-opacity-start', '--zoom-target',
   '--spin-target', '--pulse-scale', '--pulse-scale-inverse', '--heartbeat-scale', '--heartbeat-scale-inverse',
-  '--float-x', '--float-y', '--float-x-inverse', '--float-y-inverse', '--zoom-target-inverse', '--spin-target-inverse'];
+  '--float-x', '--float-y', '--float-x-inverse', '--float-y-inverse', '--zoom-target-inverse', '--spin-target-inverse',
+  '--fx-dur', '--fx-delay', '--ul-color', '--ul-size', '--ul-offset'];
 
 function seqApplyVars(node, varsStr) {
   String(varsStr || '').split(';').forEach(pair => {
@@ -1246,6 +1248,12 @@ function seqStartPlayback() {
 
     if (anims.length) {
       seqApplyVars(elTarget, (a.entryVars || '') + (a.effVars || ''));
+      // Underline paints on the text span, not the layer box — the custom
+      // properties on elTarget inherit down to it.
+      if (a.effClass) {
+        const fxNode = fxOverlayTarget(elTarget, el.effectType);
+        if (fxNode) { fxNode.classList.add(a.effClass); seqPlayFxClassNodes.push(fxNode); }
+      }
       if (animType === 'zoom' || animType === 'zoom-in' || animType === 'pop-in') {
         elTarget.style.transformOrigin = getTransformOriginValue(el.zoomAnchor || 'center');
       } else if (frameCtx && animOutEnabled(el) && el.exitType === 'zoom') {
@@ -1321,6 +1329,8 @@ function seqStopPlayback() {
     SEQ_PLAY_VARS.forEach(v => node.style.removeProperty(v));
   });
   seqPlayNodes = [];
+  seqPlayFxClassNodes.forEach(node => node.classList.remove('fx-underline'));
+  seqPlayFxClassNodes = [];
   // Put the span-driven text entrances back to their plain markup and styles.
   seqPlayTextTargets.forEach(t => {
     t.node.innerHTML = t.html;

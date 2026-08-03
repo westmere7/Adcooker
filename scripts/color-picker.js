@@ -622,7 +622,9 @@ function openColorPicker(btn, key, initialValue) {
 
   const gradientTab = document.querySelector('.cp-tab[data-tab="gradient"]');
   const gradPaletteSection = document.getElementById('cp-gradient-palette-section');
-  if (key === 'strokeColor' || key === 'np-bg' || key === 'set-default-bg') {
+  // Solid-only keys. A gradient string would land nested inside the
+  // linear-gradient() that paints the Underline rule.
+  if (key === 'strokeColor' || key === 'np-bg' || key === 'set-default-bg' || key === 'ulColor') {
     gradientTab.style.display = 'none';
     if (gradPaletteSection) gradPaletteSection.style.display = 'none';
   } else {

@@ -2287,7 +2287,7 @@ function _generateExportHTMLRaw(targetCanvas, zipRef, isImageExport = false, opt
     // All per-id keyframes come from the one shared builder (see its comment).
     dynamicKeyframes += buildElementKeyframesCSS(el, { isImageExport, includeExit: !!frameCtx });
     if (frameCtx && !isImageExport && animOutEnabled(el)) usesExitKeyframes = true;
-    const { entryConfig, entryVars, effConfig, effVars } = getElementAnimationCSS(el, isImageExport, frameCtx);
+    const { entryConfig, entryVars, effConfig, effVars, effClass } = getElementAnimationCSS(el, isImageExport, frameCtx);
     // Continuous-effect wrapper goes OUTSIDE the entry wrapper. Clip-path entry
     // animations (swipe / typing) settle on `clip-path: inset(0 0 0 0)` (their
     // "fully revealed" state, kept by fill-mode), which clips to the element's
@@ -2295,6 +2295,9 @@ function _generateExportHTMLRaw(targetCanvas, zipRef, isImageExport = false, opt
     // that, its overflow past the box would get cropped in export/preview. With
     // the effect wrapper outer, it moves the (clipped) entry wrapper as a whole,
     // so the clip travels with the content instead of cropping it.
+    // effClass goes on the TEXT SPAN further down, not here — Underline hugs the
+    // type, and this wrapper is the whole layer box. The wrapper still carries
+    // the custom properties, which the span inherits.
     const openDivs = `<div style="width:100%;height:100%;${effConfig}${effVars}"><div style="width:100%;height:100%;${entryConfig}${entryVars}">`;
     const closeDivs = `</div></div>`;
 
@@ -2356,7 +2359,9 @@ function _generateExportHTMLRaw(targetCanvas, zipRef, isImageExport = false, opt
         ? ` class="auto-size-text" data-max-size="${el.maxFontSize !== undefined ? el.maxFontSize : (el.fontSize || 72)}" data-width="${el.width}" data-height="${el.height}"`
         : '';
       const blockClass = el.autoSize ? ' class="auto-size-block"' : '';
-      const spanClass = el.autoSize ? ' class="auto-size-span"' : '';
+      // Underline rides the text span so it hugs the type rather than the box.
+      const spanClasses = [el.autoSize ? 'auto-size-span' : '', effClass].filter(Boolean);
+      const spanClass = spanClasses.length ? ` class="${spanClasses.join(' ')}"` : '';
 
 
 
@@ -2398,6 +2403,8 @@ function _generateExportHTMLRaw(targetCanvas, zipRef, isImageExport = false, opt
       let btnContent = esc(el.text).replace(/\n/g, '<br/>');
       const btnEntranceHTML = buildTextEntranceHTML(el, esc, animType, isImageExport, undefined, undefined, { includeExit: !!frameCtx && !isImageExport });
       if (btnEntranceHTML !== null) btnContent = btnEntranceHTML;
+      // Underline hugs the label, not the button's chrome.
+      const btnFxClass = effClass ? ` class="${effClass}"` : '';
 
       let staggerStyle = '';
       if (!isImageExport && animType === 'zoom' && el.animStaggerText) {
@@ -2430,10 +2437,10 @@ function _generateExportHTMLRaw(targetCanvas, zipRef, isImageExport = false, opt
 
       if (el.autoSize) {
         const autoAttrs = ` class="auto-size-text" data-max-size="${el.maxFontSize !== undefined ? el.maxFontSize : (el.fontSize || 72)}" data-width="${el.width}" data-height="${el.height}" data-padding-lr="${paddingLR}" data-padding-tb="${paddingTB}" data-wrap="${el.wrapText ? '1' : '0'}" data-wrap-min="${el.wrapMinSize !== undefined ? el.wrapMinSize : 14}"`;
-        return `    <div ${wrapAttrs}${autoAttrs}>${openDivs}<div style="position:absolute;inset:0;background:${el.bg};border-radius:${el.radius || 0}px;opacity:${fillOpacity}${bgAnimStyle};"></div><div class="auto-size-block" style="position:relative;width:100%;height:100%;color:${el.color};font-size:${el.fontSize}px;font-weight:${el.weight || '600'};display:flex;align-items:center;justify-content:${jc};text-align:${el.textAlign || 'center'};font-family:${ff};cursor:pointer;padding:${paddingTB}px ${paddingLR}px;box-sizing:border-box;${el.wrapText ? 'word-break:normal;' : ''}"><span class="auto-size-span" style="${spanStyle}">${btnContent}</span></div>${animatedStrokeHtml}${closeDivs}</div>`;
+        return `    <div ${wrapAttrs}${autoAttrs}>${openDivs}<div style="position:absolute;inset:0;background:${el.bg};border-radius:${el.radius || 0}px;opacity:${fillOpacity}${bgAnimStyle};"></div><div class="auto-size-block" style="position:relative;width:100%;height:100%;color:${el.color};font-size:${el.fontSize}px;font-weight:${el.weight || '600'};display:flex;align-items:center;justify-content:${jc};text-align:${el.textAlign || 'center'};font-family:${ff};cursor:pointer;padding:${paddingTB}px ${paddingLR}px;box-sizing:border-box;${el.wrapText ? 'word-break:normal;' : ''}"><span class="auto-size-span${effClass ? ' ' + effClass : ''}" style="${spanStyle}">${btnContent}</span></div>${animatedStrokeHtml}${closeDivs}</div>`;
       } else {
         const normalBlockStyle = `position:relative;width:100%;height:100%;color:${el.color};font-size:${el.fontSize}px;font-weight:${el.weight || '600'};display:flex;align-items:center;justify-content:${jc};text-align:${el.textAlign || 'center'};font-family:${ff};cursor:pointer;padding:${paddingTB}px ${paddingLR}px;box-sizing:border-box;`;
-        return `    <div ${wrapAttrs}>${openDivs}<div style="position:absolute;inset:0;background:${el.bg};border-radius:${el.radius || 0}px;opacity:${fillOpacity}${bgAnimStyle};"></div><div style="${normalBlockStyle}"><span style="${spanStyle}">${btnContent}</span></div>${animatedStrokeHtml}${closeDivs}</div>`;
+        return `    <div ${wrapAttrs}>${openDivs}<div style="position:absolute;inset:0;background:${el.bg};border-radius:${el.radius || 0}px;opacity:${fillOpacity}${bgAnimStyle};"></div><div style="${normalBlockStyle}"><span${btnFxClass} style="${spanStyle}">${btnContent}</span></div>${animatedStrokeHtml}${closeDivs}</div>`;
       }
     }
     if (el.type === 'image' && el.assetId) {
@@ -2784,6 +2791,11 @@ ${dynamicKeyframes}
   @keyframes eff-heartbeat { 0% { scale: 1; } 14% { scale: var(--heartbeat-scale, 1.3); } 28% { scale: 1; } 42% { scale: var(--heartbeat-scale, 1.3); } 70% { scale: 1; } }
   @keyframes eff-pan { 0% { translate: var(--pan-x, 0px) var(--pan-y, 0px); rotate: var(--pan-rotate, 0deg); opacity: var(--pan-opacity-start, 1); } 100% { translate: 0 0; rotate: 0deg; opacity: 1; } }
   @keyframes eff-zoom { 0% { scale: 1; } 100% { scale: var(--zoom-target, 1.5); } }
+  /* Underline — keep byte-identical to the copy in styles.css. See the comment
+     block there for why the rule is the text span's own background rather than
+     an overlay, and why it carries its own animation. */
+  @keyframes eff-underline { 0% { background-size: 0% var(--ul-size, 3px); background-position-x: left; } 26%, 58% { background-size: 100% var(--ul-size, 3px); background-position-x: left; } 59% { background-size: 100% var(--ul-size, 3px); background-position-x: right; } 86%, 100% { background-size: 0% var(--ul-size, 3px); background-position-x: right; } }
+  .fx-underline { background-image: linear-gradient(var(--ul-color, #e61e2a), var(--ul-color, #e61e2a)); background-repeat: no-repeat; background-position: left calc(100% - var(--ul-offset, 0px)); background-size: 0% var(--ul-size, 3px); box-decoration-break: clone; -webkit-box-decoration-break: clone; animation: eff-underline var(--fx-dur, 2s) ease-in-out var(--fx-delay, 0s) infinite; }
   @keyframes eff-pulse-inverse { 0% { scale: 1; } 50% { scale: var(--pulse-scale-inverse, 0.9524); } 100% { scale: 1; } }
   @keyframes eff-float-inverse { 0% { translate: 0 0; } 50% { translate: var(--float-x-inverse, 0px) var(--float-y-inverse, 10px); } 100% { translate: 0 0; } }
   @keyframes eff-wiggle-inverse { 0%, 100% { rotate: 5deg; } 50% { rotate: -5deg; } }

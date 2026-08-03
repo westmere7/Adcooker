@@ -1819,6 +1819,9 @@ function startEffectPreview(el, tempVal) {
       heartbeatScale: el.heartbeatScale,
       floatRange: el.floatRange,
       floatDirection: el.floatDirection,
+      ulColor: el.ulColor,
+      ulSize: el.ulSize,
+      ulOffset: el.ulOffset,
       effDelay: el.effDelay
     };
 
@@ -1915,6 +1918,17 @@ function startEffectPreview(el, tempVal) {
         const speed = Math.max(1, Number(speedStr));
         const duration = 2 / (speed / 100);
         tNode.style.animation = `eff-${val} ${duration}s ease-in-out 0s infinite`;
+        // Underline reads its look from custom properties and paints on the text
+        // span, not the layer box. Both come from the shared helpers so the
+        // preview can't drift from what the export and the timeline produce.
+        const fxVars = typeof fxSurfaceVarMap === 'function' ? fxSurfaceVarMap(mergedEl, val) : null;
+        if (fxVars) {
+          // The hover preview ignores configured delays, like every other preset here.
+          Object.keys(fxVars).forEach(k => tNode.style.setProperty(k, k === '--fx-delay' ? '0s' : fxVars[k]));
+          const cls = fxOverlayClass(val);
+          const fxNode = cls ? fxOverlayTarget(tNode, val) : null;
+          if (fxNode) fxNode.classList.add(cls);
+        }
       }
     };
 
@@ -1994,6 +2008,10 @@ function startEffectPreview(el, tempVal) {
         const speed = Math.max(1, Number(speedStr));
         const duration = 2 / (speed / 100);
         tNode.style.animation = `eff-float-inverse ${duration}s ease-in-out 0s infinite`;
+      } else if (typeof isSurfaceFx === 'function' && isSurfaceFx(val)) {
+        // No inverse for the surface effects — nothing moves, so there is
+        // nothing for a masked image to counter (see getInverseEffectCSS).
+        tNode.style.animation = '';
       } else {
         const speedStr = mergedEl.effSpeed !== undefined ? mergedEl.effSpeed : 100;
         const speed = Math.max(1, Number(speedStr));
