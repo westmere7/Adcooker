@@ -857,9 +857,12 @@ document.getElementById('menu-help-documentation').addEventListener('click', ope
 
 const CHANGELOG_DATA = [
   {
-    version: 'v0.45.0',
-    date: 'August 2026 — Engine v2.22',
+    version: 'v0.46.0',
+    date: 'August 2026 — Engine v2.23',
     items: [
+      'Video Export: the Export dialog has a third format — Video — that records one full loop of each selected size and hands you ready-to-play files. Everything happens in the browser: no plugins, no uploads, no software to install. One size downloads as a single video; several sizes arrive zipped together. FPS (24/30/60) and a quality preset are the only knobs; the quality presets scale their bitrate to each size\'s dimensions.',
+      'Frame-Accurate, Not Screen-Recorded: the ad is not filmed off the screen — every output frame is composed at its exact timestamp on a virtual clock that drives the ad\'s storyboard timers and animations in lockstep. Nothing can drop a frame or stutter because the machine was busy: the same export produces the identical file every single time, byte for byte. A 15-second ad renders in well under a minute, with live progress and a working Cancel.',
+      'MP4 First, WebM Where It Must: exports are H.264 MP4 — the format that plays in PowerPoint, on phones, in email clients and everywhere else. On a browser that cannot encode H.264, the export quietly produces a WebM instead of failing; with no video encoding support at all, it says so plainly and names a browser that works. Known limits: animated GIF assets appear as their first frame, and odd-pixel ad sizes gain a 1px background sliver (H.264 requires even dimensions).',
       'New FX Preset — Underline: the first effect that paints ON a layer rather than moving it. Every preset before it nudged, scaled, spun or faded the layer; this one leaves it exactly where it was put and wipes a rule in beneath the words, holds it, then wipes it out the far side.',
       'It Underlines the Text, Not the Layer: the rule is drawn on the type itself, so it is only as wide as the words and sits directly under them — not stretched across a layer box that is usually wider and taller than the text inside it. Wrapped copy gets one underline per line, each the width of its own line, and they re-measure themselves when a data-merge swap or an auto-resize re-wraps the text.',
       'Its Settings: the usual Speed and Delay, plus Thickness, Colour, and an Offset that lifts the rule up off the baseline. Offered on text and buttons only — elsewhere there is no type for it to hug. The colour field opens the usual palette without the gradient tab, since a gradient would land nested inside the rule\'s own fill. On a text layer that already has BG turned on, the background covers the rule; the panel says so rather than leaving you guessing.',

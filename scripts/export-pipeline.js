@@ -1913,6 +1913,123 @@ async function getFontAsDataUrl(filename) {
   }
 }
 
+// Inline the canvas's required fonts into a generated bundle as data URLs.
+// Shared by the PNG export and the video exporter: both rasterize through
+// SVG-as-image snapshots, which cannot fetch external resources, so every
+// `data/fonts/...` reference has to become a data URL first.
+async function inlineFontsIntoHtml(c, html) {
+  const req = getRequiredFonts(c);
+  const fontPromises = [];
+  const fontReplacements = [];
+
+  const museoFiles = {
+    300: 'Museo300-Regular.woff2',
+    500: 'Museo500-Regular.woff2',
+    700: 'Museo700-Regular.woff2'
+  };
+  const helveticaFiles = {
+    300: 'helveticaneueltpro_lt.woff2',
+    400: 'helveticaneueltpro_roman.woff2',
+    500: 'helveticaneueltpro.woff2'
+  };
+
+  const queue = (file) => {
+    if (!file) return;
+    fontPromises.push((async () => {
+      const dataUrl = await getFontAsDataUrl(file);
+      if (dataUrl) fontReplacements.push({ file, dataUrl });
+    })());
+  };
+  if (req.museo) for (const w of req.museo) queue(museoFiles[w]);
+  if (req.helvetica) for (const w of req.helvetica) queue(helveticaFiles[w]);
+  await Promise.all(fontPromises);
+
+  for (const rep of fontReplacements) {
+    html = html.split(`data/fonts/${rep.file}`).join(rep.dataUrl);
+    html = html.split(`assets/${rep.file}`).join(rep.dataUrl);
+  }
+  return { html, req };
+}
+
+// Parse a generated bundle, inline every relative <img> as a data URL, and
+// hand back the re-serialized html plus the bundle's <style> text (snapshot
+// SVGs re-embed it). Shared by the PNG export and the video exporter.
+async function prepareSnapshotHtml(html) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+
+  // Extract styles
+  const styles = Array.from(doc.querySelectorAll('style')).map(s => s.textContent).join('\n');
+
+  // Extract the #ad element
+  const adEl = doc.querySelector('#ad');
+  if (!adEl) throw new Error('#ad element not found');
+
+  // Inline any relative img sources
+  const imgPromises = [];
+  const imgs = doc.querySelectorAll('img');
+  imgs.forEach(img => {
+    const src = img.getAttribute('src');
+    if (src && !src.startsWith('data:') && !src.startsWith('http:') && !src.startsWith('https:')) {
+      imgPromises.push((async () => {
+        try {
+          const res = await fetch(src);
+          if (res.ok) {
+            const blob = await res.blob();
+            const dataUrl = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                const base64Data = reader.result.split(',')[1];
+                let mime = blob.type;
+                if (!mime || mime === 'application/octet-stream') {
+                  if (src.endsWith('.svg') || src.endsWith('.svg+xml')) mime = 'image/svg+xml';
+                  else if (src.endsWith('.png')) mime = 'image/png';
+                  else if (src.endsWith('.jpg') || src.endsWith('.jpeg')) mime = 'image/jpeg';
+                  else if (src.endsWith('.gif')) mime = 'image/gif';
+                  else if (src.endsWith('.webp')) mime = 'image/webp';
+                  else mime = 'image/png';
+                }
+                resolve(`data:${mime};base64,${base64Data}`);
+              };
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+            img.setAttribute('src', dataUrl);
+          }
+        } catch (e) {
+          console.warn(`Failed to inline image ${src}:`, e);
+        }
+      })());
+    }
+  });
+  await Promise.all(imgPromises);
+
+  // Reconstruct HTML with inlined images
+  return { html: new XMLSerializer().serializeToString(doc), styles };
+}
+
+// The snapshot SVG: the ad's serialized markup inside a foreignObject, with the
+// bundle's styles both in the SVG defs and inside the XHTML container (wrapped
+// in CDATA) — this handles Chrome/WebKit scoping rules. Shared by the PNG
+// export (one frame) and the video exporter (every frame).
+function buildAdSnapshotSvg(styles, adXml, width, height) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+      <defs>
+        <style type="text/css"><![CDATA[
+${styles}
+        ]]></style>
+      </defs>
+      <foreignObject x="0" y="0" width="100%" height="100%">
+        <div xmlns="http://www.w3.org/1999/xhtml" style="width:100%; height:100%; position:relative;">
+          <style type="text/css"><![CDATA[
+${styles}
+          ]]></style>
+          ${adXml}
+        </div>
+      </foreignObject>
+    </svg>`;
+}
+
 async function exportCanvasAsPng(c, options = {}) {
   if (window.location.protocol === 'file:') {
     showAdflowAlert('Local asset fetching is blocked on the file:// protocol due to browser CORS security rules. Please run the local development server (e.g., python -m http.server 8080) and open http://localhost:8080/ to export PNGs with custom fonts.');
@@ -1921,109 +2038,11 @@ async function exportCanvasAsPng(c, options = {}) {
   let recorderIframe = null;
   let cnv = null;
   try {
-    // 1. Fetch and inline required fonts for this canvas
-    const req = getRequiredFonts(c);
-    const fontPromises = [];
-    const fontReplacements = [];
-    
-    const museoFiles = {
-      300: 'Museo300-Regular.woff2',
-      500: 'Museo500-Regular.woff2',
-      700: 'Museo700-Regular.woff2'
-    };
-    const helveticaFiles = {
-      300: 'helveticaneueltpro_lt.woff2',
-      400: 'helveticaneueltpro_roman.woff2',
-      500: 'helveticaneueltpro.woff2'
-    };
-    
-    if (req.museo) {
-      for (const w of req.museo) {
-        const file = museoFiles[w];
-        if (file) {
-          fontPromises.push((async () => {
-            const dataUrl = await getFontAsDataUrl(file);
-            if (dataUrl) {
-              fontReplacements.push({ file, dataUrl });
-            }
-          })());
-        }
-      }
-    }
-    if (req.helvetica) {
-      for (const w of req.helvetica) {
-        const file = helveticaFiles[w];
-        if (file) {
-          fontPromises.push((async () => {
-            const dataUrl = await getFontAsDataUrl(file);
-            if (dataUrl) {
-              fontReplacements.push({ file, dataUrl });
-            }
-          })());
-        }
-      }
-    }
-    
-    await Promise.all(fontPromises);
-
+    // 1. Fetch and inline required fonts + relative images as data URLs
     let html = generateExportHTML(c, null, true); // disable anims for static image
-    for (const rep of fontReplacements) {
-      html = html.split(`data/fonts/${rep.file}`).join(rep.dataUrl);
-      html = html.split(`assets/${rep.file}`).join(rep.dataUrl);
-    }
-
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
-    
-    // Extract styles
-    const styles = Array.from(doc.querySelectorAll('style')).map(s => s.textContent).join('\n');
-    
-    // Extract the #ad element
-    const adEl = doc.querySelector('#ad');
-    if (!adEl) throw new Error('#ad element not found');
-    
-    // Inline any relative img sources
-    const imgPromises = [];
-    const imgs = adEl.querySelectorAll('img');
-    imgs.forEach(img => {
-      const src = img.getAttribute('src');
-      if (src && !src.startsWith('data:') && !src.startsWith('http:') && !src.startsWith('https:')) {
-        imgPromises.push((async () => {
-          try {
-            const res = await fetch(src);
-            if (res.ok) {
-              const blob = await res.blob();
-              const dataUrl = await new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => {
-                  const base64Data = reader.result.split(',')[1];
-                  let mime = blob.type;
-                  if (!mime || mime === 'application/octet-stream') {
-                    if (src.endsWith('.svg') || src.endsWith('.svg+xml')) mime = 'image/svg+xml';
-                    else if (src.endsWith('.png')) mime = 'image/png';
-                    else if (src.endsWith('.jpg') || src.endsWith('.jpeg')) mime = 'image/jpeg';
-                    else if (src.endsWith('.gif')) mime = 'image/gif';
-                    else if (src.endsWith('.webp')) mime = 'image/webp';
-                    else mime = 'image/png';
-                  }
-                  resolve(`data:${mime};base64,${base64Data}`);
-                };
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-              });
-              img.setAttribute('src', dataUrl);
-            }
-          } catch (e) {
-            console.warn(`Failed to inline image ${src}:`, e);
-          }
-        })());
-      }
-    });
-    await Promise.all(imgPromises);
-
-    // Reconstruct HTML with inlined images
-    const docSerializer = new XMLSerializer();
-    html = docSerializer.serializeToString(doc);
+    let req, styles;
+    ({ html, req } = await inlineFontsIntoHtml(c, html));
+    ({ html, styles } = await prepareSnapshotHtml(html));
 
     // Create and load hidden iframe to run scripts in active visible context
     recorderIframe = document.createElement('iframe');
@@ -2145,23 +2164,7 @@ async function exportCanvasAsPng(c, options = {}) {
     ctx.fillStyle = _pngBg || '#000';
     ctx.fillRect(0, 0, c.width, c.height);
 
-    // Place the styles in both the SVG defs and inside the XHTML container wrapped in CDATA.
-    // This handles Chrome/WebKit scoping rules.
-    const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="${c.width}" height="${c.height}">
-      <defs>
-        <style type="text/css"><![CDATA[
-${styles}
-        ]]></style>
-      </defs>
-      <foreignObject x="0" y="0" width="100%" height="100%">
-        <div xmlns="http://www.w3.org/1999/xhtml" style="width:100%; height:100%; position:relative;">
-          <style type="text/css"><![CDATA[
-${styles}
-          ]]></style>
-          ${activeAdXml}
-        </div>
-      </foreignObject>
-    </svg>`;
+    const svgStr = buildAdSnapshotSvg(styles, activeAdXml, c.width, c.height);
     const base64Svg = btoa(unescape(encodeURIComponent(svgStr)));
     const svgUrl = `data:image/svg+xml;base64,${base64Svg}`;
 
@@ -3336,8 +3339,30 @@ function openExportModal() {
             <input type="radio" name="exp-format" value="png" title="Export a static PNG of each size instead of the animated HTML5 package" style="margin:0;" />
             <span>PNG</span>
           </label>
+          <label style="flex:1; display:flex; align-items:center; gap:6px; padding:7px 9px; background:var(--bg-input); border:1px solid var(--border-light); border-radius:4px; cursor:pointer; font-size:12px;">
+            <input type="radio" name="exp-format" value="video" title="Record one loop of each size as a ready-to-play video file" style="margin:0;" />
+            <span>Video</span>
+          </label>
         </div>
-        <div style="font-size:10px; color:var(--text-muted); margin-top:4px;">PNG exports the active frame as a static image (one file per canvas).</div>
+        <div id="exp-format-note" style="font-size:10px; color:var(--text-muted); margin-top:4px;">PNG exports the active frame as a static image (one file per canvas).</div>
+        <div id="exp-video-opts" style="display:none; margin-top:6px; gap:6px; align-items:end;">
+          <div style="flex:1;">
+            <label style="display:block; font-size:10px; color:var(--text-muted); margin-bottom:2px;">FPS</label>
+            <select id="exp-video-fps" title="Output frame rate" style="width:100%; padding:5px 6px; background:var(--bg-input); border:1px solid var(--border-light); border-radius:4px; color:var(--text-main); font-size:11px; outline:none; font-family:inherit;">
+              <option value="24">24</option>
+              <option value="30" selected>30</option>
+              <option value="60">60</option>
+            </select>
+          </div>
+          <div style="flex:1;">
+            <label style="display:block; font-size:10px; color:var(--text-muted); margin-bottom:2px;">Quality</label>
+            <select id="exp-video-quality" title="Bitrate preset, scaled to each size's dimensions" style="width:100%; padding:5px 6px; background:var(--bg-input); border:1px solid var(--border-light); border-radius:4px; color:var(--text-main); font-size:11px; outline:none; font-family:inherit;">
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high" selected>High</option>
+            </select>
+          </div>
+        </div>
       </div>
       ${hasVersions ? `
       <div>
@@ -3843,6 +3868,23 @@ function openExportModal() {
     modalBg.querySelector('#exp-version')?.addEventListener('change', updateExportTableDetails);
   }
 
+  // The format note doubles as the video settings' home: picking Video reveals
+  // FPS + Quality and swaps the caption.
+  const FORMAT_NOTES = {
+    zip: 'PNG exports the active frame as a static image (one file per canvas).',
+    png: 'PNG exports the active frame as a static image (one file per canvas).',
+    video: 'Records one loop cycle per size. H.264 MP4; falls back to WebM where MP4 encoding isn’t available.'
+  };
+  modalBg.querySelectorAll('input[name="exp-format"]').forEach(r => {
+    r.addEventListener('change', () => {
+      const fmt = (modalBg.querySelector('input[name="exp-format"]:checked') || {}).value || 'zip';
+      const note = modalBg.querySelector('#exp-format-note');
+      const vidOpts = modalBg.querySelector('#exp-video-opts');
+      if (note) note.textContent = FORMAT_NOTES[fmt] || FORMAT_NOTES.zip;
+      if (vidOpts) vidOpts.style.display = fmt === 'video' ? 'flex' : 'none';
+    });
+  });
+
   modalBg.querySelector('#btn-export-selected').addEventListener('click', async () => {
     const selectedIds = Array.from(chks).filter(c => c.checked).map(c => c.dataset.cid);
     if (selectedIds.length === 0) { showAdflowAlert('No ads selected.'); return; }
@@ -3861,6 +3903,10 @@ function openExportModal() {
     const selectedCanvases = selectedIds.map(id => state.canvases.find(x => x.id === id)).filter(Boolean);
 
     if (hasVersions && versionChoice === 'all') {
+      if (format === 'video') {
+        showAdflowAlert('"All selected versions" is HTML5 ZIP only. Pick a single data version to export video.');
+        return;
+      }
       await dmExportAllVersions(selectedCanvases, filenamePrefix);
       return;
     }
@@ -3869,6 +3915,19 @@ function openExportModal() {
     if (hasVersions && versionChoice !== null && versionChoice !== 'all') {
       const idx = parseInt(versionChoice, 10);
       if (!isNaN(idx) && dm.rows[idx]) exportVersionIdx = idx;
+    }
+
+    if (format === 'video') {
+      const fps = parseInt(modalBg.querySelector('#exp-video-fps')?.value, 10) || 30;
+      const vquality = modalBg.querySelector('#exp-video-quality')?.value || 'high';
+      await exportSelectedVideos(selectedCanvases, {
+        fps,
+        quality: vquality,
+        filenamePrefix,
+        versionIdx: hasVersions ? exportVersionIdx : null,
+        includeSkippedFrames
+      });
+      return;
     }
 
     if (format === 'png') {
