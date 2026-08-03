@@ -3754,6 +3754,23 @@ body.theme-rmit-navy {
 
     }
 
+    /* Context-menu heading — names what the menu is acting on (the canvas, or
+       the selected element) so a right-click that landed on the wrong thing is
+       obvious before anything is clicked. Deliberately quiet: it is a label,
+       not an item, so it takes no hover and no pointer. */
+    .ctx-header {
+      padding: 4px 12px 5px;
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      cursor: default;
+      user-select: none;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+
 
 
     /* ---------- zoom tool cursor override ---------- */

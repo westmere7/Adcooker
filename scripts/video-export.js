@@ -154,7 +154,33 @@ const VIDEO_BITRATE_DEFAULT = VIDEO_BITRATE_PRESETS.high;
 const GIF_FPS_OPTIONS = [10, 20, 25];
 const GIF_FPS_DEFAULT = 20;
 const GIF_COLORS_OPTIONS = [32, 64, 128, 256];
-const GIF_COLORS_DEFAULT = 128;
+// 256 by default — the GIF maximum. Photographic artwork needs the headroom and
+// the extra colours cost only a few percent of file size, so starting below the
+// cap only trades away fidelity nobody asked to lose.
+const GIF_COLORS_DEFAULT = 256;
+// Pixels sampled across the whole timeline when building the palette. Keeps
+// quantise time flat no matter how long the ad is.
+const GIF_PALETTE_SAMPLE_PX = 700000;
+
+// GIF compression. The container itself is always LZW — there is no choice of
+// codec — so what actually moves the file size is how much colour detail is
+// thrown away BEFORE the palette is built. Rounding each channel to a step
+// merges near-identical pixels into flat runs, which is exactly what LZW packs
+// well; it is the same trick "lossy GIF" tools use.
+//
+// The steps are measured, not guessed: on a flat-vector banner these came out
+// at 0% / 5% / 13% / 17% smaller, with the palette that actually survives
+// falling 256 → 145 → 91 → 66 (that fall IS the quality cost). Anything finer
+// than ~12 is pointless — gifenc's own default of 5 measured 1% WORSE than off,
+// because it perturbs colours without merging enough of them to pay for it.
+// Photographic artwork saves considerably more than these figures.
+const GIF_COMPRESSION = {
+  none:   { label: 'None — sharpest',   roundRGB: 0,  estFactor: 1.00 },
+  light:  { label: 'Light',             roundRGB: 16, estFactor: 0.95 },
+  medium: { label: 'Medium',            roundRGB: 24, estFactor: 0.87 },
+  strong: { label: 'Strong — smallest', roundRGB: 32, estFactor: 0.83 }
+};
+const GIF_COMPRESSION_DEFAULT = 'light';
 
 // The motion-format settings block, styled to match the Export dialog's own
 // labels and inputs (11px uppercase labels, 12px controls). Both the video and
@@ -198,10 +224,16 @@ function buildVideoSettingsHTML(p) {
             ${GIF_FPS_OPTIONS.map(v => opt(v, GIF_FPS_DEFAULT)).join('')}
           </select>
         </div>
-        <div style="flex:1; min-width:0;">
+        <div style="width:88px; flex-shrink:0;">
           <label for="${p}-gif-colors" style="${FIELD_LABEL_CSS}">Colours</label>
           <select id="${p}-gif-colors" title="Palette size. GIF can hold 256 colours at most; fewer means a smaller file and more banding on gradients." style="${FIELD_SELECT_CSS}">
             ${GIF_COLORS_OPTIONS.map(v => opt(v, GIF_COLORS_DEFAULT)).join('')}
+          </select>
+        </div>
+        <div style="flex:1; min-width:0;">
+          <label for="${p}-gif-compress" style="${FIELD_LABEL_CSS}">Compression</label>
+          <select id="${p}-gif-compress" title="GIF is always LZW-compressed — this rounds colour detail before packing so LZW finds longer runs. Stronger means a smaller file and slightly flatter gradients." style="${FIELD_SELECT_CSS}">
+            ${Object.keys(GIF_COMPRESSION).map(k => `<option value="${k}" ${k === GIF_COMPRESSION_DEFAULT ? 'selected' : ''}>${GIF_COMPRESSION[k].label}</option>`).join('')}
           </select>
         </div>
       </div>
@@ -227,6 +259,7 @@ function wireVideoSettings(root, p, opts = {}) {
   const presets = root.querySelectorAll(`button[data-vbr-prefix="${p}"]`);
   const gifFps = root.querySelector(`#${p}-gif-fps`);
   const gifColors = root.querySelector(`#${p}-gif-colors`);
+  const gifCompress = root.querySelector(`#${p}-gif-compress`);
 
   const fmtNow = () => (typeof opts.getFormat === 'function' ? opts.getFormat() : 'video');
   const human = (bytes) => bytes >= 1024 * 1024
@@ -257,7 +290,8 @@ function wireVideoSettings(root, p, opts = {}) {
       const fps = parseInt(gifFps && gifFps.value, 10) || GIF_FPS_DEFAULT;
       const colors = parseInt(gifColors && gifColors.value, 10) || GIF_COLORS_DEFAULT;
       const frames = Math.max(1, Math.round(dur * fps));
-      const perPx = 0.036 * (0.72 + 0.28 * (colors / 128));
+      const cmp = GIF_COMPRESSION[(gifCompress && gifCompress.value) || GIF_COMPRESSION_DEFAULT] || GIF_COMPRESSION.light;
+      const perPx = 0.036 * (0.72 + 0.28 * (colors / 128)) * (cmp.estFactor || 1);
       est.textContent = `Est. size: ~${human(px * frames * perPx * count)}${count > 1 ? ` across ${count} sizes` : ''} · ${frames} frames — rough; busy artwork runs larger.`;
     } else {
       const bytes = (v * 1e6 / 8) * dur * count;
@@ -271,7 +305,7 @@ function wireVideoSettings(root, p, opts = {}) {
     slider.value = VIDEO_BITRATE_PRESETS[b.dataset.vbrPreset];
     sync();
   }));
-  [gifFps, gifColors].forEach(n => n && n.addEventListener('change', sync));
+  [gifFps, gifColors, gifCompress].forEach(n => n && n.addEventListener('change', sync));
   sync();
   return { refresh: sync };
 }
@@ -281,7 +315,8 @@ function readVideoSettings(root, p, fmt = 'video') {
   if (fmt === 'gif') {
     return {
       fps: parseInt(root.querySelector(`#${p}-gif-fps`)?.value, 10) || GIF_FPS_DEFAULT,
-      colors: parseInt(root.querySelector(`#${p}-gif-colors`)?.value, 10) || GIF_COLORS_DEFAULT
+      colors: parseInt(root.querySelector(`#${p}-gif-colors`)?.value, 10) || GIF_COLORS_DEFAULT,
+      compression: root.querySelector(`#${p}-gif-compress`)?.value || GIF_COMPRESSION_DEFAULT
     };
   }
   const fps = parseInt(root.querySelector(`#${p}-video-fps`)?.value, 10) || 30;
@@ -574,30 +609,55 @@ async function captureCanvasVideo(c, opts) {
 // GIF timing is quantised to hundredths of a second, so the frame delay is
 // rounded there and the effective rate can differ slightly from the requested
 // one — GIF_FPS_OPTIONS only offers rates that divide 100 evenly, so in
-// practice it lands exactly. Palette: one global palette quantised from the
-// MIDDLE frame rather than the first, because frame 0 of an ad is often nearly
-// empty (elements still animating in) and would yield a palette missing most
-// of the artwork's colours.
+// practice it lands exactly.
 async function captureCanvasGif(c, opts) {
-  const { fps = GIF_FPS_DEFAULT, colors = GIF_COLORS_DEFAULT } = opts;
+  const { fps = GIF_FPS_DEFAULT, colors = GIF_COLORS_DEFAULT, compression = GIF_COMPRESSION_DEFAULT } = opts;
   const gifenc = await loadGifenc();
 
   const delayCs = Math.max(2, Math.round(100 / fps)); // <2cs gets clamped by browsers anyway
   const encoder = gifenc.GIFEncoder();
-  const totalFrames = Math.max(1, Math.round(opts.durationSec * fps));
-  const midIndex = Math.floor(totalFrames / 2);
 
   const frameData = [];
-  let palette = null;
-
-  const info = await captureCanvasFrames(c, { ...opts, fps, padEven: false }, async (ctx, i) => {
-    const data = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height).data;
+  const info = await captureCanvasFrames(c, { ...opts, fps, padEven: false }, async (ctx) => {
     // Copy: the ImageData buffer is reused by the next getImageData call.
-    frameData.push(new Uint8ClampedArray(data));
-    if (i === midIndex) palette = gifenc.quantize(data, colors, { format: 'rgb565' });
+    frameData.push(new Uint8ClampedArray(ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height).data));
   });
 
-  if (!palette) palette = gifenc.quantize(frameData[0], colors, { format: 'rgb565' });
+  // Compression: round colour detail away BEFORE the palette is built, so both
+  // the palette and the packed pixels see the same reduced data. prequantize
+  // mutates in place via a Uint32 view of the whole buffer, so it has to run on
+  // each frame's own array — never on a subarray of a shared buffer.
+  const cmp = GIF_COMPRESSION[compression] || GIF_COMPRESSION[GIF_COMPRESSION_DEFAULT];
+  if (cmp && cmp.roundRGB > 0) {
+    for (const f of frameData) gifenc.prequantize(f, { roundRGB: cmp.roundRGB, roundAlpha: 0 });
+  }
+
+  // ONE global palette, quantised from a stride-sample of EVERY frame.
+  //
+  // Sampling a single frame is the trap here: whichever frame you pick, any
+  // artwork that is absent or mid-fade in it is under-represented in the
+  // palette, and its true colours then map to the nearest thing that IS in
+  // there — which on a brand-heavy banner is the flat background or the text
+  // slab. A photograph treated that way comes out visibly cast toward those
+  // colours rather than merely posterised. Sampling across the whole timeline
+  // means every colour the ad ever shows gets a vote.
+  //
+  // The stride caps the sample near GIF_PALETTE_SAMPLE_PX so quantise time
+  // stays flat regardless of length: a 2s 300×600 at 20fps is 7.2M pixels,
+  // which would otherwise dominate the export.
+  const pxPerFrame = frameData[0].length / 4;
+  const stride = Math.max(1, Math.ceil((pxPerFrame * frameData.length) / GIF_PALETTE_SAMPLE_PX));
+  const sampleCount = frameData.length * Math.ceil(pxPerFrame / stride);
+  const sample = new Uint8ClampedArray(sampleCount * 4);
+  let s = 0;
+  for (const f of frameData) {
+    for (let p = 0; p < pxPerFrame; p += stride) {
+      const i = p * 4;
+      sample[s] = f[i]; sample[s + 1] = f[i + 1]; sample[s + 2] = f[i + 2]; sample[s + 3] = 255;
+      s += 4;
+    }
+  }
+  const palette = gifenc.quantize(sample.subarray(0, s), colors, { format: 'rgb565' });
 
   for (let i = 0; i < frameData.length; i++) {
     if (opts.signal && opts.signal.aborted) throw new DOMException('Export cancelled', 'AbortError');
@@ -625,6 +685,25 @@ async function captureCanvasGif(c, opts) {
   };
 }
 
+// Generate the bundle for one canvas and pull out what the capture pump needs.
+// Shared by the export dialog's driver and the quick-export popup.
+//
+// The html goes to the iframe RAW (fonts string-inlined only) — it must not
+// round-trip a serializer, which would XML-escape the inline scripts. The
+// styles are read from a throwaway parse purely to embed in the snapshot SVGs.
+async function prepareCanvasBundle(c, versionIdx = null) {
+  let html = null;
+  const generate = async () => {
+    html = generateExportHTML(c, null, false, {});
+    ({ html } = await inlineFontsIntoHtml(c, html));
+  };
+  if (versionIdx != null && typeof dmRunExport === 'function') await dmRunExport(versionIdx, generate);
+  else await generate();
+  const styleDoc = new DOMParser().parseFromString(html, 'text/html');
+  const styles = Array.from(styleDoc.querySelectorAll('style')).map(s => s.textContent).join('\n');
+  return { html, styles };
+}
+
 // One loop cycle: the bundle plays each non-skipped frame for its configured
 // duration, then loops. Computed under the same skip flag the bundle was
 // generated with (the caller sets state._exportIncludeSkippedFrames).
@@ -639,7 +718,7 @@ function videoLoopDurationSec() {
 // sequentially. A single result downloads directly; several are zipped (JSZip
 // is already on the page). `format` picks the sink — 'video' (MP4/WebM) or
 // 'gif'; everything upstream of the sink is shared.
-async function exportSelectedVideos(selectedCanvases, { format = 'video', fps = 30, bitrateMbps = VIDEO_BITRATE_DEFAULT, colors = GIF_COLORS_DEFAULT, filenamePrefix = 'Ad', versionIdx = null, includeSkippedFrames = false } = {}) {
+async function exportSelectedVideos(selectedCanvases, { format = 'video', fps = 30, bitrateMbps = VIDEO_BITRATE_DEFAULT, colors = GIF_COLORS_DEFAULT, compression = GIF_COMPRESSION_DEFAULT, filenamePrefix = 'Ad', versionIdx = null, includeSkippedFrames = false } = {}) {
   const isGif = format === 'gif';
   const safePrefix = String(filenamePrefix).replace(/[^a-zA-Z0-9_-]/g, '_') || 'Ad';
   const aborter = new AbortController();
@@ -658,22 +737,8 @@ async function exportSelectedVideos(selectedCanvases, { format = 'video', fps = 
       const label = `${c.width}×${c.height}`;
 
       // Bake the selected data version into the bundle, exactly like the ZIP
-      // and PNG paths do. Only the html generation needs the baked state.
-      let html = null;
-      const generate = async () => {
-        html = generateExportHTML(c, null, false, {});
-        ({ html } = await inlineFontsIntoHtml(c, html));
-      };
-      if (versionIdx != null && typeof dmRunExport === 'function') {
-        await dmRunExport(versionIdx, generate);
-      } else {
-        await generate();
-      }
-      // Styles for the snapshot SVGs (fonts already data-URI'd by the string
-      // replace above). The html itself goes to the iframe RAW — see
-      // inlineIframeImages for why it must not round-trip a serializer.
-      const styleDoc = new DOMParser().parseFromString(html, 'text/html');
-      const styles = Array.from(styleDoc.querySelectorAll('style')).map(s => s.textContent).join('\n');
+      // and PNG paths do.
+      const { html, styles } = await prepareCanvasBundle(c, versionIdx);
 
       const sizeNote = `${selectedCanvases.length > 1 ? `size ${ci + 1} of ${selectedCanvases.length} · ` : ''}${Math.round(durationSec)}s @ ${fps}fps${isGif ? ` · ${colors} colours` : ''}`;
       const capture = isGif ? captureCanvasGif : captureCanvasVideo;
@@ -684,6 +749,7 @@ async function exportSelectedVideos(selectedCanvases, { format = 'video', fps = 
         fps,
         bitrateMbps,
         colors,
+        compression,
         signal: aborter.signal,
         onProgress: (done, total) => {
           // GIF quantises + LZW-packs after capture, so capture is ~85% of it.
@@ -731,10 +797,18 @@ async function exportSelectedVideos(selectedCanvases, { format = 'video', fps = 
 }
 
 // ----------------------------------------------------------------------------
-// Quick export — right-click a canvas > Export > Video… / GIF…
+// Quick export — right-click a canvas > Export > Video… / GIF…, and the Canvas
+// Settings panel's Video / GIF buttons.
 // ----------------------------------------------------------------------------
-// A small settings popup (the context menu has nowhere to put controls), then
-// the same exportSelectedVideos path the dialog uses, scoped to one canvas.
+// Render-then-review, rather than render-then-download. Encoder settings are
+// the kind you judge by looking: whether 20fps is choppy, whether 64 colours
+// banded the gradient, whether Strong compression went too far. So Render draws
+// the result into the panel itself, playing on a loop, and the file is only
+// written once you ask for it. Changing a setting marks the preview stale and
+// offers a re-render instead of silently leaving a lie on screen.
+//
+// The multi-size Export dialog deliberately keeps its download-straight-away
+// behaviour: previewing six sizes in a 400px panel would help nobody.
 function openVideoExportSettingsPopup(c, format = 'video') {
   const existing = document.getElementById('video-quick-export-overlay');
   if (existing) existing.remove();
@@ -742,6 +816,7 @@ function openVideoExportSettingsPopup(c, format = 'video') {
   const projName = state.projectName || 'Ad';
   const defaultPrefix = projName.replace(/[^a-zA-Z0-9_-]/g, '_');
   const durationSec = videoLoopDurationSec();
+  const isGif = format === 'gif';
 
   const overlay = document.createElement('div');
   overlay.id = 'video-quick-export-overlay';
@@ -751,48 +826,182 @@ function openVideoExportSettingsPopup(c, format = 'video') {
     background: rgba(11, 12, 15, 0.82); backdrop-filter: blur(8px);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   `;
-  const isGif = format === 'gif';
   overlay.innerHTML = `
-    <div style="background:var(--bg-panel, #15171f); border:1px solid var(--border-light, #2a2f3e); border-radius:12px; padding:22px 24px; width:400px; max-width:90vw; box-shadow:0 20px 40px rgba(0,0,0,0.55); display:flex; flex-direction:column; gap:16px;">
+    <div style="background:var(--bg-panel, #15171f); border:1px solid var(--border-light, #2a2f3e); border-radius:12px; padding:22px 24px; width:420px; max-width:92vw; max-height:92vh; overflow-y:auto; box-shadow:0 20px 40px rgba(0,0,0,0.55); display:flex; flex-direction:column; gap:14px;">
       <div style="display:flex; justify-content:space-between; align-items:baseline; gap:10px;">
         <span style="font-size:15px; font-weight:600; color:var(--text-bright, #fff);">Export ${isGif ? 'GIF' : 'video'}</span>
         <span style="font-size:12px; color:var(--text-muted, #8b8f9c); white-space:nowrap;">${c.width}×${c.height} · ${Math.round(durationSec * 10) / 10}s loop</span>
       </div>
+
       <div id="vqe-settings">${buildVideoSettingsHTML('vqe')}</div>
+
+      <div id="vqe-stage" style="display:none; border-top:1px solid var(--border-light, #2a2f3e); padding-top:14px;">
+        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px;">
+          <span style="font-size:11px; color:var(--text-muted, #8b8f9c); text-transform:uppercase; letter-spacing:.04em;">Preview</span>
+          <span id="vqe-stale" style="display:none; font-size:11px; color:#e0b153;">Settings changed — re-render to update</span>
+        </div>
+        <!-- Checkerboard so a light ad still reads against the panel. -->
+        <div id="vqe-preview" style="
+          display:flex; align-items:center; justify-content:center; min-height:120px; max-height:300px;
+          border-radius:6px; overflow:hidden; padding:8px;
+          background-color:#1b1f2b;
+          background-image:linear-gradient(45deg, rgba(255,255,255,.04) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.04) 75%),
+                           linear-gradient(45deg, rgba(255,255,255,.04) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.04) 75%);
+          background-size:16px 16px; background-position:0 0, 8px 8px;
+        "></div>
+        <div id="vqe-stats" style="font-size:11px; color:var(--text-muted, #8b8f9c); margin-top:8px; text-align:center;"></div>
+      </div>
+
       <div style="font-size:11px; color:var(--text-muted, #8b8f9c); line-height:1.45; border-top:1px solid var(--border-light, #2a2f3e); padding-top:12px;">${isGif
         ? 'One loop cycle, looping forever. GIF holds 256 colours at most, so gradients and photos band — video keeps them clean.'
         : 'One loop cycle. H.264 MP4; falls back to WebM where MP4 encoding isn’t available.'}</div>
-      <div style="display:flex; justify-content:flex-end; gap:8px;">
-        <button id="vqe-cancel" class="btn">Cancel</button>
-        <button id="vqe-export" class="btn primary" style="min-width:96px; font-weight:600;">Export</button>
+
+      <div style="display:flex; justify-content:flex-end; gap:8px; align-items:center;">
+        <span id="vqe-progress" style="flex:1; font-size:11px; color:var(--text-muted, #8b8f9c);"></span>
+        <button id="vqe-cancel" class="btn">Close</button>
+        <button id="vqe-render" class="btn primary" style="min-width:104px; font-weight:600;">Render</button>
+        <button id="vqe-download" class="btn primary" style="display:none; min-width:104px; font-weight:600;">Download</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
   setVideoSettingsFormat(overlay, 'vqe', format);
-  wireVideoSettings(overlay, 'vqe', {
+
+  const stage = overlay.querySelector('#vqe-stage');
+  const host = overlay.querySelector('#vqe-preview');
+  const stats = overlay.querySelector('#vqe-stats');
+  const stale = overlay.querySelector('#vqe-stale');
+  const progressEl = overlay.querySelector('#vqe-progress');
+  const btnRender = overlay.querySelector('#vqe-render');
+  const btnDownload = overlay.querySelector('#vqe-download');
+  const btnClose = overlay.querySelector('#vqe-cancel');
+
+  let current = null;        // { blob, ext, frames, width, height } of the last render
+  let currentUrl = null;
+  let rendering = false;
+  let aborter = null;
+
+  const settings = wireVideoSettings(overlay, 'vqe', {
     getDurationSec: () => durationSec,
     getCount: () => 1,
     getFormat: () => format,
     getPixels: () => c.width * c.height
   });
 
-  const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey, true); };
-  const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
-  document.addEventListener('keydown', onKey, true);
-  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
-  overlay.querySelector('#vqe-cancel').addEventListener('click', close);
-  overlay.querySelector('#vqe-export').addEventListener('click', async () => {
-    const settings = readVideoSettings(overlay, 'vqe', format);
+  // Any settings change invalidates what is on screen.
+  const markStale = () => {
+    if (!current || rendering) return;
+    stale.style.display = '';
+    host.style.opacity = '0.45';
+    btnRender.textContent = 'Re-render';
+    btnRender.style.display = '';
+  };
+  overlay.querySelectorAll('#vqe-settings select, #vqe-settings input, #vqe-settings button').forEach(n => {
+    n.addEventListener('change', markStale);
+    n.addEventListener('input', markStale);
+    if (n.tagName === 'BUTTON') n.addEventListener('click', markStale);
+  });
+
+  const releaseUrl = () => { if (currentUrl) { URL.revokeObjectURL(currentUrl); currentUrl = null; } };
+  const close = () => {
+    if (aborter) aborter.abort();
+    releaseUrl();
+    overlay.remove();
+    document.removeEventListener('keydown', onKey, true);
+  };
+  const onKey = (e) => {
+    if (e.key !== 'Escape') return;
+    e.stopPropagation();
+    if (rendering && aborter) { aborter.abort(); return; }   // first Esc cancels the render
     close();
-    await exportSelectedVideos([c], {
-      format,
-      ...settings,
-      filenamePrefix: defaultPrefix,
-      // Quick export mirrors the editor: current data version, skipped frames
-      // stay skipped (same defaults the Export dialog opens with).
-      versionIdx: (typeof dmActiveRowForOutput === 'function' && state.dataMerge && state.dataMerge.rows && state.dataMerge.rows.length)
-        ? dmActiveRowForOutput() : null,
-      includeSkippedFrames: false
-    });
+  };
+  document.addEventListener('keydown', onKey, true);
+  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay && !rendering) close(); });
+  btnClose.addEventListener('click', close);
+
+  const humanBytes = (b) => b >= 1024 * 1024
+    ? (Math.round(b / (1024 * 1024) * 10) / 10) + ' MB'
+    : Math.max(1, Math.round(b / 1024)) + ' KB';
+
+  const showPreview = (res, opts) => {
+    releaseUrl();
+    currentUrl = URL.createObjectURL(res.blob);
+    host.innerHTML = '';
+    // Scale to fit the stage but never upscale past 1:1.
+    const fit = 'max-width:100%; max-height:284px; width:auto; height:auto; display:block; border-radius:3px;';
+    let node;
+    if (res.ext === 'gif') {
+      node = document.createElement('img');
+      node.src = currentUrl;                     // animates on its own, loops forever
+      node.alt = 'GIF preview';
+    } else {
+      node = document.createElement('video');
+      node.src = currentUrl;
+      node.autoplay = true; node.loop = true; node.muted = true;
+      node.setAttribute('playsinline', '');
+    }
+    node.style.cssText = fit;
+    host.appendChild(node);
+    host.style.opacity = '1';
+    stage.style.display = '';
+    stale.style.display = 'none';
+    const bits = [
+      `${res.width}×${res.height}`,
+      `${res.frames} frames @ ${opts.fps}fps`,
+      humanBytes(res.blob.size)
+    ];
+    if (res.ext !== 'gif') bits.push(res.ext.toUpperCase());
+    stats.textContent = bits.join('  ·  ');
+  };
+
+  const setBusy = (on) => {
+    rendering = on;
+    overlay.querySelectorAll('#vqe-settings select, #vqe-settings input, #vqe-settings button').forEach(n => { n.disabled = on; });
+    btnRender.disabled = on;
+    btnDownload.disabled = on;
+    btnRender.textContent = on ? 'Rendering…' : (current ? 'Re-render' : 'Render');
+  };
+
+  btnRender.addEventListener('click', async () => {
+    if (rendering) return;
+    const opts = readVideoSettings(overlay, 'vqe', format);
+    aborter = new AbortController();
+    setBusy(true);
+    progressEl.textContent = 'Preparing…';
+    try {
+      const versionIdx = (typeof dmActiveRowForOutput === 'function' && state.dataMerge && state.dataMerge.rows && state.dataMerge.rows.length)
+        ? dmActiveRowForOutput() : null;
+      const { html, styles } = await prepareCanvasBundle(c, versionIdx);
+      const capture = isGif ? captureCanvasGif : captureCanvasVideo;
+      const res = await capture(c, {
+        html, styles, durationSec, ...opts,
+        signal: aborter.signal,
+        onProgress: (done, total) => { progressEl.textContent = `Recording frame ${done} of ${total}`; },
+        onEncodeProgress: (done, total) => { progressEl.textContent = `Building GIF — frame ${done} of ${total}`; }
+      });
+      if (!res) return;   // unsupported browser; alert already shown
+      current = res;
+      showPreview(res, opts);
+      btnDownload.style.display = '';
+      progressEl.textContent = '';
+    } catch (err) {
+      if (err && err.name === 'AbortError') {
+        progressEl.textContent = 'Render cancelled';
+      } else {
+        console.error('Render failed:', err);
+        progressEl.textContent = '';
+        showAdflowAlert(`${isGif ? 'GIF' : 'Video'} render failed: ` + (err && err.message ? err.message : err));
+      }
+    } finally {
+      aborter = null;
+      setBusy(false);
+    }
+  });
+
+  btnDownload.addEventListener('click', () => {
+    if (!current || !currentUrl) return;
+    const a = document.createElement('a');
+    a.href = currentUrl;                     // reuse the preview's URL — same blob
+    a.download = `${defaultPrefix}_${c.width}x${c.height}.${current.ext}`;
+    a.click();
   });
 }

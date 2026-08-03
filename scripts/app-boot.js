@@ -274,7 +274,14 @@ document.addEventListener('contextmenu', (e) => {
   `;
 
   let html = '';
+  // Every branch opens with a quiet heading naming what the menu acts on. A
+  // right-click a few pixels off lands on the board instead of the layer (or
+  // vice versa) and the menus share a lot of wording, so saying it outright is
+  // cheaper than the user discovering it from the result.
+  const ctxHeader = (text) => `<div class="ctx-header">${text}</div><div class="ctx-divider" style="margin-top:2px;"></div>`;
+
   if (canvasItemNode) {
+    html += ctxHeader('Canvas options');
     html += `<div class="ctx-item" id="ctx-canvas-clone" title="Duplicate this canvas, its layers and its frames as a new size on the board">Clone Canvas</div>`;
     if (state.canvases.length > 1) {
       html += `<div class="ctx-item ctx-danger" id="ctx-canvas-delete" title="Delete this canvas and everything on it. Other canvases are unaffected">Delete Canvas</div>`;
@@ -293,6 +300,22 @@ document.addEventListener('contextmenu', (e) => {
       }
       render(true);
     }
+
+    // Name the selection: its type when it's a single layer, otherwise a count,
+    // which also confirms a group grabbed everything the user expected.
+    const selCount = state.layerSelection ? state.layerSelection.length : 1;
+    let ctxLabel = 'Element options';
+    if (selCount > 1) {
+      ctxLabel = `${selCount} elements selected`;
+    } else {
+      const selEl = getActiveCanvas()?.elements.find(x => x.id === (state.layerSelection?.[0] || id));
+      const TYPE_LABEL = { text: 'Text', image: 'Image', button: 'Button', rect: 'Rectangle', circle: 'Circle', line: 'Line', pixel: 'Pixel shape' };
+      if (selEl) {
+        const t = TYPE_LABEL[selEl.type] || 'Element';
+        ctxLabel = `${selEl.isMask ? t + ' mask' : t} options`;
+      }
+    }
+    html += ctxHeader(ctxLabel);
 
     const autoArrangeSvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /></svg>`;
     html += `<div class="ctx-item highlight" id="ctx-canvas-auto-arrange" title="Re-lay out this canvas from its layers&#39; roles, respecting margins and safe zones" style="display:flex; align-items:center; gap:8px;">${autoArrangeSvg}Auto-arrange elements</div>`;
@@ -471,6 +494,9 @@ document.addEventListener('contextmenu', (e) => {
     state.layerSelection = [];
     render(true);
 
+    const _cvNow = getActiveCanvas();
+    html += ctxHeader(_cvNow ? `Canvas options · ${_cvNow.width}×${_cvNow.height}` : 'Canvas options');
+
     const inPreview = state.singlePreviewId === state.activeCanvasId;
     const previewSvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="${inPreview ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>`;
     html += `<div class="ctx-item highlight" id="ctx-canvas-preview" title="Play this canvas on its own, full size, without leaving the editor" style="display:flex; align-items:center; gap:8px;">${previewSvg}${inPreview ? 'Exit Preview' : 'Preview'}</div>`;
@@ -552,6 +578,8 @@ document.addEventListener('contextmenu', (e) => {
     html += `<div class="ctx-divider"></div>`;
     html += `<div class="ctx-item" id="ctx-open-settings" title="Open app settings: theme, rulers, snapping, history and autosave">Settings…</div>`;
   } else {
+    // Empty board — nothing selected, so this is the workspace's own menu.
+    html += ctxHeader('Board options');
     html += `<div class="ctx-item" id="ctx-toggle-snap">${state.snapEnabled !== false ? '✓ ' : ''}Snapping</div>`;
     html += `<div class="ctx-item" id="ctx-toggle-rulers">${state.showRulers ? 'Hide' : 'Show'} Rulers & Guides</div>`;
     html += `<div class="ctx-item" id="ctx-toggle-safezones">${state.showSafezones ? '✓ ' : ''}Show Safezones</div>`;
