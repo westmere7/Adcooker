@@ -862,7 +862,7 @@ function openVideoExportSettingsPopup(c, format = 'video') {
 
         <div id="vqe-stage" style="display:none; flex-shrink:0;">
           <div style="display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin-bottom:6px;">
-            <span style="font-size:11px; color:var(--text-muted, #8b8f9c); text-transform:uppercase; letter-spacing:.04em;">Preview</span>
+            <span style="font-size:11px; color:var(--text-muted, #8b8f9c); text-transform:uppercase; letter-spacing:.04em;">Preview <span style="text-transform:none; letter-spacing:0; opacity:.72;">— drag it out to save or drop into another app</span></span>
             <span id="vqe-stale" style="display:none; font-size:11px; color:#e0b153;">Changed — re-render</span>
           </div>
           <!-- Sized to the media exactly, so there is never a gap around it.
@@ -1005,6 +1005,37 @@ function openVideoExportSettingsPopup(c, format = 'video') {
       node.setAttribute('playsinline', '');
     }
     node.style.cssText = `display:block; width:${box.w}px; height:${box.h}px; border-radius:3px;`;
+
+    // Drag straight out to PowerPoint / Explorer / a mail draft.
+    //
+    // This is the one route that hands another application the REAL animated
+    // file without uploading anything. The clipboard can't: page JS may only
+    // write PNG, and even the browser's native Copy Image flattens a GIF to a
+    // bitmap because the Windows clipboard has no GIF flavour. Sites that appear
+    // to "copy" an animated GIF are really putting <img src="https://…"> on the
+    // clipboard as text/html and letting the receiving app fetch the URL — which
+    // needs a public URL we deliberately don't have.
+    //
+    // DownloadURL is Chrome's drag-out-a-file flavour ("mime:filename:url"). The
+    // browser resolves the blob: URL itself and writes a real file to the drop
+    // target, so the animation survives and nothing leaves the machine.
+    const dragName = `${defaultPrefix}_${c.width}x${c.height}.${res.ext}`;
+    const dragMime = res.ext === 'gif' ? 'image/gif' : (res.ext === 'webm' ? 'video/webm' : 'video/mp4');
+    // Only DownloadURL is offered. A blob: URL is meaningless outside this tab,
+    // so advertising it as text/uri-list would just invite a target that prefers
+    // URLs over files (Word, for one) to paste a link that is dead the moment the
+    // panel closes. Chrome adds its own flavours for an <img> regardless.
+    node.draggable = true;
+    node.addEventListener('dragstart', (e) => {
+      if (!currentUrl) return;
+      const abs = new URL(currentUrl, location.href).href;
+      try {
+        e.dataTransfer.setData('DownloadURL', `${dragMime}:${dragName}:${abs}`);
+        e.dataTransfer.effectAllowed = 'copy';
+      } catch (err) { /* non-Chromium: the browser's default image drag still applies */ }
+    });
+    node.title = `Drag out to save or drop into another app · ${dragName}`;
+
     host.appendChild(node);
     host.style.opacity = '1';
     stage.style.display = '';

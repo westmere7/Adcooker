@@ -1,4 +1,4 @@
-# RMIT Adflow — Technical App Breakdown (Updated v0.34.6, Engine v2.19)
+# RMIT Adflow — Technical App Breakdown (Updated v0.50.0, Engine v3.0)
 
 This document is the official context dump for agents (Claude, Codex, etc.) picking up the codebase cold. It covers the current architecture, state schema, core engines (Auto-Resize, Masking, Link Sync, Dynamic Data), the animation sequencer, the three page surfaces (editor + two portals), the cloud backend, and workflow rules. **Read this in full before making non-trivial changes.**
 
@@ -28,17 +28,28 @@ Adflow is a vanilla-JS single-page application — no framework, no bundler, no 
 CDN libs first, then:
 
 ```
-render-runtime.js  →  auto-resize-engine.js  →  auto-arrange-config.js  →
-docs-content.js    →  auth-ui.js             →  data-merge.js           →
-font-subset.js     →  export-pipeline.js     →  color-picker.js         →
-core-state.js      →  autosave.js            →  link-system.js          →
-canvas-render.js   →  interactions.js        →  canvases-panel.js       →
-layers-assets.js   →  props-panel.js         →  sequencer.js            →
-toolbar-import.js  →  project-io.js          →  project-dialogs.js      →
-modals.js          →  share-preview.js       →  app-boot.js
+numeric-wheel.js   →  render-runtime.js      →  auto-resize-engine.js   →
+auto-arrange-config.js → docs-content.js     →  auth-ui.js              →
+data-merge.js      →  font-subset.js         →  export-pipeline.js      →
+color-picker.js    →  core-state.js          →  autosave.js             →
+link-system.js     →  canvas-render.js       →  interactions.js         →
+canvases-panel.js  →  layers-assets.js       →  props-panel.js          →
+sequencer.js       →  toolbar-import.js      →  project-io.js           →
+project-dialogs.js →  modals.js              →  share-preview.js        →
+video-export.js    →  app-boot.js
 ```
 
-Approximate sizes (LOC): `props-panel.js` 4190 · `export-pipeline.js` 3956 · `canvas-render.js` 2991 · `project-dialogs.js` 2680 · `docs-content.js` 2870 · `auto-resize-engine.js` 2373 · `app-boot.js` 2061 · `interactions.js` 1803 · `toolbar-import.js` 1566 · `data-merge.js` 1408 · `modals.js` 1404 · `sequencer.js` 1331 · `layers-assets.js` 1315 · `auth-ui.js` 1001 · `project-io.js` 972 · `canvases-panel.js` 968 · `link-system.js` 741 · `color-picker.js` 689 · `core-state.js` 593 · `render-runtime.js` 568 · `autosave.js` 423 · `share-preview.js` 349 · `auto-arrange-config.js` 294 · `font-subset.js` 215.
+Approximate sizes (LOC): `props-panel.js` 4799 · `export-pipeline.js` 4731 · `docs-content.js` 3305 · `canvas-render.js` 3158 · `project-dialogs.js` 2661 · `auto-resize-engine.js` 2373 · `app-boot.js` 2213 · `interactions.js` 1810 · `toolbar-import.js` 1771 · `data-merge.js` 1478 · `modals.js` 1404 · `layers-assets.js` 1355 · `sequencer.js` 1351 · `render-runtime.js` 1260 · `video-export.js` 1202 · `link-system.js` 1202 · `auth-ui.js` 1119 · `project-io.js` 1022 · `canvases-panel.js` 974 · `color-picker.js` 751 · `core-state.js` 594 · `autosave.js` 423 · `share-preview.js` 351 · `auto-arrange-config.js` 294 · `font-subset.js` 215 · `numeric-wheel.js` 89.
+
+### Vendored libraries (`lib/`, no build step, no npm)
+
+| File | Size | Purpose |
+|---|---|---|
+| `hb-subset.wasm` | 578 KB | HarfBuzz font subsetting (`font-subset.js`) |
+| `mediabunny.min.mjs` | 620 KB | MP4/WebM muxing + WebCodecs wrappers for video export (MPL-2.0, v1.52.2) |
+| `gifenc.esm.min.js` | 9 KB | GIF quantise + LZW encode (MIT, v1.0.3) |
+
+Both media libs are **lazily `import()`ed** by `video-export.js` only when an export starts, so they cost nothing at boot. They are committed rather than fetched from a CDN — exports must work offline.
 
 ---
 
@@ -57,7 +68,9 @@ When looking for specific features or bugs, refer to this table:
 | **Auth UI / Cloud Projects** | `scripts/auth-ui.js` | `openAuthModal`, `openCloudProjectsModal`, `pushCurrentProjectToCloud` |
 | **Team Spaces & Invitations** | `scripts/auth-ui.js` | `openSpaceManagementModal`, `openMembersModal`, `openInviteModal` |
 | **Live Data slots & CSV** | `scripts/data-merge.js` | `dm*` helpers, `openDataPanel`, `dmRenderPanel` |
-| **ZIP/PNG/GIF Export & Validation** | `scripts/export-pipeline.js` | `exportCanvasAsZip`, `exportCanvasAsPng`, `generateExportHTML` |
+| **ZIP/PNG Export & Validation** | `scripts/export-pipeline.js` | `exportCanvasAsZip`, `exportCanvasAsPng`, `generateExportHTML`, `openExportModal`, `inlineFontsIntoHtml`, `prepareSnapshotHtml`, `buildAdSnapshotSvg` |
+| **Video / GIF export** (virtual clock, capture pump, preview panel) | `scripts/video-export.js` | `VIRTUAL_CLOCK_SRC`, `captureCanvasFrames`, `captureCanvasVideo`, `captureCanvasGif`, `exportSelectedVideos`, `openVideoExportSettingsPopup`, `prepareCanvasBundle`, `buildVideoSettingsHTML`/`wireVideoSettings`/`readVideoSettings` |
+| **Shift+scroll on numeric inputs** (app-wide, delegated) | `scripts/numeric-wheel.js` | single capture-phase `wheel` listener; opt-out via `data-wheel-plain` |
 | **Font subsetting/embedding** | `scripts/font-subset.js` | HarfBuzz wasm subsetting on export |
 | **Color & Gradient Picker** | `scripts/color-picker.js` | `openColorPicker`, `syncColorPickerWithSelection` |
 | **Shareable Preview links / snapshots** | `scripts/share-preview.js`, `preview.html` | `previewShare*` state, share dialog, snapshot upload/revoke |
@@ -226,6 +239,20 @@ interface Element {
   exitEnabled?: boolean; exitType?: string;    exitStart?: number;    exitDuration?: number;
   fxEnabled?: boolean;   effectType?: string;  effDuration?: number;  effDelay?: number;
 
+  // Per-preset animation options. Registered in app-boot.js's inAnimProps list
+  // (used by the animation copy/paste path) — add new ones there too.
+  riseSplit?: 'letter' | 'word' | 'line';  riseDirection?: 'up'|'down'|'left'|'right'; riseFade?: boolean;
+  typingUnit?: 'letter' | 'word';          popUnit?: 'word' | 'line';
+  cursorSplit?: 'block' | 'line';          cursorCenter?: boolean;  cursorFade?: boolean;
+  cursorShow?: boolean;                    // v0.50.0 — undefined/true draws the caret
+  cursorColor?: string;
+  // "Animate BG": brings a text layer's background in with the text, one bar per
+  // visual line. Shared by Typing, Reveal and Pop (see lineBgModeFor). animFadeBg
+  // is the toggle (animateBg mirrors it); bgOffset leads/lags the bar in seconds.
+  animFadeBg?: boolean;  animateBg?: boolean;  bgOffset?: number;
+  // Underline FX (v0.50.0) — the first FX that paints on the layer, not moves it.
+  ulColor?: string; ulSize?: number; ulOffset?: number;
+
   // Dynamic Data opt-ins — a nested map, NOT dmText/dmImage/... flags.
   // dmFieldActive() reads el.dynamic[field]; the merge is inert without it
   // even when a column is mapped to the slot.
@@ -266,11 +293,11 @@ Deterministic, rule-based layout generator. Takes a source canvas and targets, r
 ### Animation System — IN / OUT / FX / TRANS toggles
 Four independent header toggles in the Animation panel (replaced the old Static/In/In+Out mode dropdown). Turning a category off **remembers** its settings; turning it back on restores them. New elements start with IN, FX, TRANS on and OUT off.
 
-**Two editing surfaces, one model.** The Animation panel (numeric fields) and the **Timeline** (draggable bars — see below) both read and write the same element fields, and the timeline commits through the panel's own `updateProp` closure. **Preset lists come from one registry** in `render-runtime.js` (`ANIM_IN_PRESETS` / `ANIM_OUT_PRESETS` / `ANIM_FX_PRESETS`, surfaced via `getInAnimPresets(el)` / `getOutAnimPresets()` / `getFxPresets()`), so adding a preset there makes it appear in the panel, the timeline chips, playback, and the export with no further wiring. Current presets — IN: None, Fade In, Slide, Swipe, Zoom, Split, Blur, + text-only Typing and Rise (text-only entries are dropped for non-text layers and lead the list for text/buttons). OUT: Fade Out, Slide, Swipe, Zoom, Blur (no `none` — off is its own entry). FX: None, Pulse, Float, Flash, Wiggle, Spin, Heartbeat, **Move** (`pan`), Zoom.
+**Two editing surfaces, one model.** The Animation panel (numeric fields) and the **Timeline** (draggable bars — see below) both read and write the same element fields, and the timeline commits through the panel's own `updateProp` closure. **Preset lists come from one registry** in `render-runtime.js` (`ANIM_IN_PRESETS` / `ANIM_OUT_PRESETS` / `ANIM_FX_PRESETS`, surfaced via `getInAnimPresets(el)` / `getOutAnimPresets()` / `getFxPresets()`), so adding a preset there makes it appear in the panel, the timeline chips, playback, and the export with no further wiring. Current presets — IN: None, Fade In, Slide, Swipe, Zoom, Split, Blur, + text-only Typing, Rise (Reveal), Word Pop and Cursor Slide (text-only entries are dropped for non-text layers and lead the list for text/buttons). OUT: Fade Out, Slide, Swipe, Zoom, Blur, + span-driven Untype/Unreveal (no `none` — off is its own entry). FX: None, Pulse, Float, Flash, Wiggle, Spin, Heartbeat, **Move** (`pan`), Zoom, + text-only **Underline**. `getFxPresets(el)` filters `textOnly` the same way the IN/OUT getters do — call it **with** the element.
 - **IN (Entrance)** — `inEnabled` + `animType` (fade/slide/swipe/zoom/blur, with direction/fade where relevant). `animDuration`, `animDelay`. A `None` preset hides the duration/delay fields and emits nothing.
 - **OUT (Exit)** — `exitEnabled` + `exitType`. Requires IN to be enabled (OUT toggle is disabled with no entrance). Single "In → Out" time (`exitStart`) = how long the element stays after appearing before leaving; runs independently of frame duration. Not applied to persistent layers. Has its own `None` preset. Synced across linked elements via the link group's "OUT Animation" option, and included in the favorites star filter.
   - **Exit timing**: CSS exit start delay = `(animDelay || 0) + (exitStart || 1.5)`, so the "after X seconds" counts from when the element actually appears, not the frame start.
-- **FX (Animation FX)** — `fxEnabled` + `effectType` (float, pulse, pan/Move, type, etc.). Named "Animation FX" everywhere (panel heading, tooltip, dropdown, link-sync option, docs).
+- **FX (Animation FX)** — `fxEnabled` + `effectType` (float, pulse, pan/Move, type, etc.). Named "Animation FX" everywhere (panel heading, tooltip, dropdown, link-sync option, docs). Most FX resolve a shared `@keyframes eff-<val>` by name through `getElementAnimationCSS`'s generic branch and need nothing else. **Surface effects** are the exception (currently just `underline`): they paint on the layer rather than transform it, so they carry a class (`fxOverlayClass`) placed on the node `fxOverlayTarget` picks — for Underline that's the *text span*, not the layer box, so the rule hugs the type and wrapped copy gets one per line. Their look comes from custom properties (`fxSurfaceVarMap`), and they animate `background-size`/`background-position` rather than transform, because on the timeline the entrance and the effect land on the same node and a transform would drag the type with it. They have no `-inverse` variant (nothing moves, so a masked image has nothing to counter). Keep the CSS in `styles.css` and the export template byte-identical.
 - **TRANS (Frame Transition)** — `transition !== 'none'` on the active frame. Available whenever a transition can actually play: a forward frame (`activeIdx > 0`), or **any** frame when Loop is on — including a **single frame** (v0.23.0). Greyed out only for a lone static frame with Loop off. The gate is unified as `state.loopAd || (state.frames.length > 1 && idx > 0)` across the panel (`props-panel.js`) and the export data path.
 
 **Single-frame self-restart loop (v0.23.0):** with exactly one frame and Loop on, `nextFrame()` still bails (it needs ≥2 frames), so the export runtime instead schedules `restartSingleFrame()` (in `export-pipeline.js`, emitted into every export). Each cycle it hides → forces reflow → re-shows the frame (the same `display:none→block` trigger that restarts every child IN animation, mirroring `adflowPlayFrom`), replays the frame's transition-in if one is set, then re-schedules itself after the frame's `duration`. This makes looping single-frame ads (e.g. animated email signatures) re-animate. An unset transition still resolves to `'none'` on frame 0 (same as multi-frame loop-back), so IN-animation replay works with no transition; pick a transition explicitly to layer one on each restart.
@@ -334,10 +361,36 @@ Both are opened from the editor's **File** menu (`#menu-file-preview`, `#menu-fi
 The editor's full-preview bar has a frame selector (jump-and-play across all sizes), "Replay all", "Download all" (each size as an HTML5 zip), and the total/per-frame runtime readout. These controls live only in the editor — exported files are unchanged.
 
 ### Export, Font Subsetting & Validation
-- **Formats**: HTML5 ZIP, PNG, GIF. Per-version export folders for data-merge. ZIP is compressed/streamed via a background worker to avoid main-thread lockups.
+- **Formats**: HTML5 ZIP, PNG, **MP4 video**, **animated GIF** — one dropdown in `openExportModal`, and the same four on a canvas's right-click `Export ▸` submenu + the Canvas Settings "Export this canvas" block. Per-version export folders for data-merge ("All versions" is ZIP-only). ZIP is compressed/streamed via a background worker to avoid main-thread lockups.
 - **Font subsetting/embedding** (`font-subset.js` + `lib/hb-subset.wasm`): exported ads contain **no font files** — each required brand font is subset to the glyphs actually used and embedded as base64 in `index.html` (ad-server safe for Google Ads / Adobe DSP, keeps text editable/animatable). Graceful fallback to packing full `.woff2` if subsetting is unavailable. All live size readouts measure the subsetted output.
 - **Auto-compression** (`compressFormat`): default `jpeg` resolves to PNG when the image has an alpha channel, otherwise JPEG (avoids WebP rejection by CM360 / Google Ads / Adobe DSP). `webp` is opt-in.
 - **Validation & Audit** (`validationSettings`): text size, contrast, transition timing, infinite motion, CRICOS, logo, brand colors, brand fonts, ad-weight (KB) limit, and per-active-version clickTag URL validation. Canvas badges update live; clickTag/ad-weight changes participate in undo/redo and re-run validation.
+
+### Video & GIF Export (`video-export.js`, v0.50.0) — the virtual clock
+
+Fully client-side, no server, no plugins. **Read this before touching anything in `video-export.js`** — several of the constraints below were discovered the hard way.
+
+**Why a virtual clock is unavoidable.** Exported bundles are *not* purely CSS-animated: storyboard frame switching is JS `setTimeout(nextFrame, duration*1000)` and the startup chain is `load → fonts.ready → rAF → setTimeout(startAd, 50)`. Seeking WAAPI alone cannot reproduce the timeline. `VIRTUAL_CLOCK_SRC` is injected as the **first `<head>` script** of the bundle inside a hidden iframe and virtualises `setTimeout`/`setInterval`/`rAF`/`performance.now`/`Date.now`. `__vtAdvanceTo(ms)` fires queued timers in chronological order while force-pausing every animation found via `getAnimations({subtree:true})` and driving `currentTime` by hand (CSS animations run on the compositor clock, which cannot be patched). It re-scans for new animations immediately after each timer fires, so animations recreated by a frame flip are birthed at the flipping timer's virtual time. The `#ad.ad-loading` gate (`animation-play-state: paused !important`) is respected: animations are held at 0 and re-birthed until `startAd` lifts it.
+
+**Pipeline.** `captureCanvasFrames()` is the shared pump — boot, advance, freeze, rasterize — and calls back per frame. `captureCanvasVideo()` and `captureCanvasGif()` are thin sinks on top, so clock/freeze/rasterize behaviour cannot drift between formats.
+
+- **Freeze** (`freezeAdClone`): a serialized snapshot re-parses CSS, so animations would restart at 0 inside the SVG. Every animated element's current computed values (keyframe-property union + a fallback allowlist) are inlined on the clone and `animation`/`transition` set to `none`.
+- **Rasterize**: the same SVG-`foreignObject` path the PNG export uses (`buildAdSnapshotSvg`, shared out of `export-pipeline.js`).
+- **Encode**: mediabunny → WebCodecs for MP4 (`avc`), falling back to VP9/WebM, then a clear error. gifenc for GIF (no WebCodecs involved, so GIF works where video encoding doesn't).
+- **Determinism**: verified byte-identical across runs. ~50 ms/frame.
+
+**Traps — do not re-derive:**
+1. **Never round-trip the bundle html through `XMLSerializer`.** It XML-escapes inline `<script>` contents (`&&` → `&amp;&amp;`) and the ad never starts. Feed the iframe raw html (fonts string-inlined only) and inline relative `<img>`s in the **live DOM** via `inlineIframeImages`.
+2. **Snapshot SVGs must be base64 `data:` URLs, not `blob:`.** Chrome taints a canvas drawn from a blob-URL foreignObject SVG, and `VideoFrame` construction then throws `SecurityError`.
+3. **`LEAD_IN = 170ms`** (50 ms startAd chain + 120 ms `ad-visible` reveal) so output t=0 is the first fully-visible frame.
+4. **H.264 needs even dimensions** — the canvas is padded up 1px and prefilled with the frame's computed background.
+5. **GIF palettes must be sampled across *every* frame**, not one. Sampling a single frame lets artwork that appears late map onto whatever *is* in the palette (typically the flat background or a text slab) — a photograph then comes out visibly colour-cast, not merely posterised. Stride-capped at `GIF_PALETTE_SAMPLE_PX` so quantise time stays flat.
+6. **GIF FPS options must divide 100 evenly** (10/20/25) because GIF delays are in hundredths of a second.
+7. `gifenc`'s `applyPalette` third argument is a **pixel format**, not a dither mode. `prequantize` (the `GIF_COMPRESSION` map) is the only real size lever; it is kept but **not exposed in the UI** and exports run at `none`.
+
+**Nothing is uploaded.** The blob lives in a closure and a `blob:` URL, never in `state`, so project autosave cannot serialise it. The only Supabase writes in the codebase are `share-preview.js` (Share button) and `auth-ui.js` (project sync).
+
+**Single-canvas export previews in-panel** (`openVideoExportSettingsPopup`): Render → play at 1:1 in the panel → Download / drag-out / Copy. Layout is neutral until a preview exists, then portrait goes beside the controls (all controls, so panel height ≈ preview height) and landscape stacks. Getting a file out to another app: **`DownloadURL` drag** is the only route that preserves animation — the clipboard cannot (browsers accept only `image/png` and re-encode, and even native Copy Image flattens GIFs because the Windows clipboard has no GIF flavour). `Copy` therefore copies a still and says so.
 
 ### CSS `clip-path` Vector Masking
 Mask shapes (rect/circle/custom brand SVG) use inline CSS `clip-path` instead of SVG def references. A connector line bridges the mask layer and target image row in the Layers panel. Animation FX apply to the mask wrapper while the child image receives inverse animation, keeping the background photo stationary.
@@ -358,7 +411,7 @@ Maps columns to dynamic element slots to batch-generate banners. Edit-in-place w
 ### Changelog Workflow
 After user-visible changes, **bump the version and update these 7 locations**. Reliable method: `grep -rn "<old version>"` across `*.js *.html *.txt` and bump every live hit.
 
-1. `data/version.txt` — single-line version string (e.g. `v0.34.5`).
+1. `data/version.txt` — single-line version string (e.g. `v0.50.0`).
 2. `data/changelog.txt` — add entry at the **top** of the file.
 3. `scripts/docs-content.js` — insert into the `CHANGELOG_DATA` array.
 4. `scripts/project-dialogs.js` — `currentVersion` in `checkVersionUpdate()` + the Settings-modal version label. (Splash-badge version lives in `scripts/app-boot.js`, `verEl.textContent`.)
@@ -377,5 +430,9 @@ Skip the bump for trivial/internal-only changes (see the project memory on chang
 
 ---
 
-## 6. Repo Hygiene Notes (July 2026)
-Loose/debug artifacts currently tracked in the repo that are **not** part of the runtime and are safe to ignore or remove: `diff_props.txt` (UTF-16 git-diff dump), `error_logs.txt` (empty), `workflow-test.txt` (write-workflow probe), `_temp/Mask animations.mp4` (~5 MB), `data/image.jpg` (loose). `Startup/registry.json` and `data/assets/manifest.json` are **build outputs** regenerated by the Node build scripts. An MP4-export tool was prototyped and reverted (see project memory) — only the `_temp` MP4 remains as a trace.
+## 6. Repo Hygiene Notes (August 2026)
+Loose/debug artifacts currently tracked in the repo that are **not** part of the runtime and are safe to ignore or remove: `diff_props.txt` (UTF-16 git-diff dump), `error_logs.txt` (resumable defect log — read it before debugging), `workflow-test.txt` (write-workflow probe), `_temp/Mask animations.mp4` (~5 MB), `data/image.jpg` (loose). `Startup/registry.json` and `data/assets/manifest.json` are **build outputs** regenerated by the Node build scripts.
+
+`lib/` holds three vendored binaries with **no npm and no build step** — `hb-subset.wasm`, `mediabunny.min.mjs`, `gifenc.esm.min.js`. They are committed on purpose: exports have to work offline, and `npm install` has historically failed in this checkout. Update them by downloading a pinned version from jsdelivr and replacing the file.
+
+The MP4-export CLI prototype (June 2026, `tools/export-mp4/`) was reverted; its virtual-clock design shipped in-app as `scripts/video-export.js` in v0.50.0. Only the `_temp` MP4 remains as a trace of the prototype.

@@ -509,6 +509,20 @@ document.addEventListener('contextmenu', (e) => {
     // setting — when the user invokes via this menu they expect to pick targets.
     const autoResizeSvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3H13M21 3V11M21 3L11 13M3 21H11M3 21V13M3 21L13 11"/></svg>`;
     html += `<div class="ctx-item highlight" id="ctx-canvas-auto-resize" title="Generate the other banner sizes from this canvas" style="display:flex; align-items:center; gap:8px;">${autoResizeSvg}Auto-Resize</div>`;
+    // Export joins Preview and Auto-Resize as a top-level canvas action rather
+    // than sitting down among the housekeeping items — it is what the canvas is
+    // FOR. Same highlight treatment; the label is wrapped so has-submenu's
+    // space-between still pushes its arrow to the right edge.
+    const exportSvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`;
+    html += `<div class="ctx-item highlight has-submenu" title="Export this canvas on its own">
+      <span style="display:flex; align-items:center; gap:8px;">${exportSvg}Export</span>
+      <div class="ctx-submenu">
+        <div class="ctx-item" id="ctx-canvas-export-html" title="A self-contained HTML5 ad package — the standard ad-server deliverable" style="white-space:nowrap;">HTML5 ZIP</div>
+        <div class="ctx-item" id="ctx-canvas-export-png" title="A static PNG of the frame you are on" style="white-space:nowrap;">PNG</div>
+        <div class="ctx-item" id="ctx-canvas-export-video" title="Record one loop of this canvas as a ready-to-play video" style="white-space:nowrap;">Video…</div>
+        <div class="ctx-item" id="ctx-canvas-export-gif" title="Record one loop of this canvas as a looping animated GIF" style="white-space:nowrap;">GIF…</div>
+      </div>
+    </div>`;
     html += `<div class="ctx-divider"></div>`;
 
     html += `<div class="ctx-item has-submenu" title="Export this canvas on its own">
@@ -551,22 +565,15 @@ document.addEventListener('contextmenu', (e) => {
       </div>
     </div>`;
     html += `<div class="ctx-divider"></div>`;
+    // The destructive block, kept together: duplicate, delete, empty. "Clear
+    // contents" rather than "Clear all" because it empties canvases of layers —
+    // it never removes a canvas, which is what the item above it does, and the
+    // old name read as though it might.
     html += `<div class="ctx-item" id="ctx-canvas-clone" title="Duplicate this canvas, its layers and its frames as a new size on the board">Clone Canvas</div>`;
     if (state.canvases.length > 1) {
       html += `<div class="ctx-item ctx-danger" id="ctx-canvas-delete" title="Delete this canvas and everything on it. Other canvases are unaffected">Delete Canvas</div>`;
     }
-    html += `<div class="ctx-divider"></div>`;
-    html += `<div class="ctx-item" id="ctx-canvas-bg-color" title="Set the background colour behind this canvas&#39;s layers">Change canvas BG color</div>`;
-    html += `<div class="ctx-item has-submenu" title="Export this canvas on its own">Export
-      <div class="ctx-submenu">
-        <div class="ctx-item" id="ctx-canvas-export-html">HTML5</div>
-        <div class="ctx-item" id="ctx-canvas-export-png">PNG</div>
-        <div class="ctx-item" id="ctx-canvas-export-video" title="Record one loop of this canvas as a ready-to-play video">Video…</div>
-        <div class="ctx-item" id="ctx-canvas-export-gif" title="Record one loop of this canvas as a looping animated GIF">GIF…</div>
-      </div>
-    </div>`;
-    html += `<div class="ctx-divider"></div>`;
-    html += `<div class="ctx-item has-submenu ctx-danger" title="Remove layers in bulk. This cannot be undone by closing the menu">Clear all
+    html += `<div class="ctx-item has-submenu ctx-danger" title="Empty canvases of their layers, keeping the canvases themselves. This cannot be undone by closing the menu">Clear contents
       <div class="ctx-submenu">
         <div class="ctx-item" id="ctx-clear-current"    style="white-space:nowrap;">Current canvas</div>
         <div class="ctx-item" id="ctx-clear-others"     style="white-space:nowrap;">Other canvases</div>
@@ -574,11 +581,22 @@ document.addEventListener('contextmenu', (e) => {
       </div>
     </div>`;
     html += `<div class="ctx-divider"></div>`;
-    html += `<div class="ctx-item" id="ctx-toggle-snap" title="Snap layers to other layers, canvas edges and guides while dragging">${state.snapEnabled !== false ? '✓ ' : ''}Snapping</div>`;
-    html += `<div class="ctx-item" id="ctx-toggle-rulers" title="Show or hide the rulers and the guides you have dragged from them">${state.showRulers ? 'Hide' : 'Show'} Rulers & Guides</div>`;
-    html += `<div class="ctx-item" id="ctx-toggle-safezones" title="Overlay the margins that copy and calls to action must stay inside">${state.showSafezones ? '✓ ' : ''}Show Safezones</div>`;
-    html += `<div class="ctx-item" id="ctx-clear-guides" title="Remove every guide you have dragged onto the board">Clear All Guides</div>`;
-    html += `<div class="ctx-item" id="ctx-toggle-outline" title="Draw every layer as an outline only — useful for spotting overlaps and stray layers">${state.outlineMode ? '✓ ' : ''}Outline Mode</div>`;
+    html += `<div class="ctx-item" id="ctx-canvas-bg-color" title="Set the background colour behind this canvas&#39;s layers">Change canvas BG color</div>`;
+    // The five board-view toggles are workspace preferences, not canvas actions —
+    // they were the longest run in the menu while being the least often reached
+    // for, so they fold into one entry. Checkmarks still show current state
+    // without opening it, since the submenu label carries them.
+    const viewsSvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z" opacity=".45"/><path d="M9 3v18M3 9h18"/></svg>`;
+    html += `<div class="ctx-item has-submenu" title="Snapping, rulers, guides, safezones and outline mode">
+      ${svgWrap(viewsSvg, 'Guides &amp; Views')}
+      <div class="ctx-submenu">
+        <div class="ctx-item" id="ctx-toggle-snap" style="white-space:nowrap;" title="Snap layers to other layers, canvas edges and guides while dragging">${state.snapEnabled !== false ? '✓ ' : ''}Snapping</div>
+        <div class="ctx-item" id="ctx-toggle-rulers" style="white-space:nowrap;" title="Show or hide the rulers and the guides you have dragged from them">${state.showRulers ? 'Hide' : 'Show'} Rulers &amp; Guides</div>
+        <div class="ctx-item" id="ctx-toggle-safezones" style="white-space:nowrap;" title="Overlay the margins that copy and calls to action must stay inside">${state.showSafezones ? '✓ ' : ''}Show Safezones</div>
+        <div class="ctx-item" id="ctx-clear-guides" style="white-space:nowrap;" title="Remove every guide you have dragged onto the board">Clear All Guides</div>
+        <div class="ctx-item" id="ctx-toggle-outline" style="white-space:nowrap;" title="Draw every layer as an outline only — useful for spotting overlaps and stray layers">${state.outlineMode ? '✓ ' : ''}Outline Mode</div>
+      </div>
+    </div>`;
     html += `<div class="ctx-divider"></div>`;
     html += `<div class="ctx-item" id="ctx-open-settings" title="Open app settings: theme, rulers, snapping, history and autosave">Settings…</div>`;
   } else {
@@ -1305,7 +1323,7 @@ const appSplash = (() => {
         const verEl = document.createElement('span');
         verEl.className = 'app-splash-version';
         verEl.style.cssText = 'font-size: 10px; color: var(--text-muted, #8b8f9c); border: 1px solid rgba(139, 143, 156, 0.4); padding: 2px 8px; border-radius: 10px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: inline-flex; align-items: center; justify-content: center; line-height: 1; margin-top: 2px;';
-        verEl.textContent = 'v0.46.0';
+        verEl.textContent = 'v0.50.0';
         logoEl.appendChild(verEl);
       }
     }
