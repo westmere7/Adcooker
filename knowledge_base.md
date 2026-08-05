@@ -1,4 +1,4 @@
-# RMIT Adflow — Technical App Breakdown (Updated v0.50.4, Engine v3.0)
+# RMIT Adflow — Technical App Breakdown (Updated v0.51.0, Engine v3.0)
 
 This document is the official context dump for agents (Claude, Codex, etc.) picking up the codebase cold. It covers the current architecture, state schema, core engines (Auto-Resize, Masking, Link Sync, Dynamic Data), the animation sequencer, the three page surfaces (editor + two portals), the cloud backend, and workflow rules. **Read this in full before making non-trivial changes.**
 
@@ -329,6 +329,7 @@ A collapsible PowerPoint-style panel along the bottom of the workspace, listing 
 - **Share links** (`share-preview.js` + `preview.html`): generates secure, public view-only links serving a **dedicated snapshot** in Supabase storage (`previewSharePath`), not the live cloud file.
 - **Live links**: every cloud save updates what reviewers see at the same link; local-only edits stay private until saved to cloud. "Delete Link" revokes access immediately; generating a new link invalidates the previous one.
 - **New-project hygiene** (v0.22.7): creating/opening a different project clears prior `previewShare*` metadata so the Share dialog opens to "create link", not a stale link.
+- **Snapshot lifecycle / storage leak** (v0.51.0): a snapshot lives at `<uid>/shares/<token>.flow`, and **no database column points at it** — `previewSharePath` exists only inside the project blob. Deleting a project therefore had to read the blob first or the snapshot orphaned permanently (storage objects don't expire; only the signed URL does). `snapshotPathForProjectBlob()` in `auth-ui.js` does that read, and `removeProjectStorage()` removes blob + snapshot together; both the single-project delete and `deleteSpace` use it. The path is validated against `^<our uid>/shares/[A-Za-z0-9_-]+\.flow$` before any delete, since it comes from a user-supplied file — that rejects traversal and skips other members' snapshots (under their prefix, not ours, and not ours to delete).
 - **Name-clash flow** (v0.22.6): on a cloud name collision the Replace/Rename prompt lets sharing continue.
 - **Portal features**: sidebar size checklist, version switching (data-merge rows), "Static only" frame-by-frame isolation, Play / frame jump-and-play / Replay all / Download all (zip), per-banner restart, runtime readout (total + per-frame, ↻ when looping), checkered grid, clickTag region highlight, compliance/ad-weight audits.
 - **No drift**: shared render helpers live in `render-runtime.js` (consumed by the editor and both portals); portal engine scripts are version-pinned `?v=` so reviewers never pair stale engine code with new portal code.

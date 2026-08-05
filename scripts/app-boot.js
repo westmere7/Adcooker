@@ -1323,7 +1323,7 @@ const appSplash = (() => {
         const verEl = document.createElement('span');
         verEl.className = 'app-splash-version';
         verEl.style.cssText = 'font-size: 10px; color: var(--text-muted, #8b8f9c); border: 1px solid rgba(139, 143, 156, 0.4); padding: 2px 8px; border-radius: 10px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: inline-flex; align-items: center; justify-content: center; line-height: 1; margin-top: 2px;';
-        verEl.textContent = 'v0.50.4';
+        verEl.textContent = 'v0.51.0';
         logoEl.appendChild(verEl);
       }
     }
@@ -1493,7 +1493,23 @@ async function loadStartupTemplate(fileName, customProjectName, customCompressFo
   if (!restored) {
     let mode = localStorage.getItem('adflow-startup-mode') || 'fresh';
     if (mode === 'startup') mode = 'Adflow_startup.flow';
-    if (mode !== 'fresh') {
+    if (mode === STARTUP_MODE_DEFAULT_PROJECT) {
+      // The saved default lives on the user's cloud account, so the session has to
+      // resolve before it can be fetched. If they are signed out, or it has been
+      // deleted from another machine, fall through to a normal fresh start rather
+      // than blocking the boot on something optional.
+      try {
+        await authState.ready;
+        if (authState.currentUser()) {
+          const blob = await fetchDefaultStartupBlob();
+          await loadProjectFromBlob(blob, undefined, null, null);
+          if (typeof writeAutosave === 'function') await writeAutosave();
+          restored = true;
+        }
+      } catch (e) {
+        console.warn('Default startup project load failed, starting fresh:', e);
+      }
+    } else if (mode !== 'fresh') {
       try {
         restored = await loadStartupTemplate(mode);
       } catch (e) {

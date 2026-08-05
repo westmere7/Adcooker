@@ -5,7 +5,7 @@
 # RMIT Adflow
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-rmit--adflow.netlify.app-brightgreen?style=for-the-badge&logo=netlify)](https://rmit-adflow.netlify.app/)
-[![Version](https://img.shields.io/badge/version-v0.50.4-7c5cff?style=for-the-badge)](data/changelog.txt)
+[![Version](https://img.shields.io/badge/version-v0.51.0-7c5cff?style=for-the-badge)](data/changelog.txt)
 [![Engine](https://img.shields.io/badge/engine-v3.0-000f4b?style=for-the-badge)](knowledge_base.md)
 [![Dependencies](https://img.shields.io/badge/npm%20install-not%20required-e61e2b?style=for-the-badge)](#getting-started)
 
@@ -116,6 +116,7 @@ Optional Supabase-backed cloud sync, layered on top of the local-first model. An
   - **Save toast** — a first-time save confirms with `"<project name>" project saved to cloud`.
 - **Team Spaces** — shared pools for collaborating across a creative team. The chip dropdown lists every space you belong to plus "Personal". Each space has owners and members, a per-space members panel, an invitation flow (Adflow generates a one-time join URL and copies it to your clipboard — paste into Slack or email), and Duplicate / Rename / Delete / Leave actions per role.
 - **Folders inside spaces** — organise space projects into a tree, with a per-row dropdown to move projects between folders.
+- **Default startup project** — Settings ▸ Startup ▸ **Use current project** saves whatever you have open as the thing New Project gives you when *Use template* is unchecked, in place of an empty board. Stored on your account (not as a Cloud Project, so it never clutters that list), one per user, replaced whenever you press the button again, and cleared with one click. The snapshot supplies the canvases and their content; ClickTag, max ad size and default background stay editable in the New Project dialog and are applied over the top. Share links, cloud-save stamps, space bindings, undo history, guides and the asset library are all stripped, so nothing leaks from the source project into the ones made from it.
 - **Revert to Cloud Version** — File menu, under Save: re-downloads the last cloud-saved copy of the open project and loads it, discarding local changes, after a confirmation that shows when that save was made.
 - **Read-after-write correctness** — project blobs are stored and fetched with caching disabled, so an in-place save is always what comes back. Same guarantee for Revert, space duplication, and share-snapshot refresh.
 
@@ -699,7 +700,18 @@ PostgreSQL + Auth + Storage, with Row-Level Security enforced at the database le
 | `space_invitations` | `space_id` · `invited_email` · `invited_by` · `token` (single-use join link) |
 | `folders` | `id` · `space_id` · `name` |
 
-**Storage** — one private bucket, `projects`, holding `.flow` blobs and share-link snapshots at `{user_id}/{projectId}.flow` for personal projects and `spaces/{space_id}/{projectId}.flow` for space projects.
+**Storage** — one private bucket, `projects`:
+
+| Object | Path | Referenced by |
+|---|---|---|
+| Personal project | `{user_id}/{projectId}.flow` | `projects.storage_path` |
+| Space project | `spaces/{space_id}/{projectId}.flow` | `projects.storage_path` |
+| Share-link snapshot | `{user_id}/shares/{token}.flow` | `previewSharePath` **inside** the project blob |
+| Default startup project | `{user_id}/default-startup.flow` | nothing — fixed path, one per user |
+
+The snapshot row is the awkward one: the `projects` table has no column pointing at it, so the only record of a snapshot's location lives inside the project file. Deleting a project therefore reads that field *before* removing anything (`snapshotPathForProjectBlob`), so the snapshot goes with it instead of orphaning in the bucket — objects, unlike signed URLs, never expire on their own. Deleting a team space does the same for every project it contains.
+
+The default startup project deliberately has **no** `projects` row, which is what keeps it out of Cloud Projects and out of reach of the ordinary open/rename/delete actions.
 
 **RLS recursion workaround** — self-referential SELECT policies on `space_members` would recurse, so membership checks route through `SECURITY DEFINER` helpers: `user_is_space_member(p_space_id uuid)` and `current_user_email()` (which reads `auth.jwt() ->> 'email'`).
 

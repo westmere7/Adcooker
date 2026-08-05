@@ -142,10 +142,13 @@ const spacesState = (() => {
   async function deleteSpace(spaceId) {
     const u = authState.currentUser();
     if (!u) throw new Error('Not signed in.');
-    // Best-effort: clean up storage blobs so they don't orphan in the bucket.
+    // Best-effort: clean up storage blobs so they don't orphan in the bucket. Each
+    // project's share snapshot goes with it — those live under the SHARER's own
+    // prefix, not the space's, so deleting the space folder alone would never
+    // reach them (see removeProjectStorage).
     const { data: rows } = await sb.from('projects').select('storage_path').eq('space_id', spaceId);
     const paths = (rows || []).map(r => r.storage_path).filter(Boolean);
-    if (paths.length) await sb.storage.from('projects').remove(paths).catch(() => {});
+    if (paths.length) await removeProjectStorage(paths);
     const { error } = await sb.from('spaces').delete().eq('id', spaceId);
     if (error) throw error;
     if (current === spaceId) setCurrent(null);
@@ -533,9 +536,23 @@ async function openCloudProjectsModal() {
       const id = btn.closest('[data-id]').dataset.id;
       const row = data.find(r => r.id === id);
       if (!await showAdflowConfirm(`Delete "${row.name}" from the cloud? This cannot be undone.`)) return;
+      // Snapshot path is read BEFORE the row/blob go, since the blob is the only
+      // place it is recorded (see removeProjectStorage).
+      const snapPath = await snapshotPathForProjectBlob(row.storage_path);
       const { error: e1 } = await sb.from('projects').delete().eq('id', id);
       if (e1) { showCanvasNotification(e1.message, { type: 'error' }); return; }
-      await sb.storage.from('projects').remove([row.storage_path]).catch(() => {});
+      // The row is already gone, so a storage failure here cannot be retried by the
+      // user — it just silently leaks. Swallowing it is how 14 blobs accumulated in
+      // May without anyone noticing, so surface it instead: the delete still stands,
+      // but the leftover is named so it can be cleaned up.
+      const toRemove = [row.storage_path, snapPath].filter(Boolean);
+      const { error: rmErr } = await sb.storage.from('projects').remove(toRemove);
+      if (rmErr) {
+        console.warn('Storage cleanup failed for', toRemove, rmErr);
+        showCanvasNotification(
+          `"${row.name}" was deleted, but its file could not be removed from storage. It will show up as an orphan in the storage audit.`,
+          { type: 'warning' });
+      }
       refreshProjects();
     }));
   };
@@ -599,6 +616,155 @@ async function downloadProjectBlobFresh(storagePath) {
   const resp = await fetch(`${signed.signedUrl}&_=${Date.now()}`, { cache: 'no-store' });
   if (!resp.ok) throw new Error(`Download failed (HTTP ${resp.status})`);
   return await resp.blob();
+}
+
+// ---------------------------------------------------------------------------
+// Default startup project — the snapshot that replaces the empty board for new
+// projects, set from Settings ▸ Startup.
+//
+// It lives in the same private `projects` bucket as everything else, but under a
+// FIXED filename rather than a project UUID, and it deliberately gets no row in
+// the `projects` table. That combination is what keeps it out of the way: it
+// cannot collide with a project path (those are always `<uuid>.flow`), it never
+// appears in Cloud Projects, and it cannot be opened, renamed or deleted by the
+// normal project actions — only by the Settings controls that own it.
+//
+// One per user, per account, so signing in on another machine brings it along.
+// ---------------------------------------------------------------------------
+const DEFAULT_STARTUP_FILE = 'default-startup.flow';
+const DEFAULT_STARTUP_META_KEY = 'adflow-default-startup-meta';
+
+// Third value for the `adflow-startup-mode` preference, alongside 'fresh' and a
+// startup-template filename. Declared here because this is the earliest file that
+// needs it; project-dialogs.js and app-boot.js load later and read it from here.
+// It must never be treated as a filename — nothing lives at Startup/<this>.
+const STARTUP_MODE_DEFAULT_PROJECT = 'default-project';
+
+function defaultStartupPath(userId) {
+  return `${userId}/${DEFAULT_STARTUP_FILE}`;
+}
+
+// Display-only cache (source name + timestamp) so the Settings row can label
+// itself without downloading the blob. Storage remains the source of truth for
+// whether a default EXISTS — this is only ever used to enrich that answer.
+function readDefaultStartupMeta() {
+  try { return JSON.parse(localStorage.getItem(DEFAULT_STARTUP_META_KEY) || 'null'); }
+  catch (e) { return null; }
+}
+
+async function saveDefaultStartupProject() {
+  if (!sb) throw new Error('Cloud is not configured.');
+  const u = authState.currentUser();
+  if (!u) throw new Error('Sign in to save a default startup project.');
+
+  const sourceName = state.projectName || 'RMIT_ad';
+  const { blob } = await buildFlowBlob(true, { forDefaultStartup: true });
+  const { error } = await sb.storage
+    .from('projects').upload(defaultStartupPath(u.id), blob, PROJECT_BLOB_UPLOAD_OPTS);
+  if (error) throw error;
+
+  const meta = { name: sourceName, savedAt: Date.now(), sizeBytes: blob.size };
+  try { localStorage.setItem(DEFAULT_STARTUP_META_KEY, JSON.stringify(meta)); } catch (e) {}
+  return meta;
+}
+
+// { exists, updatedAt, sizeBytes, name } — a list() probe rather than a download,
+// so opening Settings costs one cheap request instead of pulling a whole project.
+async function getDefaultStartupInfo() {
+  if (!sb) return { exists: false, reason: 'no-cloud' };
+  const u = authState.currentUser();
+  if (!u) return { exists: false, reason: 'signed-out' };
+  try {
+    const { data, error } = await sb.storage
+      .from('projects').list(u.id, { search: DEFAULT_STARTUP_FILE, limit: 1 });
+    if (error) throw error;
+    const row = (data || []).find(f => f.name === DEFAULT_STARTUP_FILE);
+    if (!row) return { exists: false, reason: 'none' };
+    const cached = readDefaultStartupMeta();
+    return {
+      exists: true,
+      updatedAt: row.updated_at || row.created_at || null,
+      sizeBytes: (row.metadata && row.metadata.size) || (cached && cached.sizeBytes) || null,
+      // The listing has no project name in it, so the friendly label is the local
+      // cache's — absent on a different machine, which is why callers must treat
+      // it as optional rather than as proof of anything.
+      name: cached && cached.name ? cached.name : null
+    };
+  } catch (e) {
+    console.warn('Default startup probe failed:', e);
+    return { exists: false, reason: 'error' };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Share-snapshot cleanup on delete.
+//
+// A project blob lives at `<uid>/<projectId>.flow` (or `spaces/<sid>/…`), but a
+// share link's snapshot is a SEPARATE object at `<uid>/shares/<token>.flow`, and
+// the `projects` row has no column pointing at it — the token exists only inside
+// the blob, as `previewSharePath`. So deleting a project used to remove the blob
+// and orphan its snapshot permanently: nothing references it, no screen lists it,
+// and the object never expires (only the signed URL does).
+//
+// Recovering the token therefore means reading the blob BEFORE deleting it. One
+// extra download on a delete is a fair price for not leaking; it is best-effort
+// throughout, because failing to find a snapshot must never block the delete the
+// user actually asked for.
+async function snapshotPathForProjectBlob(storagePath) {
+  if (!storagePath || typeof JSZip === 'undefined') return null;
+  try {
+    const blob = await downloadProjectBlobFresh(storagePath);
+    const zip = await JSZip.loadAsync(blob);
+    const projFile = zip.file('project.json');
+    if (!projFile) return null;
+    const loaded = JSON.parse(await projFile.async('string'));
+    const p = loaded && loaded.previewSharePath;
+    if (typeof p !== 'string') return null;
+    // This value comes out of a file, and the file is user-supplied — a .flow can
+    // be hand-edited or arrive from anywhere. It is about to be handed to a DELETE,
+    // so accept only the exact shape a snapshot of OUR OWN can have:
+    //   <our uid>/shares/<token>.flow
+    // That rejects path traversal outright, and skips snapshots belonging to other
+    // members of a shared space (stored under THEIR prefix), which we could not
+    // delete anyway — better to skip them than to fire a request that must fail.
+    const u = authState.currentUser();
+    if (!u) return null;
+    const safe = new RegExp('^' + u.id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '/shares/[A-Za-z0-9_-]+\\.flow$');
+    return safe.test(p) ? p : null;
+  } catch (e) {
+    console.warn('Could not read share snapshot path from', storagePath, e);
+    return null;
+  }
+}
+
+// Removes a project's blob AND its share snapshot, in that dependency order.
+async function removeProjectStorage(storagePaths) {
+  const paths = (Array.isArray(storagePaths) ? storagePaths : [storagePaths]).filter(Boolean);
+  if (!paths.length) return;
+  const snaps = (await Promise.all(paths.map(snapshotPathForProjectBlob))).filter(Boolean);
+  const all = [...new Set([...paths, ...snaps])];
+  await sb.storage.from('projects').remove(all).catch(() => {});
+}
+
+async function fetchDefaultStartupBlob() {
+  if (!sb) throw new Error('Cloud is not configured.');
+  const u = authState.currentUser();
+  if (!u) throw new Error('Not signed in.');
+  return await downloadProjectBlobFresh(defaultStartupPath(u.id));
+}
+
+async function clearDefaultStartupProject() {
+  if (!sb) throw new Error('Cloud is not configured.');
+  const u = authState.currentUser();
+  if (!u) throw new Error('Not signed in.');
+  const { error } = await sb.storage.from('projects').remove([defaultStartupPath(u.id)]);
+  if (error) throw error;
+  try { localStorage.removeItem(DEFAULT_STARTUP_META_KEY); } catch (e) {}
+  // A startup preference pointing at something that no longer exists would send
+  // every new project down a path that can only fail, so retire it here.
+  if (localStorage.getItem('adflow-startup-mode') === STARTUP_MODE_DEFAULT_PROJECT) {
+    localStorage.setItem('adflow-startup-mode', 'fresh');
+  }
 }
 
 async function pushCurrentProjectToCloud(opts = {}) {

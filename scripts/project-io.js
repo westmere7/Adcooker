@@ -3,8 +3,15 @@
 // ============================================================================
 // Build a .flow Blob + sidecar metadata (savedAt, suggestedName, exportState).
 // Reused by both the menu Save (saveProjectAsFlow) and the cloud push.
-async function buildFlowBlob(isTemplate = false) {
+// opts.forDefaultStartup — building the snapshot that replaces the empty board for
+// new projects (Settings ▸ "Use current project as the default"). It is a template
+// in every structural sense, so it takes the whole template stripping pass, plus a
+// second one for identity: a default that carried a share link or a cloud-save
+// stamp would hand both to every project created from it. createNewProject deletes
+// exactly these fields for the same reason.
+async function buildFlowBlob(isTemplate = false, opts = {}) {
   if (typeof JSZip === 'undefined') throw new Error('JSZip is not loaded.');
+  const forDefaultStartup = !!opts.forDefaultStartup;
 
   const zip = new JSZip();
   const exportState = JSON.parse(JSON.stringify(state));
@@ -57,6 +64,21 @@ async function buildFlowBlob(isTemplate = false) {
       exportState.dataMerge.locked = false;
       delete exportState.dataMerge.sort;
     }
+
+    if (forDefaultStartup) {
+      // Identity, not content. A default-startup snapshot is a starting point for
+      // projects that have never been shared or pushed, so it must not carry:
+      delete exportState.previewUrl;          // …an active share link,
+      delete exportState.previewExpiry;
+      delete exportState.previewSharePath;
+      delete exportState.previewSharedBy;
+      delete exportState.previewSharedAt;
+      delete exportState.cloudSavedAt;        // …a "saved to cloud" stamp,
+      delete exportState.cloudSavedBy;
+      delete exportState.spaceId;             // …or a team-space binding.
+      delete exportState.currentVersion;
+      delete exportState.projectName;         // the New Project dialog names it.
+    }
   } else {
     exportState.editingElementId = null;
     if (document.getElementById('canvas-area')) {
@@ -104,7 +126,8 @@ async function buildFlowBlob(isTemplate = false) {
     savedAt,
     projectName: state.projectName || 'RMIT_ad',
     projectId: exportState.projectId,
-    isTemplate: !!isTemplate
+    isTemplate: !!isTemplate,
+    isDefaultStartup: forDefaultStartup
   }, null, 2));
   zip.file('project.json', JSON.stringify(exportState, null, 2));
 

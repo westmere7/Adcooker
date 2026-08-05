@@ -118,6 +118,52 @@ async function createNewProject({ name, presetIndices, sizeLimitKb, bgColor, cli
   }, 50);
 }
 
+// Is "start from my saved default project" the active preference? Cheap, synchronous
+// and local — whether the blob is actually reachable is a separate question, answered
+// by getDefaultStartupInfo() where it matters (Settings) or by the load failing over
+// to a blank board where it doesn't (New Project, boot).
+function defaultStartupSelected() {
+  return localStorage.getItem('adflow-startup-mode') === STARTUP_MODE_DEFAULT_PROJECT;
+}
+
+// Create a project from the saved default-startup snapshot.
+//
+// `overrides` carries the three New Project fields that would otherwise silently
+// lose to the snapshot: ClickTag, max ad size and default background. They are
+// applied AFTER the load, so the panel stays honest — whatever is typed there is
+// what the project gets. Canvases are the one thing the snapshot must win, since
+// they are its content; the dialog disables that block to say so.
+async function createProjectFromDefaultStartup({ name, compressFormat, overrides = {} } = {}) {
+  const blob = await fetchDefaultStartupBlob();
+  await loadProjectFromBlob(blob, name || 'RMIT_ad', null, compressFormat);
+
+  if (overrides.clickTag !== undefined && String(overrides.clickTag).trim()) {
+    state.clickTag = String(overrides.clickTag).trim();
+  }
+  if (overrides.sizeLimitKb !== undefined) {
+    state.adSizeLimit = Math.max(1, parseInt(overrides.sizeLimitKb, 10) || 150);
+  }
+  if (overrides.bgColor) state.defaultBg = overrides.bgColor;
+
+  // Belt and braces: buildFlowBlob strips these when the default is saved, but a
+  // snapshot written by an older build could still carry them, and inheriting a
+  // share link or a cloud stamp is exactly the confusion this must not create.
+  delete state.previewUrl;
+  delete state.previewExpiry;
+  delete state.previewSharePath;
+  delete state.previewSharedBy;
+  delete state.previewSharedAt;
+  delete state.cloudSavedAt;
+  delete state.cloudSavedBy;
+  delete state.spaceId;
+  state.projectId = uid('proj_');
+
+  if (typeof initializeCloudSaveStatus === 'function') initializeCloudSaveStatus();
+  pushHistory();
+  render();
+  if (typeof writeAutosave === 'function') await writeAutosave();
+}
+
 function openNewProjectDialog() {
   const bg = document.createElement('div');
   bg.className = 'modal-bg';
@@ -142,9 +188,15 @@ function openNewProjectDialog() {
         <!-- Template mode checkbox and selection -->
         <div style="border-bottom: 1px solid var(--border-light); padding-bottom: 12px; margin-bottom: 4px; display:flex; flex-direction:column; gap:8px;">
           <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:12px; font-weight:600; color:var(--text-bright); user-select:none;" title="If checked, initializes the project with a template.">
-            <input type="checkbox" id="np-use-startup-template" title="Start from a saved template instead of an empty board. Canvas settings below come from the template" ${localStorage.getItem('adflow-startup-mode') !== 'fresh' ? 'checked' : ''} style="margin:0;" />
+            <input type="checkbox" id="np-use-startup-template" title="Start from a saved template instead of an empty board. Canvas settings below come from the template" ${(localStorage.getItem('adflow-startup-mode') || 'fresh') !== 'fresh' && !defaultStartupSelected() ? 'checked' : ''} style="margin:0;" />
             <span>Use template</span>
           </label>
+          <!-- Shown instead of the template picker when Settings says new projects
+               start from the saved default project rather than an empty board. -->
+          <div id="np-default-startup-note" style="display:none; font-size:11px; color:var(--text-muted); line-height:1.5; background:var(--bg-input); border:1px solid var(--border-light); border-radius:6px; padding:8px 10px;">
+            <span>Starting from your saved default project<span id="np-default-startup-name"></span>. Canvas sizes come from it; the settings below still apply.</span>
+            <a href="#" id="np-default-startup-skip" style="color:var(--text-accent); font-weight:600; text-decoration:none; margin-left:4px;" title="Ignore the saved default for this project only — start from an empty board">Use a blank board instead</a>
+          </div>
           <div id="np-template-container" style="display:flex; gap:8px; align-items:center;">
             <select id="np-startup-template-select" title="Start from one of the templates found in the Startup folder" style="flex:1; min-width:0; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:6px; padding:7px 9px; font-size:12px; outline:none; cursor:pointer;">
               <!-- populated dynamically -->
@@ -178,7 +230,7 @@ function openNewProjectDialog() {
             <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:6px;">ClickTag URL</label>
             <input type="url" id="np-clicktag" value="${(state.clickTag || 'https://www.rmit.edu.au/').replace(/"/g, '&quot;')}" title="Default exit/landing page URL for all canvases" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:6px; padding:7px 9px; font-size:12px; outline:none;" />
           </div>
-          <div>
+          <div id="np-canvases-block">
             <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:flex; justify-content:space-between; margin-bottom:6px;">
               <span>Canvases</span>
               <span id="np-canvas-toggle" style="cursor:pointer; color:var(--text-accent); text-transform:none; letter-spacing:0;" title="Select or deselect all preset canvas sizes">Toggle all</span>
@@ -232,7 +284,12 @@ function openNewProjectDialog() {
   const btnClearLocal = bg.querySelector('#np-clear-local-template-btn');
 
   const currentPref = localStorage.getItem('adflow-startup-mode') || 'fresh';
-  const activeTemplate = currentPref !== 'fresh' ? currentPref : 'Adflow_startup.flow';
+  // 'default-project' is not a filename, so it must not be offered as the selected
+  // template — the picker falls back to the stock startup file for when the user
+  // ticks "Use template" from here.
+  const activeTemplate = (currentPref !== 'fresh' && currentPref !== STARTUP_MODE_DEFAULT_PROJECT)
+    ? currentPref
+    : 'Adflow_startup.flow';
 
   if (Array.isArray(startupTemplates) && startupTemplates.length > 0) {
     selectTemplate.innerHTML = startupTemplates.map(t => {
@@ -243,23 +300,48 @@ function openNewProjectDialog() {
     selectTemplate.innerHTML = `<option value="Adflow_startup.flow" selected>RMIT_ad (Adflow_startup.flow)</option>`;
   }
 
+  // Three ways to start, and each decides which of the fields below still mean
+  // anything:
+  //   template          — the file supplies everything; whole block disabled.
+  //   saved default     — the snapshot supplies the CANVASES only; that block is
+  //                       disabled, and ClickTag / max size / background stay live
+  //                       and get applied over the top after loading.
+  //   blank board       — everything below is live, as it always was.
+  // Leaving a control enabled but ignored is the failure this avoids: the reason
+  // the whole block dims for a template is that its values genuinely lose.
+  let skipDefaultStartup = false;
+  const defaultNote = bg.querySelector('#np-default-startup-note');
+  const canvasesBlock = bg.querySelector('#np-canvases-block');
+
+  const usingSavedDefault = () => !chkUseStartup.checked && defaultStartupSelected() && !skipDefaultStartup;
+
   const updateFieldsVisibility = () => {
     const useStartup = chkUseStartup.checked;
-    if (useStartup) {
-      bg.querySelector('#np-template-container').style.display = 'flex';
-      if (selectedLocalTemplateBlob) {
-        localStatus.style.display = 'flex';
-      } else {
-        localStatus.style.display = 'none';
-      }
-      customConfigContainer.style.opacity = '0.4';
-      customConfigContainer.style.pointerEvents = 'none';
-    } else {
-      bg.querySelector('#np-template-container').style.display = 'none';
-      localStatus.style.display = 'none';
-      customConfigContainer.style.opacity = '1';
-      customConfigContainer.style.pointerEvents = 'auto';
+    const savedDefault = usingSavedDefault();
+
+    bg.querySelector('#np-template-container').style.display = useStartup ? 'flex' : 'none';
+    localStatus.style.display = (useStartup && selectedLocalTemplateBlob) ? 'flex' : 'none';
+    defaultNote.style.display = savedDefault ? 'block' : 'none';
+
+    customConfigContainer.style.opacity = useStartup ? '0.4' : '1';
+    customConfigContainer.style.pointerEvents = useStartup ? 'none' : 'auto';
+
+    canvasesBlock.style.opacity = savedDefault ? '0.4' : '1';
+    canvasesBlock.style.pointerEvents = savedDefault ? 'none' : 'auto';
+  };
+
+  if (defaultStartupSelected()) {
+    const meta = (typeof readDefaultStartupMeta === 'function') ? readDefaultStartupMeta() : null;
+    if (meta && meta.name) {
+      bg.querySelector('#np-default-startup-name').textContent = ` (${meta.name})`;
     }
+  }
+
+  bg.querySelector('#np-default-startup-skip').onclick = (e) => {
+    e.preventDefault();
+    skipDefaultStartup = true;
+    updateFieldsVisibility();
+    showCanvasNotification('This project will start from a blank board. Your saved default is unchanged.', { type: 'info' });
   };
 
   btnBrowse.onclick = () => {
@@ -440,13 +522,39 @@ function openNewProjectDialog() {
         return;
       }
 
+      const hex = '#' + (hexInp.value.replace(/[^0-9a-fA-F]/g, '').padEnd(6, '0').slice(0, 6) || '0f172a');
+
+      // Saved default project: the snapshot brings the canvases, the three fields
+      // above are applied over the top. A failure here falls through to the normal
+      // blank-board path rather than dead-ending on a dialog that cannot proceed.
+      if (usingSavedDefault()) {
+        try {
+          await createProjectFromDefaultStartup({
+            name,
+            compressFormat: chosenCompressFormat,
+            overrides: {
+              clickTag: bg.querySelector('#np-clicktag').value,
+              sizeLimitKb: bg.querySelector('#np-size-limit').value,
+              bgColor: hex
+            }
+          });
+          closeFn();
+          showCanvasNotification('Started from your saved default project.', { type: 'success' });
+          return;
+        } catch (err) {
+          console.warn('Default startup project unavailable:', err);
+          showCanvasNotification('Could not load your saved default project — starting from a blank board instead.', { type: 'warning' });
+          skipDefaultStartup = true;
+          updateFieldsVisibility();
+        }
+      }
+
       const presetIndices = [...bg.querySelectorAll('.np-canvas:checked')].map(b => +b.dataset.idx);
       if (presetIndices.length === 0) {
         showAdflowAlert('Pick at least one canvas size.');
         setButtonsLoading(false);
         return;
       }
-      const hex = '#' + (hexInp.value.replace(/[^0-9a-fA-F]/g, '').padEnd(6, '0').slice(0, 6) || '0f172a');
       await createNewProject({
         name,
         presetIndices,
@@ -1959,7 +2067,7 @@ document.getElementById('menu-help-shortcuts').addEventListener('click', () => {
 
 
 function checkVersionUpdate() {
-  const currentVersion = 'v0.50.4';
+  const currentVersion = 'v0.51.0';
   const lastSeen = localStorage.getItem('last-seen-version');
   
   if (!lastSeen) {
@@ -2156,6 +2264,10 @@ function openSettings() {
   const buildStartupOptions = () => {
     const opts = [];
     opts.push(`<option value="fresh" ${tempSettings.startupMode === 'fresh' ? 'selected' : ''}>Start fresh as normal</option>`);
+    // Sits with 'fresh' rather than under Startup Templates on purpose: both are
+    // what you get with "Use template" UNCHECKED in the New Project dialog. The
+    // option is disabled until the probe below confirms a default exists.
+    opts.push(`<option value="${STARTUP_MODE_DEFAULT_PROJECT}" ${tempSettings.startupMode === STARTUP_MODE_DEFAULT_PROJECT ? 'selected' : ''} disabled>Your saved default project (checking…)</option>`);
     if (Array.isArray(startupTemplates) && startupTemplates.length > 0) {
       opts.push('<optgroup label="Startup Templates">');
       startupTemplates.forEach(t => {
@@ -2188,7 +2300,7 @@ function openSettings() {
           <div class="modal-head" style="border-bottom:1px solid var(--border-light); background:var(--bg-panel); flex-shrink:0;">
             <div style="display:flex; align-items:center; gap:12px; flex:1;">
               <h2 style="margin:0; font-size:14px; font-weight:600; color:var(--text-bright);">Settings</h2>
-              <span style="font-size:11px; color:var(--text-muted);">v0.50.4</span>
+              <span style="font-size:11px; color:var(--text-muted);">v0.51.0</span>
               <button id="settings-changelog" title="See what changed in this and previous versions of Adflow" class="btn" style="padding:4px 8px; font-size:10px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; cursor:pointer;">Changelog</button>
             </div>
             <button class="btn" id="settings-close" title="Close without keeping any change made since the dialog opened">Close</button>
@@ -2232,9 +2344,24 @@ function openSettings() {
                   </div>
                   <div style="display:flex; align-items:center; gap:12px; font-size:12px; color:var(--text-main);">
                     <span style="flex:1;">Startup Template preference:</span>
-                    <select id="set-startup-mode" title="What a brand-new project starts from: an empty board, or one of your startup templates" style="width:240px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:4px 8px; font-family:inherit; font-size:12px; outline:none; cursor:pointer;">
+                    <select id="set-startup-mode" title="What a brand-new project starts from: an empty board, your saved default project, or one of your startup templates" style="width:240px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:4px 8px; font-family:inherit; font-size:12px; outline:none; cursor:pointer;">
                       ${buildStartupOptions()}
                     </select>
+                  </div>
+
+                  <!-- Default startup project. Saved to your cloud account (not as a
+                       Cloud Project — it is invisible to that list on purpose), so it
+                       follows you to another machine when you sign in. -->
+                  <div style="display:flex; flex-direction:column; gap:8px; background:var(--bg-input); border:1px solid var(--border-light); border-radius:6px; padding:10px 12px;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                      <span style="flex:1; font-size:12px; color:var(--text-main);">Default startup project</span>
+                      <button class="btn" id="set-default-startup-save" title="Save the project you have open now as the starting point for new projects. Replaces any previous default." style="padding:4px 10px; font-size:11px; white-space:nowrap;">Use current project</button>
+                      <button class="btn" id="set-default-startup-clear" title="Delete the saved default so new projects start from an empty board again" style="padding:4px 10px; font-size:11px; white-space:nowrap; display:none;">Clear</button>
+                    </div>
+                    <div id="set-default-startup-status" style="font-size:11px; color:var(--text-muted); line-height:1.5;">Checking…</div>
+                    <div style="font-size:11px; color:var(--text-muted); line-height:1.5;">
+                      Used when <b>Use template</b> is unchecked in New Project. It supplies the canvases and their content; ClickTag, max ad size and default background stay under your control in that dialog and are applied on top. Layout guides, selection, zoom, undo history, share links and cloud stamps are not carried over.
+                    </div>
                   </div>
                 </section>
 
@@ -2558,6 +2685,108 @@ function openSettings() {
     selectStartupMode.addEventListener('change', (e) => {
       tempSettings.startupMode = e.target.value;
     });
+  }
+
+  // ---- Default startup project ------------------------------------------------
+  {
+    const saveBtn = bg.querySelector('#set-default-startup-save');
+    const clearBtn = bg.querySelector('#set-default-startup-clear');
+    const statusEl = bg.querySelector('#set-default-startup-status');
+    const modeOpt = selectStartupMode
+      ? selectStartupMode.querySelector(`option[value="${STARTUP_MODE_DEFAULT_PROJECT}"]`)
+      : null;
+
+    const fmtWhen = (iso) => {
+      if (!iso) return '';
+      const d = new Date(iso);
+      return isNaN(d.getTime()) ? '' : d.toLocaleString();
+    };
+    const fmtKb = (bytes) => (bytes ? ` · ${Math.max(1, Math.round(bytes / 1024))} KB` : '');
+
+    // Repaints the row from a fresh probe. Also gates the dropdown option, so the
+    // preference can never point at a default that does not exist.
+    const refresh = async () => {
+      const info = (typeof getDefaultStartupInfo === 'function')
+        ? await getDefaultStartupInfo()
+        : { exists: false, reason: 'no-cloud' };
+
+      if (info.exists) {
+        const when = fmtWhen(info.updatedAt);
+        statusEl.textContent = info.name
+          ? `Saved from “${info.name}”${when ? ` on ${when}` : ''}${fmtKb(info.sizeBytes)}.`
+          : `A default is saved to your account${when ? ` (${when})` : ''}${fmtKb(info.sizeBytes)}.`;
+        clearBtn.style.display = '';
+        saveBtn.textContent = 'Replace with current';
+        if (modeOpt) { modeOpt.disabled = false; modeOpt.textContent = 'Your saved default project'; }
+        return;
+      }
+
+      clearBtn.style.display = 'none';
+      saveBtn.textContent = 'Use current project';
+      if (modeOpt) {
+        modeOpt.disabled = true;
+        modeOpt.textContent = 'Your saved default project (none saved)';
+      }
+      // Nothing to point at — don't let a stale preference survive the dialog.
+      if (tempSettings.startupMode === STARTUP_MODE_DEFAULT_PROJECT) {
+        tempSettings.startupMode = 'fresh';
+        if (selectStartupMode) selectStartupMode.value = 'fresh';
+      }
+      if (info.reason === 'signed-out') {
+        statusEl.textContent = 'Sign in to save a default startup project — it is stored on your account so it follows you between machines.';
+        saveBtn.disabled = true;
+        saveBtn.style.opacity = '0.55';
+        saveBtn.style.cursor = 'not-allowed';
+      } else if (info.reason === 'no-cloud') {
+        statusEl.textContent = 'Cloud is not configured in this build, so a default startup project cannot be saved.';
+        saveBtn.disabled = true;
+        saveBtn.style.opacity = '0.55';
+        saveBtn.style.cursor = 'not-allowed';
+      } else if (info.reason === 'error') {
+        statusEl.textContent = 'Could not reach your account to check for a saved default.';
+      } else {
+        statusEl.textContent = 'None saved. New projects start from an empty board.';
+      }
+    };
+
+    saveBtn.addEventListener('click', async () => {
+      if (saveBtn.disabled) return;
+      const prev = saveBtn.textContent;
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving…';
+      try {
+        const meta = await saveDefaultStartupProject();
+        // Saving one is a clear statement of intent, so adopt it as the preference
+        // rather than leaving the user to also change the dropdown.
+        tempSettings.startupMode = STARTUP_MODE_DEFAULT_PROJECT;
+        if (modeOpt) modeOpt.disabled = false;
+        if (selectStartupMode) selectStartupMode.value = STARTUP_MODE_DEFAULT_PROJECT;
+        showCanvasNotification(`“${meta.name}” is now the default for new projects.`, { type: 'success' });
+      } catch (e) {
+        console.error(e);
+        showCanvasNotification(e.message || 'Could not save the default startup project.', { type: 'error' });
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = prev;
+        await refresh();
+      }
+    });
+
+    clearBtn.addEventListener('click', async () => {
+      if (!(await showAdflowConfirm('Delete your saved default startup project? New projects will start from an empty board again.'))) return;
+      try {
+        await clearDefaultStartupProject();
+        tempSettings.startupMode = 'fresh';
+        if (selectStartupMode) selectStartupMode.value = 'fresh';
+        showCanvasNotification('Default startup project cleared.', { type: 'info' });
+      } catch (e) {
+        console.error(e);
+        showCanvasNotification(e.message || 'Could not clear the default startup project.', { type: 'error' });
+      }
+      await refresh();
+    });
+
+    refresh();
   }
 
   bg.querySelectorAll('.settings-theme-btn').forEach(btn => {

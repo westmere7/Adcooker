@@ -891,6 +891,18 @@ document.getElementById('menu-help-documentation').addEventListener('click', ope
 
 const CHANGELOG_DATA = [
   {
+    version: 'v0.51.0',
+    date: 'August 2026 — Engine v3.0',
+    items: [
+      'Use Your Current Project as the Starting Point for New Ones: Settings ▸ Startup gains a "Default startup project". Press "Use current project" and whatever you have open is saved as the thing New Project gives you when "Use template" is unchecked — instead of an empty board. It is the natural companion to startup templates: templates are files you keep and choose between, whereas this is simply "start me where I left off", one per account, replaced whenever you press the button again. It saves to your cloud account rather than this machine, so signing in elsewhere brings it with you, and a Clear button puts new projects back to an empty board.',
+      'The Four Fields That Would Have Fought It: a saved default already contains canvases, a ClickTag, a max ad size and a background, and so does the New Project dialog. Rather than letting the panel show values that quietly lose, the two are split: the snapshot supplies the canvases and their content, so the Canvases list greys out with a line saying why, and ClickTag, max ad size and default background stay editable and are applied on top of whatever the snapshot carried. Nothing in the dialog is left enabled but ignored.',
+      'What a Default Deliberately Does Not Carry: it is stripped the same way "Save template" strips a template — no undo history, no selection, no zoom or scroll position, no guides, no asset library, no active data version — and then stripped again for identity, so it cannot hand a share link, a "saved to cloud" stamp, a team-space binding or its old project name to every project made from it. Only the design comes through.',
+      'It Stays Out of Cloud Projects: the default is stored under your account but is not a cloud project, so it never appears in that list and cannot be opened, renamed or deleted by accident. The Settings row that created it is the only place that manages it, and the dropdown option stays greyed out until one exists.',
+      'New Projects Can Still Start Blank: the New Project dialog carries a "Use a blank board instead" link for one-off exceptions, which ignores the default for that project only and leaves the saved one untouched. If the default cannot be reached — signed out, or deleted from another machine — the dialog says so and falls back to a blank board rather than refusing to continue.',
+      'Deleting a Cloud Project Now Removes Its Share Snapshot Too: a share link does not point at your project file — it points at a separate snapshot written alongside it, and the only record of where that snapshot lives is a field inside the project file itself. So deleting a project removed the project and left its snapshot behind forever: nothing referenced it, no screen listed it, and storage objects do not expire the way signed URLs do. Deleting a project now reads that field first and removes both, and deleting a whole team space does the same for every project in it. Snapshots belonging to other members of a shared space are left alone, since they sit under storage owned by them and were never ours to remove.'
+    ]
+  },
+  {
     version: 'v0.50.4',
     date: 'August 2026 — Engine v3.0',
     items: [
