@@ -891,6 +891,13 @@ document.getElementById('menu-help-documentation').addEventListener('click', ope
 
 const CHANGELOG_DATA = [
   {
+    version: 'v0.51.2',
+    date: 'August 2026 — Engine v3.0',
+    items: [
+      'Fixed Auto-Sized Text Coming Out Tiny on Every Frame but the First: a text layer set to Auto-size rendered at the right size on frame 1 and at a fraction of it everywhere else — in the shared preview, the portals and exported ads. Only the first frame of an ad is visible when it starts; the rest are hidden, and a hidden element cannot be measured, so the fitter has always briefly unhidden them to take their measurements. A guard added earlier today — meant to stop the fitter measuring a box with no layout at all — was checking that BEFORE the unhiding, so every layer on a later frame was treated as unmeasurable and kept the size sitting in its disabled Font size box instead. The check now runs after the unhiding, where it can tell the two situations apart. Frames 2 and beyond match the canvas again.'
+    ]
+  },
+  {
     version: 'v0.51.1',
     date: 'August 2026 — Engine v3.0',
     items: [

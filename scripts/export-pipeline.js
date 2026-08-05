@@ -3037,13 +3037,6 @@ ${elsTop}
           return;
         }
 
-        // No baked size (an export from before this attribute existed): only measure
-        // if the box actually has layout. A display:none ancestor or an iframe that
-        // hasn't been laid out yet reports every metric as 0, so every candidate size
-        // "fits" and the search below would return data-max-size — blowing the text up
-        // to the maximum font. Leaving the authored size alone is the safer failure.
-        if (!(block.clientWidth > 0) && !(block.clientHeight > 0)) return;
-
         // Temporarily clear animation and transform to get accurate, scale-free measurements
         var oldWrapperAnim = wrapper.style.animation || '';
         var oldWrapperTrans = wrapper.style.transform || '';
@@ -3093,7 +3086,47 @@ ${elsTop}
           }
           parent = parent.parentElement;
         }
-        
+
+        // Everything this function touched, put back. Declared here so the
+        // no-layout bail below can unwind exactly as the success path does.
+        function restoreAll() {
+          wrapper.style.animation = oldWrapperAnim;
+          wrapper.style.transform = oldWrapperTrans;
+          block.style.animation = oldBlockAnim;
+          block.style.transform = oldBlockTrans;
+          span.style.animation = oldSpanAnim;
+          span.style.transform = oldSpanTrans;
+          for (var rIdx = 0; rIdx < shiftedSaved.length; rIdx++) {
+            shiftedSaved[rIdx][0].style.animation = shiftedSaved[rIdx][1];
+            shiftedSaved[rIdx][0].style.transform = shiftedSaved[rIdx][2];
+          }
+          hiddenAncestors.forEach(function(item) {
+            if (item.prevDisplay) item.element.style.display = item.prevDisplay;
+            else item.element.style.removeProperty('display');
+            if (item.prevVisibility) item.element.style.visibility = item.prevVisibility;
+            else item.element.style.removeProperty('visibility');
+            if (item.prevPosition) item.element.style.position = item.prevPosition;
+            else item.element.style.removeProperty('position');
+          });
+        }
+
+        // Only NOW is it fair to ask whether the box can be measured: every frame
+        // except the first is display:none, and the loop above is what makes those
+        // measurable. Testing before it — as this guard first did — meant every
+        // element on a non-active frame bailed out and kept the authored font size,
+        // which for an auto-sized layer is just the last value typed into a disabled
+        // field. That is why text on other frames came out tiny.
+        //
+        // Still zero after unhiding means the whole document has no layout (an iframe
+        // that has not been laid out yet). Measuring that would report 0 for every
+        // candidate, every size would "fit", and the search would return data-max-size
+        // — text at the maximum font. Leaving the authored size alone is the safer
+        // failure of the two.
+        if (!(block.clientWidth > 0) && !(block.clientHeight > 0)) {
+          restoreAll();
+          return;
+        }
+
         // Buttons render their text in a FIXED-height (height:100%) flex block
         // with a max-width-clamped span, so the block's own scroll metrics are
         // useless for fitting. We instead auto-size buttons to fit on a SINGLE
@@ -3172,35 +3205,7 @@ ${elsTop}
         block.style.fontSize = best + 'px';
         span.style.fontSize = best + 'px';
 
-        // Restore animations and transforms
-        wrapper.style.animation = oldWrapperAnim;
-        wrapper.style.transform = oldWrapperTrans;
-        block.style.animation = oldBlockAnim;
-        block.style.transform = oldBlockTrans;
-        span.style.animation = oldSpanAnim;
-        span.style.transform = oldSpanTrans;
-        for (var rIdx = 0; rIdx < shiftedSaved.length; rIdx++) {
-          shiftedSaved[rIdx][0].style.animation = shiftedSaved[rIdx][1];
-          shiftedSaved[rIdx][0].style.transform = shiftedSaved[rIdx][2];
-        }
-        
-        hiddenAncestors.forEach(function(item) {
-          if (item.prevDisplay) {
-            item.element.style.display = item.prevDisplay;
-          } else {
-            item.element.style.removeProperty('display');
-          }
-          if (item.prevVisibility) {
-            item.element.style.visibility = item.prevVisibility;
-          } else {
-            item.element.style.removeProperty('visibility');
-          }
-          if (item.prevPosition) {
-            item.element.style.position = item.prevPosition;
-          } else {
-            item.element.style.removeProperty('position');
-          }
-        });
+        restoreAll();
       });
     }
 
