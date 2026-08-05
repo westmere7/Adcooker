@@ -1,4 +1,4 @@
-# RMIT Adflow — Technical App Breakdown (Updated v0.51.0, Engine v3.0)
+# RMIT Adflow — Technical App Breakdown (Updated v0.51.1, Engine v3.0)
 
 This document is the official context dump for agents (Claude, Codex, etc.) picking up the codebase cold. It covers the current architecture, state schema, core engines (Auto-Resize, Masking, Link Sync, Dynamic Data), the animation sequencer, the three page surfaces (editor + two portals), the cloud backend, and workflow rules. **Read this in full before making non-trivial changes.**
 
