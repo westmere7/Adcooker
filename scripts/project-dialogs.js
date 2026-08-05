@@ -190,40 +190,62 @@ function openNewProjectDialog() {
   let selectedLocalTemplateName = '';
 
   bg.innerHTML = `
-    <div class="modal" style="max-width:480px;">
+    <div class="modal" style="max-width:600px;">
       <div class="modal-head">
         <h2>New Project</h2>
         <button class="btn" id="np-close" title="Close dialog">Close</button>
       </div>
       <div class="modal-body" style="display:flex; flex-direction:column; gap:16px; padding:18px 22px;">
-        <!-- Template mode checkbox and selection -->
+        <!-- Name first, and deliberately the largest field in the dialog: it is the
+             one thing every new project needs, and the only one you always type
+             rather than pick. -->
+        <div>
+          <!-- The SECTION carries the emphasis, not the field: a brighter, larger
+               heading than the other labels. The input itself stays the same size as
+               every other input in the dialog. -->
+          <label for="np-name" style="font-size:12px; color:var(--text-bright); text-transform:uppercase; letter-spacing:.07em; font-weight:700; display:block; margin-bottom:7px;">Project name</label>
+          <input type="text" id="np-name" value="RMIT_ad" title="Enter the name for the new project" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:6px; padding:7px 9px; font-size:12px; outline:none;" />
+        </div>
+
+        <!-- Where the project starts from. One radio group of three peers rather
+             than a "Use template" checkbox sitting above a pair of radios: all
+             three are the same kind of decision, so none of them outranks the
+             others. The saved-default row hides itself when the account has no
+             default, leaving a clean two-way choice. -->
         <div style="border-bottom: 1px solid var(--border-light); padding-bottom: 12px; margin-bottom: 4px; display:flex; flex-direction:column; gap:8px;">
-          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:12px; font-weight:600; color:var(--text-bright); user-select:none;" title="If checked, initializes the project with a template.">
-            <input type="checkbox" id="np-use-startup-template" title="Start from a saved template instead of an empty board. Canvas settings below come from the template" ${(localStorage.getItem('adflow-startup-mode') || 'fresh') !== 'fresh' ? 'checked' : ''} style="margin:0;" />
-            <span>Use template</span>
-          </label>
-          <!-- Shown, in place of the template picker, when the account has a saved
-               default project. An explicit pair rather than the buried "…instead"
-               link it replaced: "saved" must never mean "forced", and a blank board
-               has to stay one click away. Hidden entirely when no default exists,
-               so nobody sees a choice with one real option. -->
-          <div id="np-start-choice" style="display:none; flex-direction:column; gap:6px; background:var(--bg-input); border:1px solid var(--border-light); border-radius:6px; padding:9px 11px;">
-            <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer; font-size:12px; color:var(--text-main);" title="Start from the project saved as your default in Settings">
-              <input type="radio" name="np-start-from" value="default" checked style="margin:2px 0 0 0;" />
-              <span>Saved default project<span id="np-default-startup-name" style="color:var(--text-muted);"></span><br><span style="font-size:11px; color:var(--text-muted);">Canvases and their content come from it. ClickTag, max ad size and background below still apply.</span></span>
-            </label>
-            <label style="display:flex; align-items:flex-start; gap:8px; cursor:pointer; font-size:12px; color:var(--text-main);" title="Ignore the saved default and start from empty canvases">
-              <input type="radio" name="np-start-from" value="blank" style="margin:2px 0 0 0;" />
-              <span>Blank board<span><br><span style="font-size:11px; color:var(--text-muted);">Empty canvases in the sizes you pick below.</span></span></span>
-            </label>
-          </div>
-          <div id="np-template-container" style="display:flex; gap:8px; align-items:center;">
-            <select id="np-startup-template-select" title="Start from one of the templates found in the Startup folder" style="flex:1; min-width:0; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:6px; padding:7px 9px; font-size:12px; outline:none; cursor:pointer;">
-              <!-- populated dynamically -->
-            </select>
-            <button class="btn" id="np-rescan-templates-btn" title="Re-scan Startup folder templates" style="padding:7px 10px; font-size:12px;">↻</button>
-            <button class="btn" id="np-browse-template-btn" title="Choose a .flow file on your computer to start this project from" style="padding:7px 12px; font-size:12px; white-space:nowrap;">Browse...</button>
-            <input type="file" id="np-local-template-file" accept=".flow" style="display:none;" />
+          <div id="np-start-choice" style="display:flex; flex-direction:column; gap:1px;">
+            <!-- The saved default leads and is preselected: it is the whole point of
+                 saving one. -->
+            <div class="np-start-row" id="np-start-row-default" style="display:none;">
+              <label class="np-start-label" title="Start from your base project — set it in Settings">
+                <input type="radio" name="np-start-from" value="default" style="margin:1px 0 0 0;" />
+                <span><span class="np-start-title">Base project</span><span class="np-start-hint" id="np-default-hint">Canvases come from it; settings below still apply.</span><span class="np-start-meta" id="np-default-meta"></span></span>
+              </label>
+            </div>
+            <!-- The picker lives on this row rather than below it, so the choice and
+                 the thing it needs are one line. The <label> deliberately wraps only
+                 the radio and its text — a <select> or button inside a label would be
+                 hijacked by the label's own activation. -->
+            <div class="np-start-row" id="np-start-row-template">
+              <label class="np-start-label" title="Start from a saved .flow template">
+                <input type="radio" name="np-start-from" value="template" style="margin:1px 0 0 0;" />
+                <span><span class="np-start-title">Use template</span><span class="np-start-hint">Start from a template file.</span></span>
+              </label>
+              <div id="np-template-container" style="display:none; gap:6px; align-items:center; margin-left:auto; flex:1; min-width:0;">
+                <select id="np-startup-template-select" title="Start from one of the templates found in the Startup folder" style="flex:1; min-width:0; background:var(--bg-panel); border:1px solid var(--border-light); color:var(--text-main); border-radius:5px; padding:5px 7px; font-size:11px; outline:none; cursor:pointer;">
+                  <!-- populated dynamically -->
+                </select>
+                <button class="btn" id="np-rescan-templates-btn" title="Re-scan Startup folder templates" style="padding:5px 8px; font-size:11px; flex:none;">↻</button>
+                <button class="btn" id="np-browse-template-btn" title="Choose a .flow file on your computer to start this project from" style="padding:5px 9px; font-size:11px; white-space:nowrap; flex:none;">Browse…</button>
+                <input type="file" id="np-local-template-file" accept=".flow" style="display:none;" />
+              </div>
+            </div>
+            <div class="np-start-row">
+              <label class="np-start-label" title="Empty canvases in the sizes you pick below">
+                <input type="radio" name="np-start-from" value="blank" style="margin:1px 0 0 0;" />
+                <span><span class="np-start-title">Blank board</span><span class="np-start-hint">Empty canvases in the sizes below.</span></span>
+              </label>
+            </div>
           </div>
           <div id="np-local-template-status" style="font-size:11px; color:var(--text-accent); display:none; align-items:center; gap:6px;">
             <span>Selected local template:</span>
@@ -232,43 +254,48 @@ function openNewProjectDialog() {
           </div>
         </div>
 
-        <div>
-          <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:6px;">Project name</label>
-          <input type="text" id="np-name" value="RMIT_ad" title="Enter the name for the new project" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:6px; padding:7px 9px; font-size:12px; outline:none;" />
-        </div>
-
-        <div>
-          <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:6px;">Auto-compression Format</label>
-          <select id="np-compress-format" title="Auto-compression output format: JPEG/PNG (ad-server safe) or WebP" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:6px; padding:7px 9px; font-size:12px; outline:none; cursor:pointer;">
-            <option value="jpeg" ${state.compressFormat !== 'webp' ? 'selected' : ''}>JPEG / PNG (auto — ad-server safe)</option>
-            <option value="webp" ${state.compressFormat === 'webp' ? 'selected' : ''}>WebP (smallest files)</option>
-          </select>
+        <!-- Compression, ad weight and background on one row. Compression applies to
+             EVERY start-from choice (it is passed to the loader as well as to the
+             blank builder), so it is not inside the block that dims for a template —
+             the two cells that genuinely lose are dimmed on their own. -->
+        <div style="display:flex; gap:12px; align-items:flex-start;">
+          <div style="flex:1.15; min-width:0;">
+            <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:6px;">Auto-compression</label>
+            <select id="np-compress-format" title="Auto-compression output format: JPEG / PNG is ad-server safe; WebP produces the smallest files" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:6px; padding:7px 9px; font-size:12px; outline:none; cursor:pointer;">
+              <option value="jpeg" ${state.compressFormat !== 'webp' ? 'selected' : ''}>JPEG / PNG</option>
+              <option value="webp" ${state.compressFormat === 'webp' ? 'selected' : ''}>WebP</option>
+            </select>
+          </div>
+          <div style="flex:0.85; min-width:0;" id="np-size-cell">
+            <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:6px;">Max ad size (KB)</label>
+            <input type="number" id="np-size-limit" value="${state.adSizeLimit || 150}" min="1" title="Target file size limit for export warning / Ads Validator (KB)" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:6px; padding:7px 9px; font-size:12px; outline:none;" />
+          </div>
+          <!-- flex:none, not flex:0 — the latter is basis:0% with shrink enabled, so
+               the cell collapses and the swatch overflows it. -->
+          <div style="flex:none;" id="np-bg-cell">
+            <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:6px; white-space:nowrap;">Background</label>
+            <!-- The hex field stays in the DOM but hidden: the colour picker writes
+                 back through it (emitColorUpdate targets [data-k] and fires 'input'),
+                 and the create handler reads its value. The swatch is the control. -->
+            <button class="cp-trigger" data-k="np-bg" id="np-bg" title="Choose default canvas background colour" style="width:56px; height:32px; padding:0; border:1px solid var(--border-light); border-radius:6px; background:${(state.defaultBg || '#0f172a')}; cursor:pointer; outline:none;"></button>
+            <input type="text" id="np-bg-hex" data-k="np-bg" value="${(state.defaultBg || '#0f172a').replace(/^#/, '').toUpperCase()}" maxlength="6" style="display:none;" />
+          </div>
         </div>
 
         <div id="np-custom-config-container" style="display:flex; flex-direction:column; gap:16px; transition: opacity 0.2s;">
-          <div>
+          <div id="np-clicktag-block">
             <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:6px;">ClickTag URL</label>
             <input type="url" id="np-clicktag" value="${(state.clickTag || 'https://www.rmit.edu.au/').replace(/"/g, '&quot;')}" title="Default exit/landing page URL for all canvases" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:6px; padding:7px 9px; font-size:12px; outline:none;" />
           </div>
+          <!-- Collapsed outright, not dimmed, whenever the canvases come from
+               somewhere else: a greyed-out list of sizes that cannot be changed is
+               just a taller dialog saying nothing. -->
           <div id="np-canvases-block">
             <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:flex; justify-content:space-between; margin-bottom:6px;">
               <span>Canvases</span>
               <span id="np-canvas-toggle" style="cursor:pointer; color:var(--text-accent); text-transform:none; letter-spacing:0;" title="Select or deselect all preset canvas sizes">Toggle all</span>
             </label>
             <div style="border:1px solid var(--border-light); border-radius:6px; padding:4px;">${presetRows}</div>
-          </div>
-          <div style="display:flex; gap:14px;">
-            <div style="flex:1;">
-              <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:6px;">Max ad size (KB)</label>
-              <input type="number" id="np-size-limit" value="${state.adSizeLimit || 150}" min="1" title="Target file size limit for export warning / Ads Validator (KB)" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:6px; padding:7px 9px; font-size:12px; outline:none;" />
-            </div>
-            <div style="flex:1;">
-              <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:6px;">Default background</label>
-              <div style="display:flex; align-items:center; gap:8px;">
-                <button class="cp-trigger" data-k="np-bg" id="np-bg" title="Choose default canvas background color" style="width:36px; height:32px; padding:0; border:1px solid var(--border-light); border-radius:6px; background:${(state.defaultBg || '#0f172a')}; cursor:pointer; outline:none; flex-shrink:0;"></button>
-                <input type="text" id="np-bg-hex" data-k="np-bg" value="${(state.defaultBg || '#0f172a').replace(/^#/, '').toUpperCase()}" maxlength="6" title="Hex color code for canvas background" style="flex:1; min-width:0; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:6px; padding:7px 9px; font-size:12px; outline:none; text-transform:uppercase;" />
-              </div>
-            </div>
           </div>
         </div>
         <p style="margin:0; font-size:11px; color:var(--text-muted); line-height:1.5;">This replaces your current project. Your existing work is auto-saved — save a <strong>.flow</strong> file first if you want a separate backup.</p>
@@ -292,8 +319,13 @@ function openNewProjectDialog() {
   bg.querySelector('#np-cancel').onclick = closeFn;
   bg.onclick = (e) => { if (e.target === bg) closeFn(); };
 
-  // Startup template checkbox change logic
-  const chkUseStartup = bg.querySelector('#np-use-startup-template');
+  // Start-from radio group (template / saved default / blank).
+  const startRadios = () => [...bg.querySelectorAll('input[name="np-start-from"]')];
+  const startFrom = () => (startRadios().find(r => r.checked) || {}).value || 'blank';
+  const setStartFrom = (v) => {
+    const r = startRadios().find(x => x.value === v);
+    if (r) r.checked = true;
+  };
   const selectTemplate = bg.querySelector('#np-startup-template-select');
   const customConfigContainer = bg.querySelector('#np-custom-config-container');
   const btnBrowse = bg.querySelector('#np-browse-template-btn');
@@ -332,43 +364,89 @@ function openNewProjectDialog() {
   // Painted from the local hint, then corrected by the account probe below — so a
   // first visit on a new origin reveals the choice a beat late rather than never.
   let defaultExists = defaultStartupLikelyExists();
+  let userPickedStart = false;
   const startChoice = bg.querySelector('#np-start-choice');
+  const defaultRow = bg.querySelector('#np-start-row-default');
   const canvasesBlock = bg.querySelector('#np-canvases-block');
-  const startFromBlank = () => {
-    const r = startChoice.querySelector('input[name="np-start-from"][value="blank"]');
-    return !!(r && r.checked);
+
+  const usingSavedDefault = () => startFrom() === 'default' && defaultExists;
+
+  const setDimmed = (el, on) => {
+    if (!el) return;
+    el.style.opacity = on ? '0.4' : '1';
+    el.style.pointerEvents = on ? 'none' : 'auto';
   };
 
-  const usingSavedDefault = () => !chkUseStartup.checked && defaultExists && !startFromBlank();
-
   const updateFieldsVisibility = () => {
-    const useStartup = chkUseStartup.checked;
+    const useStartup = startFrom() === 'template';
     const savedDefault = usingSavedDefault();
 
     bg.querySelector('#np-template-container').style.display = useStartup ? 'flex' : 'none';
     localStatus.style.display = (useStartup && selectedLocalTemplateBlob) ? 'flex' : 'none';
-    startChoice.style.display = (!useStartup && defaultExists) ? 'flex' : 'none';
+    // Never offer a row that cannot do anything.
+    defaultRow.style.display = defaultExists ? 'flex' : 'none';
 
-    customConfigContainer.style.opacity = useStartup ? '0.4' : '1';
-    customConfigContainer.style.pointerEvents = useStartup ? 'none' : 'auto';
+    // A template brings its own ClickTag, weight cap and background, so those lose.
+    // A base project brings canvases only — the three settings are applied over the
+    // top of it and stay live. Compression is never dimmed: it applies to all three
+    // routes. Nothing is left enabled but ignored, and nothing dimmed but obeyed.
+    setDimmed(bg.querySelector('#np-clicktag-block'), useStartup);
+    setDimmed(bg.querySelector('#np-size-cell'), useStartup);
+    setDimmed(bg.querySelector('#np-bg-cell'), useStartup);
+    customConfigContainer.style.opacity = '1';
+    customConfigContainer.style.pointerEvents = 'auto';
 
-    // Only the canvases lose to the snapshot; the other three fields are applied
-    // over the top of it, so they stay live.
-    canvasesBlock.style.opacity = savedDefault ? '0.4' : '1';
-    canvasesBlock.style.pointerEvents = savedDefault ? 'none' : 'auto';
+    // Canvas sizes only mean anything when building a blank board; collapse the list
+    // entirely otherwise rather than showing a dead one.
+    canvasesBlock.style.display = (useStartup || savedDefault) ? 'none' : '';
   };
 
-  const nameEl = bg.querySelector('#np-default-startup-name');
+  // Opening selection: the saved default wins whenever there is one — saving it is
+  // the statement of intent, and it leads the list for the same reason. Only when
+  // there is no default does the legacy startup-template preference get a say.
+  const templatePreferred = (localStorage.getItem('adflow-startup-mode') || 'fresh') !== 'fresh';
+  setStartFrom(defaultExists ? 'default' : (templatePreferred ? 'template' : 'blank'));
+
+  // "RMIT_ad · 1 frame · 6 canvases" then the sizes on their own line. Sourced from
+  // the cloud sidecar, so it reads the same on a machine that has never saved one.
+  const hintEl = bg.querySelector('#np-default-hint');
+  const metaEl = bg.querySelector('#np-default-meta');
+  const describeDefault = (info) => {
+    if (!info || !info.exists) { metaEl.textContent = ''; return; }
+    const bits = [];
+    if (info.name) bits.push(info.name);
+    if (typeof info.frames === 'number' && info.frames > 0) {
+      bits.push(info.frames + (info.frames === 1 ? ' frame' : ' frames'));
+    }
+    const cvs = Array.isArray(info.canvases) ? info.canvases : [];
+    if (cvs.length) bits.push(cvs.length + (cvs.length === 1 ? ' canvas' : ' canvases'));
+    if (!bits.length) { metaEl.textContent = ''; return; }
+
+    hintEl.textContent = bits.join(' · ');
+    // Sizes are the useful detail but can run long, so cap the list rather than
+    // letting one many-size project stretch the row.
+    if (cvs.length) {
+      const shown = cvs.slice(0, 6).map(c => `${c.w}×${c.h}`).join(', ');
+      metaEl.textContent = cvs.length > 6 ? `${shown} +${cvs.length - 6} more` : shown;
+    } else {
+      metaEl.textContent = '';
+    }
+  };
+
   const applyDefaultInfo = (info) => {
+    const had = defaultExists;
     defaultExists = !!(info && info.exists);
-    if (defaultExists && info.name) nameEl.textContent = ` (${info.name})`;
-    else nameEl.textContent = '';
+    describeDefault(info);
+    // Correct the opening selection once the account answers — but never overrule a
+    // choice the user has already made in the meantime.
+    if (!userPickedStart && defaultExists && !had) {
+      setStartFrom('default');
+    } else if (!defaultExists && startFrom() === 'default') {
+      // Selected row just vanished; fall back rather than leaving nothing checked.
+      setStartFrom(templatePreferred ? 'template' : 'blank');
+    }
     updateFieldsVisibility();
   };
-  {
-    const meta = (typeof readDefaultStartupMeta === 'function') ? readDefaultStartupMeta() : null;
-    if (meta && meta.name) nameEl.textContent = ` (${meta.name})`;
-  }
   // The account is the authority, not this browser. Runs unconditionally so the
   // hint can be corrected in BOTH directions: a default saved on another origin
   // appears here, and one cleared elsewhere stops being offered.
@@ -376,8 +454,8 @@ function openNewProjectDialog() {
     getDefaultStartupInfo().then(applyDefaultInfo).catch(() => {});
   }
 
-  startChoice.querySelectorAll('input[name="np-start-from"]').forEach(r => {
-    r.addEventListener('change', updateFieldsVisibility);
+  startRadios().forEach(r => {
+    r.addEventListener('change', () => { userPickedStart = true; updateFieldsVisibility(); });
   });
 
   btnBrowse.onclick = () => {
@@ -477,7 +555,6 @@ function openNewProjectDialog() {
     }
   };
 
-  chkUseStartup.onchange = updateFieldsVisibility;
   updateFieldsVisibility();
 
   // Keep the color swatch and hex field in sync.
@@ -509,7 +586,7 @@ function openNewProjectDialog() {
   };
 
   bg.querySelector('#np-create').onclick = async () => {
-    const useStartup = chkUseStartup.checked;
+    const useStartup = startFrom() === 'template';
     const name = bg.querySelector('#np-name').value;
     const chosenCompressFormat = bg.querySelector('#np-compress-format').value;
 
@@ -575,11 +652,11 @@ function openNewProjectDialog() {
             }
           });
           closeFn();
-          showCanvasNotification('Started from your saved default project.', { type: 'success' });
+          showCanvasNotification('Started from your base project.', { type: 'success' });
           return;
         } catch (err) {
           console.warn('Default startup project unavailable:', err);
-          showCanvasNotification('Could not load your saved default project — starting from a blank board instead.', { type: 'warning' });
+          showCanvasNotification('Could not load your base project — starting from a blank board instead.', { type: 'warning' });
           defaultExists = false;
           updateFieldsVisibility();
         }
@@ -2379,23 +2456,23 @@ function openSettings() {
                   </div>
                   <div style="display:flex; align-items:center; gap:12px; font-size:12px; color:var(--text-main);">
                     <span style="flex:1;">Startup Template preference:</span>
-                    <select id="set-startup-mode" title="What a brand-new project starts from: an empty board, your saved default project, or one of your startup templates" style="width:240px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:4px 8px; font-family:inherit; font-size:12px; outline:none; cursor:pointer;">
+                    <select id="set-startup-mode" title="Which startup template a brand-new project uses, when you pick Use template in the New Project dialog" style="width:240px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:4px 8px; font-family:inherit; font-size:12px; outline:none; cursor:pointer;">
                       ${buildStartupOptions()}
                     </select>
                   </div>
 
-                  <!-- Default startup project. Saved to your cloud account (not as a
-                       Cloud Project — it is invisible to that list on purpose), so it
+                  <!-- Base project. Saved to your cloud account (not as a Cloud
+                       Project — it is invisible to that list on purpose), so it
                        follows you to another machine when you sign in. -->
                   <div style="display:flex; flex-direction:column; gap:8px; background:var(--bg-input); border:1px solid var(--border-light); border-radius:6px; padding:10px 12px;">
                     <div style="display:flex; align-items:center; gap:12px;">
-                      <span style="flex:1; font-size:12px; color:var(--text-main);">Default startup project</span>
-                      <button class="btn" id="set-default-startup-save" title="Save the project you have open now as the starting point for new projects. Replaces any previous default." style="padding:4px 10px; font-size:11px; white-space:nowrap;">Use current project</button>
-                      <button class="btn" id="set-default-startup-clear" title="Delete the saved default so new projects start from an empty board again" style="padding:4px 10px; font-size:11px; white-space:nowrap; display:none;">Clear</button>
+                      <span style="flex:1; font-size:12px; color:var(--text-main);">Base project</span>
+                      <button class="btn" id="set-default-startup-save" title="Save the project you have open now as the base for new projects. Replaces any previous base project." style="padding:4px 10px; font-size:11px; white-space:nowrap;">Use current project</button>
+                      <button class="btn" id="set-default-startup-clear" title="Delete the base project so new projects start from an empty board again" style="padding:4px 10px; font-size:11px; white-space:nowrap; display:none;">Clear</button>
                     </div>
                     <div id="set-default-startup-status" style="font-size:11px; color:var(--text-muted); line-height:1.5;">Checking…</div>
                     <div style="font-size:11px; color:var(--text-muted); line-height:1.5;">
-                      Used when <b>Use template</b> is unchecked in New Project. It supplies the canvases and their content; ClickTag, max ad size and default background stay under your control in that dialog and are applied on top. Layout guides, selection, zoom, undo history, share links and cloud stamps are not carried over.
+                      New projects start from this instead of an empty board, on every machine you sign in to. It supplies the canvases and their content; ClickTag, max ad size and background stay under your control in the New Project dialog and are applied on top. <b>Blank board</b> is always offered there as well. Layout guides, selection, zoom, undo history, share links and cloud stamps are not carried over.
                     </div>
                   </div>
                 </section>
@@ -2722,7 +2799,7 @@ function openSettings() {
     });
   }
 
-  // ---- Default startup project ------------------------------------------------
+  // ---- Base project (the saved starting point for new projects) ----------------
   {
     const saveBtn = bg.querySelector('#set-default-startup-save');
     const clearBtn = bg.querySelector('#set-default-startup-clear');
@@ -2746,7 +2823,7 @@ function openSettings() {
         const when = fmtWhen(info.updatedAt);
         statusEl.textContent = (info.name
           ? `Saved from “${info.name}”${when ? ` on ${when}` : ''}${fmtKb(info.sizeBytes)}.`
-          : `A default is saved to your account${when ? ` (${when})` : ''}${fmtKb(info.sizeBytes)}.`)
+          : `A base project is saved to your account${when ? ` (${when})` : ''}${fmtKb(info.sizeBytes)}.`)
           + ' New projects start from it on every machine you sign in to, unless you pick Blank board.';
         clearBtn.style.display = '';
         saveBtn.textContent = 'Replace with current';
@@ -2756,17 +2833,17 @@ function openSettings() {
       clearBtn.style.display = 'none';
       saveBtn.textContent = 'Use current project';
       if (info.reason === 'signed-out') {
-        statusEl.textContent = 'Sign in to save a default startup project — it is stored on your account so it follows you between machines.';
+        statusEl.textContent = 'Sign in to save a base project — it is stored on your account, so it follows you between machines.';
         saveBtn.disabled = true;
         saveBtn.style.opacity = '0.55';
         saveBtn.style.cursor = 'not-allowed';
       } else if (info.reason === 'no-cloud') {
-        statusEl.textContent = 'Cloud is not configured in this build, so a default startup project cannot be saved.';
+        statusEl.textContent = 'Cloud is not configured in this build, so a base project cannot be saved.';
         saveBtn.disabled = true;
         saveBtn.style.opacity = '0.55';
         saveBtn.style.cursor = 'not-allowed';
       } else if (info.reason === 'error') {
-        statusEl.textContent = 'Could not reach your account to check for a saved default.';
+        statusEl.textContent = 'Could not reach your account to check for a base project.';
       } else {
         statusEl.textContent = 'None saved. New projects start from an empty board.';
       }
@@ -2782,10 +2859,10 @@ function openSettings() {
         // Nothing else to commit: the upload IS the switch. No dialog Save needed,
         // and nothing origin-scoped to get out of step — which is what made a
         // default saved on localhost invisible to the deployed site.
-        showCanvasNotification(`“${meta.name}” is now the default for new projects, everywhere you sign in.`, { type: 'success' });
+        showCanvasNotification(`“${meta.name}” is now your base project, everywhere you sign in.`, { type: 'success' });
       } catch (e) {
         console.error(e);
-        showCanvasNotification(e.message || 'Could not save the default startup project.', { type: 'error' });
+        showCanvasNotification(e.message || 'Could not save the base project.', { type: 'error' });
       } finally {
         saveBtn.disabled = false;
         saveBtn.textContent = prev;
@@ -2794,14 +2871,14 @@ function openSettings() {
     });
 
     clearBtn.addEventListener('click', async () => {
-      if (!(await showAdflowConfirm('Delete your saved default startup project? New projects will start from an empty board again.'))) return;
+      if (!(await showAdflowConfirm('Delete your base project? New projects will start from an empty board again.'))) return;
       try {
         // Deleting the object is the whole revert — no preference to unwind.
         await clearDefaultStartupProject();
-        showCanvasNotification('Default startup project cleared. New projects will start from an empty board.', { type: 'info' });
+        showCanvasNotification('Base project cleared. New projects will start from an empty board.', { type: 'info' });
       } catch (e) {
         console.error(e);
-        showCanvasNotification(e.message || 'Could not clear the default startup project.', { type: 'error' });
+        showCanvasNotification(e.message || 'Could not clear the base project.', { type: 'error' });
       }
       await refresh();
     });

@@ -632,6 +632,13 @@ async function downloadProjectBlobFresh(storagePath) {
 // One per user, per account, so signing in on another machine brings it along.
 // ---------------------------------------------------------------------------
 const DEFAULT_STARTUP_FILE = 'default-startup.flow';
+// Sidecar holding just enough to DESCRIBE the base project — name, frame count and
+// canvas sizes — so the New Project dialog can label the row without downloading a
+// multi-megabyte .flow to render one line of small text. It lives beside the blob
+// rather than in localStorage because localStorage is per-origin: a description
+// cached on one machine is invisible on the next, which is the whole problem this
+// feature already had once.
+const DEFAULT_STARTUP_META_FILE = 'default-startup.meta.json';
 const DEFAULT_STARTUP_META_KEY = 'adflow-default-startup-meta';
 
 // Third value for the `adflow-startup-mode` preference, alongside 'fresh' and a
@@ -642,6 +649,10 @@ const STARTUP_MODE_DEFAULT_PROJECT = 'default-project';
 
 function defaultStartupPath(userId) {
   return `${userId}/${DEFAULT_STARTUP_FILE}`;
+}
+
+function defaultStartupMetaPath(userId) {
+  return `${userId}/${DEFAULT_STARTUP_META_FILE}`;
 }
 
 // Display-only cache (source name + timestamp) so the Settings row can label
@@ -655,7 +666,7 @@ function readDefaultStartupMeta() {
 async function saveDefaultStartupProject() {
   if (!sb) throw new Error('Cloud is not configured.');
   const u = authState.currentUser();
-  if (!u) throw new Error('Sign in to save a default startup project.');
+  if (!u) throw new Error('Sign in to save a base project.');
 
   const sourceName = state.projectName || 'RMIT_ad';
   const { blob } = await buildFlowBlob(true, { forDefaultStartup: true });
@@ -663,7 +674,22 @@ async function saveDefaultStartupProject() {
     .from('projects').upload(defaultStartupPath(u.id), blob, PROJECT_BLOB_UPLOAD_OPTS);
   if (error) throw error;
 
-  const meta = { name: sourceName, savedAt: Date.now(), sizeBytes: blob.size };
+  const meta = {
+    name: sourceName,
+    savedAt: Date.now(),
+    sizeBytes: blob.size,
+    frames: (state.frames || []).length,
+    canvases: (state.canvases || []).map(c => ({ w: c.width, h: c.height }))
+  };
+  // Best-effort: the sidecar only powers a description, so failing to write it must
+  // not undo a base project that uploaded fine.
+  try {
+    await sb.storage.from('projects').upload(
+      defaultStartupMetaPath(u.id),
+      new Blob([JSON.stringify(meta)], { type: 'application/json' }),
+      Object.assign({}, PROJECT_BLOB_UPLOAD_OPTS, { contentType: 'application/json' }));
+  } catch (e) { console.warn('Base project description not saved:', e); }
+
   try { localStorage.setItem(DEFAULT_STARTUP_META_KEY, JSON.stringify(meta)); } catch (e) {}
   return meta;
 }
@@ -681,14 +707,25 @@ async function getDefaultStartupInfo() {
     const row = (data || []).find(f => f.name === DEFAULT_STARTUP_FILE);
     if (!row) return { exists: false, reason: 'none' };
     const cached = readDefaultStartupMeta();
+
+    // The description comes from the sidecar, so it is right on every machine. The
+    // localStorage cache is only a fallback for base projects saved before the
+    // sidecar existed, and for when the extra fetch fails.
+    let side = null;
+    try {
+      const blob = await downloadProjectBlobFresh(defaultStartupMetaPath(u.id));
+      side = JSON.parse(await blob.text());
+    } catch (e) { /* no sidecar (older save) or unreachable — fall back below */ }
+
+    const src = side || cached || {};
     return {
       exists: true,
       updatedAt: row.updated_at || row.created_at || null,
-      sizeBytes: (row.metadata && row.metadata.size) || (cached && cached.sizeBytes) || null,
-      // The listing has no project name in it, so the friendly label is the local
-      // cache's — absent on a different machine, which is why callers must treat
-      // it as optional rather than as proof of anything.
-      name: cached && cached.name ? cached.name : null
+      sizeBytes: (row.metadata && row.metadata.size) || src.sizeBytes || null,
+      name: src.name || null,
+      frames: (typeof src.frames === 'number') ? src.frames : null,
+      canvases: Array.isArray(src.canvases) ? src.canvases : null,
+      described: !!side
     };
   } catch (e) {
     console.warn('Default startup probe failed:', e);
@@ -757,7 +794,10 @@ async function clearDefaultStartupProject() {
   if (!sb) throw new Error('Cloud is not configured.');
   const u = authState.currentUser();
   if (!u) throw new Error('Not signed in.');
-  const { error } = await sb.storage.from('projects').remove([defaultStartupPath(u.id)]);
+  // Sidecar goes with it — a description of something that no longer exists is just
+  // an object nobody will ever look for again.
+  const { error } = await sb.storage.from('projects')
+    .remove([defaultStartupPath(u.id), defaultStartupMetaPath(u.id)]);
   if (error) throw error;
   try { localStorage.removeItem(DEFAULT_STARTUP_META_KEY); } catch (e) {}
   // A startup preference pointing at something that no longer exists would send

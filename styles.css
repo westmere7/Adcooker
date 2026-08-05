@@ -1391,6 +1391,70 @@ body.theme-rmit-navy {
       color: var(--text-bright);
     }
 
+    /* New Project ▸ where the project starts from. Three peers in one radio group,
+       so they get identical type and weight — the selected row is distinguished by
+       its background alone, never by being larger or bolder than the others. */
+    .np-start-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 9px;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      transition: background 0.12s ease, border-color 0.12s ease;
+    }
+
+    /* Only the radio + its text are clickable-as-a-label; the template row's picker
+       is a sibling, because a <select> or <button> inside a <label> gets hijacked by
+       the label's own activation behaviour. */
+    .np-start-label {
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+      cursor: pointer;
+      user-select: none;
+      flex: none;
+    }
+
+    .np-start-row:hover {
+      background: var(--bg-input);
+    }
+
+    .np-start-row:has(input:checked) {
+      background: var(--bg-input);
+      border-color: var(--accent-base);
+    }
+
+    .np-start-row .np-start-title {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-main);
+      line-height: 1.35;
+    }
+
+    .np-start-row .np-start-hint {
+      display: block;
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    /* Canvas sizes of the base project — a notch quieter than the hint above it, so
+       the row reads name-and-counts first and the detail second. */
+    .np-start-row .np-start-meta {
+      display: block;
+      font-size: 10.5px;
+      color: var(--text-muted);
+      opacity: 0.8;
+      line-height: 1.4;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .np-start-row .np-start-meta:empty {
+      display: none;
+    }
+
     /* The preview version bar carries a second copy of the toggle, because the
        top bar is hidden inside a preview and the Version dropdown's hover is the
        one thing it still controls there. Same armed treatment as the original. */

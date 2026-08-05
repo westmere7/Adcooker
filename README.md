@@ -116,7 +116,7 @@ Optional Supabase-backed cloud sync, layered on top of the local-first model. An
   - **Save toast** — a first-time save confirms with `"<project name>" project saved to cloud`.
 - **Team Spaces** — shared pools for collaborating across a creative team. The chip dropdown lists every space you belong to plus "Personal". Each space has owners and members, a per-space members panel, an invitation flow (Adflow generates a one-time join URL and copies it to your clipboard — paste into Slack or email), and Duplicate / Rename / Delete / Leave actions per role.
 - **Folders inside spaces** — organise space projects into a tree, with a per-row dropdown to move projects between folders.
-- **Default startup project** — Settings ▸ Startup ▸ **Use current project** saves whatever you have open as the thing New Project gives you when *Use template* is unchecked, in place of an empty board. Stored on your account (not as a Cloud Project, so it never clutters that list), one per user, replaced whenever you press the button again, and cleared with one click. **Its existence is the switch** — there is no per-browser preference, so it applies on every machine and origin you sign in to, and New Project offers an explicit *Blank board* alternative. The snapshot supplies the canvases and their content; ClickTag, max ad size and default background stay editable in the New Project dialog and are applied over the top. Share links, cloud-save stamps, space bindings, undo history, guides and the asset library are all stripped, so nothing leaks from the source project into the ones made from it.
+- **Base project** — Settings ▸ Startup ▸ **Use current project** saves whatever you have open as the thing New Project starts from, in place of an empty board. Stored on your account (not as a Cloud Project, so it never clutters that list), one per user, replaced whenever you press the button again, and cleared with one click. **Its existence is the switch** — there is no per-browser preference, so it applies on every machine and origin you sign in to. New Project offers three peers: *Base project* (preselected when you have one), *Use template*, and *Blank board*. The base project supplies the canvases; ClickTag, max ad size and background stay editable and are applied on top.
 - **Revert to Cloud Version** — File menu, under Save: re-downloads the last cloud-saved copy of the open project and loads it, discarding local changes, after a confirmation that shows when that save was made.
 - **Read-after-write correctness** — project blobs are stored and fetched with caching disabled, so an in-place save is always what comes back. Same guarantee for Revert, space duplication, and share-snapshot refresh.
 
@@ -707,11 +707,11 @@ PostgreSQL + Auth + Storage, with Row-Level Security enforced at the database le
 | Personal project | `{user_id}/{projectId}.flow` | `projects.storage_path` |
 | Space project | `spaces/{space_id}/{projectId}.flow` | `projects.storage_path` |
 | Share-link snapshot | `{user_id}/shares/{token}.flow` | `previewSharePath` **inside** the project blob |
-| Default startup project | `{user_id}/default-startup.flow` | nothing — fixed path, one per user |
+| Base project (startup) | `{user_id}/default-startup.flow` | nothing — fixed path, one per user; existence is the switch |
 
 The snapshot row is the awkward one: the `projects` table has no column pointing at it, so the only record of a snapshot's location lives inside the project file. Deleting a project therefore reads that field *before* removing anything (`snapshotPathForProjectBlob`), so the snapshot goes with it instead of orphaning in the bucket — objects, unlike signed URLs, never expire on their own. Deleting a team space does the same for every project it contains.
 
-The default startup project deliberately has **no** `projects` row, which is what keeps it out of Cloud Projects and out of reach of the ordinary open/rename/delete actions.
+The base project deliberately has **no** `projects` row, which is what keeps it out of Cloud Projects and out of reach of the ordinary open/rename/delete actions. The storage filename stays `default-startup.flow` — it is the internal name and renaming it would orphan every base project already saved.
 
 **RLS recursion workaround** — self-referential SELECT policies on `space_members` would recurse, so membership checks route through `SECURITY DEFINER` helpers: `user_is_space_member(p_space_id uuid)` and `current_user_email()` (which reads `auth.jwt() ->> 'email'`).
 

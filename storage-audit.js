@@ -21,8 +21,8 @@
                             names them. These are the ones that leaked: the token
                             is recorded only INSIDE the project blob, so deleting
                             a project used to strand its snapshet forever.
-     Default startup      <uid>/default-startup.flow
-                          → never an orphan. Managed by Settings ▸ Startup.
+     Base project         <uid>/default-startup.flow (+ .meta.json sidecar)
+                          → never an orphan. Managed by Settings ▸ Base project.
 
    WHY BLOB DELETION IS GATED SEPARATELY
      Orphan detection relies on what the `projects` table returns to YOU under
@@ -134,9 +134,11 @@ async function adflowStorageAudit(opts = {}) {
 
   // ---- 4. classify ---------------------------------------------------------
   const defaultStartup = `${u.id}/default-startup.flow`;
+  // Its description sidecar counts as part of the base project, not as junk.
+  const defaultStartupMeta = `${u.id}/default-startup.meta.json`;
   const buckets = { live: [], defaultStartup: [], snapshotReferenced: [], snapshotOrphan: [], blobOrphan: [], other: [] };
   for (const o of objects) {
-    if (o.path === defaultStartup) buckets.defaultStartup.push(o);
+    if (o.path === defaultStartup || o.path === defaultStartupMeta) buckets.defaultStartup.push(o);
     else if (livePaths.has(o.path)) buckets.live.push(o);
     else if (/\/shares\/[^/]+\.flow$/.test(o.path)) {
       (referenced.has(o.path) ? buckets.snapshotReferenced : buckets.snapshotOrphan).push(o);
@@ -151,7 +153,7 @@ async function adflowStorageAudit(opts = {}) {
   console.log(`projects rows    ${(rows || []).length}`);
   console.table([
     { class: 'live project blobs', count: buckets.live.length, size: fmt(sum(buckets.live)) },
-    { class: 'default startup', count: buckets.defaultStartup.length, size: fmt(sum(buckets.defaultStartup)) },
+    { class: 'base project', count: buckets.defaultStartup.length, size: fmt(sum(buckets.defaultStartup)) },
     { class: 'snapshots (in use)', count: buckets.snapshotReferenced.length, size: fmt(sum(buckets.snapshotReferenced)) },
     { class: 'snapshots (ORPHAN)', count: buckets.snapshotOrphan.length, size: fmt(sum(buckets.snapshotOrphan)) },
     { class: 'project blobs (ORPHAN)', count: buckets.blobOrphan.length, size: fmt(sum(buckets.blobOrphan)) },
