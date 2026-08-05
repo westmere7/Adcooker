@@ -1,4 +1,4 @@
-# RMIT Adflow — Technical App Breakdown (Updated v0.50.1, Engine v3.0)
+# RMIT Adflow — Technical App Breakdown (Updated v0.50.2, Engine v3.0)
 
 This document is the official context dump for agents (Claude, Codex, etc.) picking up the codebase cold. It covers the current architecture, state schema, core engines (Auto-Resize, Masking, Link Sync, Dynamic Data), the animation sequencer, the three page surfaces (editor + two portals), the cloud backend, and workflow rules. **Read this in full before making non-trivial changes.**
 
@@ -12,8 +12,8 @@ Adflow is a vanilla-JS single-page application — no framework, no bundler, no 
 
 - **Structure**: `index.html` (~800 lines) — shell markup + sequential `<script>` loading.
 - **Styling**: `styles.css` (~6000 lines, CSS variables drive 5 named themes). Linked by **all three** pages.
-- **Logic**: **24 app JS files** in `scripts/`, loaded in sequential order via classic `<script>` tags that share one global lexical scope (declarations in earlier files are visible to later files at execution time) — **the tag order *is* the dependency graph**. Two **Node build scripts** also live in `scripts/` but are not loaded by the browser (`build-asset-manifest.js`, `build-startup-registry.js`).
-- **Embedded Fonts**: brand `.woff2` files in `data/fonts/` (12 files), subset and embedded at export time by `scripts/font-subset.js` via HarfBuzz (`lib/hb-subset.wasm`).
+- **Logic**: **26 app JS files** in `scripts/`, loaded in sequential order via classic `<script>` tags that share one global lexical scope (declarations in earlier files are visible to later files at execution time) — **the tag order *is* the dependency graph**. Three **Node build scripts** also live in `scripts/` but are not loaded by the browser (`build-asset-manifest.js`, `build-startup-registry.js`, `build-docs-screenshots.mjs`).
+- **Embedded Fonts**: brand fonts in `data/fonts/` (6 `.woff2` served + the 6 `.otf` sources), subset and embedded at export time by `scripts/font-subset.js` via HarfBuzz (`lib/hb-subset.wasm`).
 - **Persistence**: IndexedDB (`adflow-autosave` DB) for autosaves; `.flow` ZIP archives (JSZip) for project export/import. Both portals also keep their own IndexedDB list of recently opened files.
 - **Cloud Backend**: Supabase for authentication, project storage, shared workspaces, and share-link snapshots. Project blobs are uploaded `cacheControl: '0'` and read via a short-lived signed URL fetched `cache: 'no-store'` — an in-place save reuses the same storage path, so the old `max-age=3600` default served stale copies back and made saves look like no-ops. Applies to the save path, `pullCloudProject` (which also backs *Revert to Cloud Version*), space duplication, and share-snapshot refresh.
 - **External CDN deps** (in `index.html`): JSZip 3.10.1, `@jaames/iro@5` (color picker), `@supabase/supabase-js@2`.

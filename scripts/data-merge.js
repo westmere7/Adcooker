@@ -455,15 +455,40 @@ if (!window.dmVersionHoverGlobalBound) {
   });
 }
 
-function dmRenderCustomSelect(container, options, activeVal, onSelect) {
+// The lightning-bolt toggle beside Full preview is the master switch for
+// "pointing at something plays/renders it". It governs version rows too, not
+// just the preview buttons — hovering a version re-renders every canvas, which
+// is the same kind of surprise the toggle exists to put under the user's
+// control. The portals (batch.html / preview.html) load this file without
+// toolbar-import.js and have no toggle to offer, so they keep hovering armed.
+function dmVersionHoverArmed() {
+  return (typeof hoverPreviewIsArmed === 'function') ? hoverPreviewIsArmed() : true;
+}
+
+// opts.hoverPreview — wire "hovering a row renders that version". Only the two
+// VERSION selectors ask for it. The Data panel's slot-mapping selects share this
+// builder but their rows carry column names, not row indexes, so hovering one
+// used to set activeVersion to NaN and blank the merged content until the
+// dropdown closed.
+function dmRenderCustomSelect(container, options, activeVal, onSelect, opts) {
   if (!container) return;
+  const isVersionSelect = !!(opts && opts.hoverPreview);
+  const wantsHoverPreview = isVersionSelect && dmVersionHoverArmed();
+  // The old shared tooltip described the slot-mapping select on all three, so a
+  // version switcher told you to "pick a data column". Each says what it is now,
+  // and the version one states whether hovering will preview (see the toggle).
+  const triggerTitle = !isVersionSelect
+    ? 'Click destination for this version — pick a data column, or leave on the project default'
+    : (wantsHoverPreview
+        ? 'Active version — click a row to switch to it, or just point at one to preview it. Hover preview is armed (lightning bolt, beside Full preview).'
+        : 'Active version — click a row to switch to it. Arm hover preview (lightning bolt, beside Full preview) to preview a version by pointing at it.');
   const existingDropdown = container.querySelector('.custom-select-dropdown');
   // Mid-hover or while open: leave the open dropdown intact (see dmVersionHoverActive).
   if (existingDropdown && (existingDropdown.style.display === 'block' || dmVersionHoverActive)) return;
   const currentOpt = options.find(o => o.val === activeVal) || options[0] || { label: '— none —', val: '' };
   
   container.innerHTML = `
-    <button class="custom-select-trigger" title="Click destination for this version — pick a data column, or leave on the project default" style="width: 100%; display: flex; justify-content: space-between; align-items: center; background: var(--bg-input); border: 1px solid ${activeVal !== '' ? 'var(--accent-base)' : 'var(--border-light)'}; color: var(--text-main); border-radius: 6px; padding: 4px 6px; font-size: 11px; height: 24px; text-align: left; cursor: pointer; outline: none;">
+    <button class="custom-select-trigger" title="${dmEsc(triggerTitle)}" style="width: 100%; display: flex; justify-content: space-between; align-items: center; background: var(--bg-input); border: 1px solid ${activeVal !== '' ? 'var(--accent-base)' : 'var(--border-light)'}; color: var(--text-main); border-radius: 6px; padding: 4px 6px; font-size: 11px; height: 24px; text-align: left; cursor: pointer; outline: none;">
       <span class="custom-select-label" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; padding-right: 4px;">${dmEsc(currentOpt.label)}</span>
       <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="opacity: 0.7; pointer-events: none; flex-shrink: 0;"><polyline points="6 9 12 15 18 9"></polyline></svg>
     </button>
@@ -497,7 +522,7 @@ function dmRenderCustomSelect(container, options, activeVal, onSelect) {
   dropdown.addEventListener('mouseleave', () => dmEndVersionPreview(false));
 
   dropdown.querySelectorAll('.custom-select-item').forEach(item => {
-    item.addEventListener('mouseenter', () => dmPreviewVersion(item.dataset.value));
+    if (wantsHoverPreview) item.addEventListener('mouseenter', () => dmPreviewVersion(item.dataset.value));
     item.addEventListener('mousedown', (e) => e.stopPropagation());
     item.onclick = (e) => {
       e.stopPropagation();
@@ -524,7 +549,7 @@ function renderVersionSwitcher() {
     })
   );
   const activeVal = dm.activeVersion == null ? '' : String(dm.activeVersion);
-  dmRenderCustomSelect(container, options, activeVal, (val) => dmSetActiveVersion(val));
+  dmRenderCustomSelect(container, options, activeVal, (val) => dmSetActiveVersion(val), { hoverPreview: true });
 
   const lockBtn = document.getElementById('btn-data-lock');
   if (lockBtn) {
@@ -613,7 +638,7 @@ function renderPreviewVersionBar() {
       })
     );
     const activeVal = dm.activeVersion == null ? '' : String(dm.activeVersion);
-    dmRenderCustomSelect(container, options, activeVal, (val) => dmSetActiveVersion(val));
+    dmRenderCustomSelect(container, options, activeVal, (val) => dmSetActiveVersion(val), { hoverPreview: true });
   }
 
   if (showCurrentOnlyBtn) {

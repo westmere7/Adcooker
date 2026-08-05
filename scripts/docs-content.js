@@ -229,12 +229,13 @@ const DOCS_SECTIONS = [
         <p>There are three ways to watch an ad play, in ascending order of fidelity to what actually ships.</p>
         <ul>
           <li><b>Timeline ▶ Play</b> (or <span class="kbd">Space</span>) — replays the <i>current frame</i> of the <i>active canvas</i>, in place on the editor canvas. Fast, and it stays inside one frame; it never advances to the next.</li>
-          <li><b>Hover preview</b> — the small toggle joined to the right of <b>Full preview</b>. Switch it on, then simply point at <b>Full preview</b> and every canvas starts playing at once, immediately, through the whole frame sequence. Point away and the editor canvases come back.</li>
+          <li><b>Hover preview</b> — the small toggle joined to the right of <b>Full preview</b>. Switch it on, then simply point at <b>Full preview</b> and every canvas starts playing at once, immediately, through the whole frame sequence. Point away and the editor canvases come back. The same toggle also governs the <b>Version</b> dropdowns: armed, pointing at a row renders that version across the board so you can flick through them; switched off, versions only change when you click one.</li>
           <li><b>Full preview</b> — clicking the button. Hides the panels, zooms to fit every canvas, and gives you the preview control bar (frame selector, Replay all, Download all, data-version stepper). <span class="kbd">Esc</span> returns you to exactly the view you left.</li>
         </ul>
         <p><b>Hover preview in detail.</b> It builds the same iframes full preview and the exported ad use, so it is not an approximation — animations, frame transitions, durations, loop behaviour and data-merge content are all the real thing. What it deliberately does <i>not</i> do is move anything: your zoom, scroll position, panels, timeline and selection all stay exactly where they are, and it never goes fullscreen. That makes it the quickest way to check timing across every size without losing your place on the board — useful when you're iterating on one animation and want to see its effect on all sizes between edits.</p>
         <ul>
           <li>Pointing at the <b>toggle itself</b> never starts a preview — only the Full preview button does.</li>
+          <li>It reaches the <b>Version</b> dropdown wherever that dropdown appears — the toolbar switcher while you're editing, and the floating bar in single-canvas and full preview. Turning the toggle off mid-hover restores the version you were on.</li>
           <li>Clicking <b>Full preview</b> while a hover preview is running still opens the real full preview as normal.</li>
           <li>It stands down automatically if you press a key or switch tabs, and it won't start mid-drag, while you're editing text, or when you're already in a preview.</li>
           <li>The toggle remembers whether it's armed between sessions.</li>
@@ -888,6 +889,15 @@ function renderDocsPanel(bg, activeSecId, activeSubId) {
 document.getElementById('menu-help-documentation').addEventListener('click', openDocumentation);
 
 const CHANGELOG_DATA = [
+  {
+    version: 'v0.50.2',
+    date: 'August 2026 — Engine v3.0',
+    items: [
+      'Hover Preview Now Governs the Version Dropdowns Too: the lightning-bolt toggle beside Full preview used to apply only to the preview buttons, while hovering a row in a Version dropdown always re-rendered every canvas whether you wanted that or not. It is one gesture — pointing at something to see it — so it now sits behind one switch. Armed, you can still flick down the version list and watch the board change; switched off, the list behaves like an ordinary dropdown and the version only changes when you click a row. This covers the dropdown everywhere it appears: the toolbar switcher while you are editing, and the floating bar in single-canvas and full preview. Turning the toggle off part-way through a hover puts the version you were on back.',
+      'Clearer Tooltips on Both: the toggle\'s tooltip now names all three things it controls instead of just the two preview buttons. The Version dropdown had been showing the tooltip belonging to the Data panel\'s column-mapping dropdowns — it told you to "pick a data column" — and now describes itself, including whether pointing at a row will preview it and where to find the switch if it won\'t.',
+      'Fixed Hovering a Column in the Data Panel Blanking the Ad: the column-mapping dropdowns share their code with the version switcher, so pointing at a column name was treated as pointing at a version number. There is no version by that name, so the canvases fell back to the plain template until the dropdown closed. Those dropdowns no longer preview anything, which is what they always should have done.'
+    ]
+  },
   {
     version: 'v0.50.1',
     date: 'August 2026 — Engine v3.0',

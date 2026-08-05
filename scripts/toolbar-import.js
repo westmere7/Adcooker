@@ -1574,14 +1574,21 @@ const HOVER_PREVIEW_LS_KEY = 'hover-preview-armed';
 let hoverPreviewArmed = localStorage.getItem(HOVER_PREVIEW_LS_KEY) === 'true';
 let hoverPreviewLeaveTimer = null;
 
+// Read by data-merge.js (dmVersionHoverArmed) so the Version dropdowns respect
+// the same switch. It is only the ARMED preference — not canHoverPreview()'s
+// guards, which deliberately exclude preview mode, where the Version bar lives.
+function hoverPreviewIsArmed() {
+  return hoverPreviewArmed;
+}
+
 function syncHoverPreviewToggle() {
   const btn = document.getElementById('btn-hover-preview');
   if (!btn) return;
   btn.classList.toggle('active', hoverPreviewArmed);
   btn.setAttribute('aria-pressed', hoverPreviewArmed ? 'true' : 'false');
   btn.title = hoverPreviewArmed
-    ? 'Hover preview is ON — point at Full preview to play all canvases in place, or at a canvas’s own Preview link to play just that one. Click to turn off.'
-    : 'Hover preview — play canvases in place when you point at Full preview, or at a canvas’s own Preview link';
+    ? 'Hover preview is ON — point at Full preview to play every canvas in place, at a canvas’s own Preview link to play just that one, or at a row in a Version dropdown to render that version. Click to turn off.'
+    : 'Hover preview — point at Full preview or a canvas’s own Preview link to play canvases in place, and at a row in a Version dropdown to render that version';
 }
 
 // Rebuilding every canvas as an iframe is the expensive part, so bail out early
@@ -1686,9 +1693,17 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) stopC
     hoverPreviewArmed = !hoverPreviewArmed;
     localStorage.setItem(HOVER_PREVIEW_LS_KEY, hoverPreviewArmed ? 'true' : 'false');
     syncHoverPreviewToggle();
-    if (!hoverPreviewArmed) { stopHoverPreview(true); stopCanvasHoverPreview(); }
+    if (!hoverPreviewArmed) {
+      stopHoverPreview(true);
+      stopCanvasHoverPreview();
+      // A version preview can be mid-flight (dropdown open, canvases showing a
+      // version the user never committed). Disarming has to put that back too.
+      if (typeof dmEndVersionPreview === 'function') dmEndVersionPreview(false);
+    }
     showCanvasNotification(
-      hoverPreviewArmed ? 'Hover preview on — point at Full preview, or a canvas’s Preview link, to play in place' : 'Hover preview off',
+      hoverPreviewArmed
+        ? 'Hover preview on — point at Full preview, a canvas’s Preview link, or a version row to preview in place'
+        : 'Hover preview off',
       { type: hoverPreviewArmed ? 'success' : 'info' });
   });
 
