@@ -1391,6 +1391,25 @@ body.theme-rmit-navy {
       color: var(--text-bright);
     }
 
+    /* The preview version bar carries a second copy of the toggle, because the
+       top bar is hidden inside a preview and the Version dropdown's hover is the
+       one thing it still controls there. Same armed treatment as the original. */
+    #preview-hover-preview svg {
+      display: block;
+    }
+
+    #preview-hover-preview.active {
+      background: var(--accent-dark);
+      border-color: var(--accent-base);
+      color: var(--text-bright);
+    }
+
+    #preview-hover-preview.active:hover {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+      color: var(--text-bright);
+    }
+
     /* Armed and actually playing — the seam picks up the accent too, so the pair
        clearly belongs together while the preview is running. */
     #preview-btn-wrap.hover-preview-playing #btn-preview {

@@ -1581,14 +1581,46 @@ function hoverPreviewIsArmed() {
   return hoverPreviewArmed;
 }
 
+// Both copies of the toggle — the top bar's, and the one the preview version bar
+// draws while you're inside a preview (where the version dropdown is the only
+// thing hover preview still governs, so the switch has to be reachable there).
 function syncHoverPreviewToggle() {
-  const btn = document.getElementById('btn-hover-preview');
-  if (!btn) return;
-  btn.classList.toggle('active', hoverPreviewArmed);
-  btn.setAttribute('aria-pressed', hoverPreviewArmed ? 'true' : 'false');
-  btn.title = hoverPreviewArmed
+  const armed = hoverPreviewArmed;
+  const title = armed
     ? 'Hover preview is ON — point at Full preview to play every canvas in place, at a canvas’s own Preview link to play just that one, or at a row in a Version dropdown to render that version. Click to turn off.'
     : 'Hover preview — point at Full preview or a canvas’s own Preview link to play canvases in place, and at a row in a Version dropdown to render that version';
+  ['btn-hover-preview', 'preview-hover-preview'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.classList.toggle('active', armed);
+    btn.setAttribute('aria-pressed', armed ? 'true' : 'false');
+    btn.title = id === 'preview-hover-preview'
+      ? (armed
+          ? 'Hover preview is ON — point at a row in the Version dropdown to render that version. Click to turn off.'
+          : 'Hover preview is OFF — the Version dropdown only changes when you click a row. Click to turn on.')
+      : title;
+  });
+}
+
+// Shared by both copies of the toggle. Disarming also unwinds anything already
+// mid-hover: a running canvas preview, and a version the user is only pointing at.
+function toggleHoverPreviewArmed() {
+  hoverPreviewArmed = !hoverPreviewArmed;
+  localStorage.setItem(HOVER_PREVIEW_LS_KEY, hoverPreviewArmed ? 'true' : 'false');
+  syncHoverPreviewToggle();
+  if (!hoverPreviewArmed) {
+    stopHoverPreview(true);
+    stopCanvasHoverPreview();
+    if (typeof dmEndVersionPreview === 'function') dmEndVersionPreview(false);
+  }
+  // The preview bar rebuilds its dropdown's hover wiring from the armed flag, so
+  // it has to re-render for the change to take effect without leaving the preview.
+  if (typeof renderPreviewVersionBar === 'function') renderPreviewVersionBar();
+  showCanvasNotification(
+    hoverPreviewArmed
+      ? 'Hover preview on — point at Full preview, a canvas’s Preview link, or a version row to preview in place'
+      : 'Hover preview off',
+    { type: hoverPreviewArmed ? 'success' : 'info' });
 }
 
 // Rebuilding every canvas as an iframe is the expensive part, so bail out early
@@ -1690,21 +1722,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) stopC
 
   toggle.addEventListener('click', (e) => {
     e.stopPropagation();
-    hoverPreviewArmed = !hoverPreviewArmed;
-    localStorage.setItem(HOVER_PREVIEW_LS_KEY, hoverPreviewArmed ? 'true' : 'false');
-    syncHoverPreviewToggle();
-    if (!hoverPreviewArmed) {
-      stopHoverPreview(true);
-      stopCanvasHoverPreview();
-      // A version preview can be mid-flight (dropdown open, canvases showing a
-      // version the user never committed). Disarming has to put that back too.
-      if (typeof dmEndVersionPreview === 'function') dmEndVersionPreview(false);
-    }
-    showCanvasNotification(
-      hoverPreviewArmed
-        ? 'Hover preview on — point at Full preview, a canvas’s Preview link, or a version row to preview in place'
-        : 'Hover preview off',
-      { type: hoverPreviewArmed ? 'success' : 'info' });
+    toggleHoverPreviewArmed();
   });
 
   // Only the Full preview button arms the preview — pointing at the toggle must

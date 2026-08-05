@@ -5,7 +5,7 @@
 # RMIT Adflow
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-rmit--adflow.netlify.app-brightgreen?style=for-the-badge&logo=netlify)](https://rmit-adflow.netlify.app/)
-[![Version](https://img.shields.io/badge/version-v0.50.2-7c5cff?style=for-the-badge)](data/changelog.txt)
+[![Version](https://img.shields.io/badge/version-v0.50.3-7c5cff?style=for-the-badge)](data/changelog.txt)
 [![Engine](https://img.shields.io/badge/engine-v3.0-000f4b?style=for-the-badge)](knowledge_base.md)
 [![Dependencies](https://img.shields.io/badge/npm%20install-not%20required-e61e2b?style=for-the-badge)](#getting-started)
 
@@ -186,6 +186,8 @@ A small lightning-bolt toggle sits beside **Full preview**. Armed, pointing at s
 - **The Full preview button** → every canvas starts playing at once, through the whole frame sequence.
 - **A canvas's own Preview link** → that one canvas plays inside its own frame; nothing else moves.
 - **A row in a Version dropdown** → the board renders that data version, so you can flick down the list. Works in the toolbar switcher while editing and in the floating bar during single-canvas and full preview.
+
+Every Version dropdown carries **‹ / › cycling arrows** for stepping between versions without opening the list, and because the top bar is hidden while previewing, the floating preview bar carries **its own copy of the bolt** beside those arrows. It is the same switch — flipping either updates both.
 
 It builds the same iframes full preview and the exported ad use, so it is not an approximation. It stands down on any keypress or tab switch, and won't start mid-drag, while you're editing text, or when you're already in a preview. Turning the toggle off mid-hover restores whatever you were on. Pointing at the toggle itself never starts a preview, and the armed state persists between sessions.
 

@@ -236,6 +236,7 @@ const DOCS_SECTIONS = [
         <ul>
           <li>Pointing at the <b>toggle itself</b> never starts a preview — only the Full preview button does.</li>
           <li>It reaches the <b>Version</b> dropdown wherever that dropdown appears — the toolbar switcher while you're editing, and the floating bar in single-canvas and full preview. Turning the toggle off mid-hover restores the version you were on.</li>
+          <li>Because the top bar is hidden while you preview, the floating bar carries its <b>own copy of the toggle</b> beside the version arrows. It is the same switch: flipping either updates both.</li>
           <li>Clicking <b>Full preview</b> while a hover preview is running still opens the real full preview as normal.</li>
           <li>It stands down automatically if you press a key or switch tabs, and it won't start mid-drag, while you're editing text, or when you're already in a preview.</li>
           <li>The toggle remembers whether it's armed between sessions.</li>
@@ -889,6 +890,14 @@ function renderDocsPanel(bg, activeSecId, activeSubId) {
 document.getElementById('menu-help-documentation').addEventListener('click', openDocumentation);
 
 const CHANGELOG_DATA = [
+  {
+    version: 'v0.50.3',
+    date: 'August 2026 — Engine v3.0',
+    items: [
+      'Cycling Arrows on the Version Bar in Preview: the ‹ and › buttons that sit either side of the Version dropdown in the top bar are now on the floating bar inside single-canvas and full preview too. Stepping through versions works the same way wherever the dropdown appears, instead of forcing you back to the list to pick the next row. They behave exactly as the top-bar pair does — moving between real versions and wrapping around the ends, without stopping at "No version" on the way past.',
+      'Hover Preview Can Be Switched On and Off From Inside a Preview: the lightning-bolt toggle now also appears on that same bar, beside the arrows. The top bar is hidden while you are previewing, so the switch that decides whether pointing at a version row renders it was unreachable at precisely the moment you would want it. Both copies are the same switch — flipping either updates the other, and the state still persists between sessions.'
+    ]
+  },
   {
     version: 'v0.50.2',
     date: 'August 2026 — Engine v3.0',

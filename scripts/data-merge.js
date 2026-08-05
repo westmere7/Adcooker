@@ -597,8 +597,24 @@ function renderPreviewVersionBar() {
 
   let inner = '';
   if (showVersions) {
+    // ‹ / › mirror the top bar's cycle buttons, so stepping through versions works
+    // the same way inside a preview as it does while editing. The bolt is the
+    // hover-preview toggle: inside a preview the Version dropdown is the only
+    // thing it still governs, so it belongs beside the dropdown rather than back
+    // on the (hidden) top bar.
+    const arrowCss = 'padding:0; width:22px; min-width:22px; height:24px; display:inline-flex; align-items:center; justify-content:center; font-size:11px; line-height:1;';
+    const armed = (typeof hoverPreviewIsArmed === 'function') ? hoverPreviewIsArmed() : null;
+    const boltHtml = (armed === null) ? '' :
+      `<button id="preview-hover-preview" class="btn${armed ? ' active' : ''}" aria-pressed="${armed ? 'true' : 'false'}" style="${arrowCss} margin-left:2px;">` +
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4.5 13H11l-1 9 8.5-11H12l1-9z"/></svg></button>';
     inner += '<span style="font-size:11px;color:#9aa1b6;font-weight:600;white-space:nowrap;">Version</span>' +
-      '<div id="preview-version-select-container" style="position:relative; width:200px; z-index:1000001; margin-right:4px;"></div>';
+      `<button id="preview-version-prev" class="btn" title="Previous version" style="${arrowCss}">` +
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg></button>' +
+      '<div id="preview-version-select-container" style="position:relative; width:200px; z-index:1000001;"></div>' +
+      `<button id="preview-version-next" class="btn" title="Next version" style="${arrowCss}">` +
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></button>' +
+      boltHtml +
+      '<span style="width:1px; height:20px; background:#2a2f3e; margin:0 2px;"></span>';
   }
   if (showCurrentOnlyBtn) {
     inner += '<button id="preview-switch-all-btn" title="Apply this version to every canvas" class="btn primary" style="padding: 4px 10px; font-size: 11px; height: 24px; white-space: nowrap; line-height: 1.2;">Current frame only. Switch to all?</button>';
@@ -639,6 +655,29 @@ function renderPreviewVersionBar() {
     );
     const activeVal = dm.activeVersion == null ? '' : String(dm.activeVersion);
     dmRenderCustomSelect(container, options, activeVal, (val) => dmSetActiveVersion(val), { hoverPreview: true });
+
+    // cycleVersion skips the "No version" slot deliberately — someone clicking ‹/›
+    // wants to move between actual versions (see its comment).
+    const prevBtn = bar.querySelector('#preview-version-prev');
+    const nextBtn = bar.querySelector('#preview-version-next');
+    if (prevBtn) prevBtn.onclick = (e) => { e.stopPropagation(); cycleVersion('prev'); };
+    if (nextBtn) nextBtn.onclick = (e) => { e.stopPropagation(); cycleVersion('next'); };
+
+    const hoverBtn = bar.querySelector('#preview-hover-preview');
+    if (hoverBtn) {
+      hoverBtn.onclick = (e) => {
+        e.stopPropagation();
+        // Disarming while the list is open would leave a dropdown on screen whose
+        // rows are still wired for hover; close it (and discard any pending
+        // preview) first, exactly as clicking away would.
+        document.querySelectorAll('.custom-select-dropdown').forEach(d => d.style.display = 'none');
+        dmEndVersionPreview(false);
+        toggleHoverPreviewArmed();
+      };
+      // Sets the title (and re-asserts the pressed class) from one place, so the
+      // two copies of the toggle can never describe different states.
+      if (typeof syncHoverPreviewToggle === 'function') syncHoverPreviewToggle();
+    }
   }
 
   if (showCurrentOnlyBtn) {
