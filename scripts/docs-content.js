@@ -891,6 +891,16 @@ document.getElementById('menu-help-documentation').addEventListener('click', ope
 
 const CHANGELOG_DATA = [
   {
+    version: 'v0.51.1',
+    date: 'August 2026 — Engine v3.0',
+    items: [
+      'Fixed the Default Startup Project Only Working in One Place: saving a default put the file on your account, where every machine can see it, but recorded the decision to USE it in the browser\'s own storage — which is scoped per web address. So a default saved while working on a local build simply did not exist as far as the deployed site was concerned, and each new browser or profile started from nothing again. There is no separate switch any more: if your account has a saved default, new projects start from it, everywhere you sign in. Saving one is the only step.',
+      'New Project Now Asks Instead of Assuming: with a default saved, the dialog offers "Saved default project" and "Blank board" as two plain choices rather than the easily missed "use a blank board instead" link it had before. Saved never means forced. The choice only appears when a default actually exists, so nobody is shown an option with one real answer.',
+      'It Also Appears on a Machine It Was Never Saved On: the dialog checks your account when it opens, so a default saved elsewhere shows up here, and one cleared elsewhere stops being offered. It paints from a local hint first where it has one, which is why the choice can appear a moment after the dialog opens on a browser seeing it for the first time.',
+      'Also Fixed: pressing "Use current project" uploaded the default immediately but only staged the preference, so closing Settings any way other than Save uploaded a default and then ignored it. That inconsistency is gone with the preference itself.'
+    ]
+  },
+  {
     version: 'v0.51.0',
     date: 'August 2026 — Engine v3.0',
     items: [
