@@ -5,7 +5,7 @@
 # RMIT Adflow
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-rmit--adflow.netlify.app-brightgreen?style=for-the-badge&logo=netlify)](https://rmit-adflow.netlify.app/)
-[![Version](https://img.shields.io/badge/version-v0.50.3-7c5cff?style=for-the-badge)](data/changelog.txt)
+[![Version](https://img.shields.io/badge/version-v0.50.4-7c5cff?style=for-the-badge)](data/changelog.txt)
 [![Engine](https://img.shields.io/badge/engine-v3.0-000f4b?style=for-the-badge)](knowledge_base.md)
 [![Dependencies](https://img.shields.io/badge/npm%20install-not%20required-e61e2b?style=for-the-badge)](#getting-started)
 
@@ -42,7 +42,7 @@ To avoid duplicate, manual updates across different canvases, you use **Link Gro
 
 - **Auto-Link Matching Elements** — pressing **Auto-Link** scans all canvases and groups elements sharing a layer name and category/type. Toggle **Selected only** to scan for matches against just the current selection.
 - **Granular Sync Properties** — choose exactly which properties sync for a group. Text content and styling are separated cleanly: `Colors` covers text colour; a dedicated `Background` property manages text backgrounds (colour, visibility, animation, padding, coverage); `Font size` is split from `Font settings`, so the typeface can sync across canvases while sizes stay per-canvas.
-- **Live-Link Mode (real-time sync)** — enable the lightning-bolt toggle on any group and every modification (dragging, resizing, inline text editing, sidebar property changes) propagates to sibling elements on other canvases instantly.
+- **Live-Link Mode (real-time sync)** — enable the sync-arrows toggle on any group and every modification (dragging, resizing, inline text editing, sidebar property changes) propagates to sibling elements on other canvases instantly.
 - **Contextual Actions** — right-click elements to manage link settings, with dynamic `Linked to: [GroupName]` / `Link to: [GroupName]` labels based on membership. **Push changes to group** broadcasts updates manually when Live-link is off.
 - **Categories are enforced, not assumed** — a group carries a single category, so a mixed selection is split into one group per category rather than corrupting a shared one. This is what makes a **mask group** (a mask plus the image it clips) linkable: it becomes a paired `"<name> (Image)"` and `"<name> (Mask)"`, and both halves stay in step.
 
@@ -181,13 +181,13 @@ Because saving a template deliberately strips the asset library, the portals reg
 
 ### Hover preview
 
-A small lightning-bolt toggle sits beside **Full preview**. Armed, pointing at something previews it — in place, with no camera movement, no panel hiding and no fullscreen:
+A small toggle sits beside **Full preview**, marked with a pointer and a motion arc. Armed, pointing at something previews it in place, with no camera movement, no panel hiding and no fullscreen:
 
 - **The Full preview button** → every canvas starts playing at once, through the whole frame sequence.
 - **A canvas's own Preview link** → that one canvas plays inside its own frame; nothing else moves.
 - **A row in a Version dropdown** → the board renders that data version, so you can flick down the list. Works in the toolbar switcher while editing and in the floating bar during single-canvas and full preview.
 
-Every Version dropdown carries **‹ / › cycling arrows** for stepping between versions without opening the list, and because the top bar is hidden while previewing, the floating preview bar carries **its own copy of the bolt** beside those arrows. It is the same switch — flipping either updates both.
+Every Version dropdown carries **‹ / › cycling arrows** for stepping between versions without opening the list, and because the top bar is hidden while previewing, the floating preview bar carries **its own copy of the toggle** beside those arrows. It is the same switch — flipping either updates both.
 
 It builds the same iframes full preview and the exported ad use, so it is not an approximation. It stands down on any keypress or tab switch, and won't start mid-drag, while you're editing text, or when you're already in a preview. Turning the toggle off mid-hover restores whatever you were on. Pointing at the toggle itself never starts a preview, and the armed state persists between sessions.
 

@@ -9,7 +9,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@jaames/iro@5"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <link rel="stylesheet" href="styles.css?v=0.50.3" />
+  <link rel="stylesheet" href="styles.css?v=0.50.4" />
   <style>
     /* Splash screen — shown on initial load, faded out by initApp.
        Inlined so it paints before styles.css finishes parsing. */
@@ -248,7 +248,7 @@
     <div class="app-splash-inner">
       <div class="app-splash-logo">
         <img src="data/Elements/Adflow_logo.svg" alt="RMIT Adflow" data-adflow-logo />
-        <span class="app-splash-version">v0.50.3</span>
+        <span class="app-splash-version">v0.50.4</span>
       </div>
       <div class="app-splash-status" id="app-splash-status">Warming up…</div>
       <div class="app-splash-bar"><div class="app-splash-bar-fill" id="app-splash-bar-fill"></div></div>
@@ -505,8 +505,14 @@
           <!-- Hover preview: when armed, pointing at "Full preview" plays every canvas
                in place — same iframes as full preview, but the camera, zoom and panels
                stay exactly where they are. -->
+          <!-- A pointer with a motion arc: the control is about what happens when you
+               point at something. Deliberately NOT a lightning bolt, which means
+               "dynamic data" everywhere else in the app (canvas badge, Layers row,
+               Link Groups lock, Version label). Filled paths inheriting currentColor,
+               so they follow the button's muted / armed states — no stroke attributes.
+               512 viewBox is the source artwork's; only width/height are set to 13. -->
           <button class="btn" id="btn-hover-preview" aria-pressed="false" title="Hover preview — play canvases in place when you point at Full preview, or at a canvas's own Preview link">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4.5 13H11l-1 9 8.5-11H12l1-9z"/></svg>
+            <svg width="13" height="13" viewBox="0 0 512 512" fill="currentColor"><path d="m282.308 512c-16.027 0-31.094-6.241-42.427-17.574-5.789-5.789-10.259-12.559-13.284-20.122-.038-.094-.075-.188-.11-.282l-105.09-274.721c-8.84-22.285-3.61-47.612 13.348-64.57 16.959-16.958 42.287-22.188 64.571-13.348l274.72 105.091c.095.036.189.073.284.111 7.563 3.026 14.333 7.496 20.122 13.285 23.393 23.393 23.393 61.458-.001 84.852-5.183 5.184-11.182 9.327-17.83 12.312l-89.372 40.148c-2.201.989-4.198 2.371-5.936 4.108s-3.119 3.734-4.108 5.935l-40.149 89.375c-2.984 6.644-7.126 12.643-12.311 17.828-11.333 11.331-26.4 17.572-42.427 17.572zm-18.525-52.438c1.001 2.458 2.475 4.671 4.383 6.579 3.778 3.779 8.801 5.859 14.143 5.859s10.364-2.081 14.142-5.858c1.737-1.738 3.119-3.734 4.107-5.933l40.15-89.376c2.986-6.646 7.127-12.645 12.311-17.828 5.184-5.184 11.182-9.326 17.829-12.312l89.374-40.149c2.202-.989 4.198-2.37 5.934-4.107 7.799-7.799 7.799-20.487.001-28.285-1.907-1.907-4.12-3.381-6.579-4.383l-274.676-105.073c-.094-.036-.188-.072-.281-.11-7.447-2.979-15.921-1.239-21.592 4.429-5.669 5.669-7.408 14.145-4.429 21.592.038.094.074.188.11.281z"/><path d="m61.631 256.015c-38.582-26.111-61.617-69.481-61.617-116.015 0-77.196 62.804-140 140-140 46.539 0 89.912 23.039 116.023 61.628 6.19 9.148 3.792 21.583-5.356 27.772-9.148 6.188-21.583 3.792-27.772-5.356-18.662-27.579-49.65-44.044-82.895-44.044-55.14 0-100 44.86-100 100 0 33.241 16.462 64.227 44.036 82.888 9.148 6.191 11.545 18.625 5.354 27.773-6.19 9.147-18.624 11.545-27.773 5.354z"/></svg>
           </button>
         </span>
         <button class="btn primary" id="btn-export-top" title="Export banner to HTML package" style="width:100px;">Export</button>
@@ -701,7 +707,7 @@
         </div>
         <div class="workspace-footer" id="workspace-footer">
           <button id="zoom-level-display" class="workspace-footer-btn" title="Click to reset zoom">Zoom 100%</button>
-          <button id="app-version-display" class="workspace-footer-btn" title="View changelog">v0.50.3</button>
+          <button id="app-version-display" class="workspace-footer-btn" title="View changelog">v0.50.4</button>
         </div>
       </div>
     </div>
@@ -781,34 +787,34 @@
 
   <!-- ?v= is bumped with each release (part of the version/changelog workflow)
        so browsers and the local python server never serve stale JS. -->
-  <script src="scripts/numeric-wheel.js?v=0.50.3"></script>
-  <script src="scripts/render-runtime.js?v=0.50.3"></script>
-  <script src="scripts/auto-resize-engine.js?v=0.50.3"></script>
-  <script src="scripts/auto-arrange-config.js?v=0.50.3"></script>
-  <script src="scripts/docs-content.js?v=0.50.3"></script>
-  <script src="scripts/auth-ui.js?v=0.50.3"></script>
-  <script src="scripts/data-merge.js?v=0.50.3"></script>
-  <script src="scripts/font-subset.js?v=0.50.3"></script>
-  <script src="scripts/export-pipeline.js?v=0.50.3"></script>
-  <script src="scripts/video-export.js?v=0.50.3"></script>
-  <script src="scripts/color-picker.js?v=0.50.3"></script>
+  <script src="scripts/numeric-wheel.js?v=0.50.4"></script>
+  <script src="scripts/render-runtime.js?v=0.50.4"></script>
+  <script src="scripts/auto-resize-engine.js?v=0.50.4"></script>
+  <script src="scripts/auto-arrange-config.js?v=0.50.4"></script>
+  <script src="scripts/docs-content.js?v=0.50.4"></script>
+  <script src="scripts/auth-ui.js?v=0.50.4"></script>
+  <script src="scripts/data-merge.js?v=0.50.4"></script>
+  <script src="scripts/font-subset.js?v=0.50.4"></script>
+  <script src="scripts/export-pipeline.js?v=0.50.4"></script>
+  <script src="scripts/video-export.js?v=0.50.4"></script>
+  <script src="scripts/color-picker.js?v=0.50.4"></script>
   <!-- script.js was split into the 13 files below (v0.19.16 refactor). They are
        plain scripts sharing globals — load order matters and must be preserved. -->
-  <script src="scripts/core-state.js?v=0.50.3"></script>
-  <script src="scripts/autosave.js?v=0.50.3"></script>
-  <script src="scripts/link-system.js?v=0.50.3"></script>
-  <script src="scripts/canvas-render.js?v=0.50.3"></script>
-  <script src="scripts/interactions.js?v=0.50.3"></script>
-  <script src="scripts/canvases-panel.js?v=0.50.3"></script>
-  <script src="scripts/layers-assets.js?v=0.50.3"></script>
-  <script src="scripts/props-panel.js?v=0.50.3"></script>
-  <script src="scripts/sequencer.js?v=0.50.3"></script>
-  <script src="scripts/toolbar-import.js?v=0.50.3"></script>
-  <script src="scripts/project-io.js?v=0.50.3"></script>
-  <script src="scripts/project-dialogs.js?v=0.50.3"></script>
-  <script src="scripts/modals.js?v=0.50.3"></script>
-  <script src="scripts/share-preview.js?v=0.50.3"></script>
-  <script src="scripts/app-boot.js?v=0.50.3"></script>
+  <script src="scripts/core-state.js?v=0.50.4"></script>
+  <script src="scripts/autosave.js?v=0.50.4"></script>
+  <script src="scripts/link-system.js?v=0.50.4"></script>
+  <script src="scripts/canvas-render.js?v=0.50.4"></script>
+  <script src="scripts/interactions.js?v=0.50.4"></script>
+  <script src="scripts/canvases-panel.js?v=0.50.4"></script>
+  <script src="scripts/layers-assets.js?v=0.50.4"></script>
+  <script src="scripts/props-panel.js?v=0.50.4"></script>
+  <script src="scripts/sequencer.js?v=0.50.4"></script>
+  <script src="scripts/toolbar-import.js?v=0.50.4"></script>
+  <script src="scripts/project-io.js?v=0.50.4"></script>
+  <script src="scripts/project-dialogs.js?v=0.50.4"></script>
+  <script src="scripts/modals.js?v=0.50.4"></script>
+  <script src="scripts/share-preview.js?v=0.50.4"></script>
+  <script src="scripts/app-boot.js?v=0.50.4"></script>
 </body>
 
 </html>

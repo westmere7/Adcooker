@@ -455,7 +455,7 @@ if (!window.dmVersionHoverGlobalBound) {
   });
 }
 
-// The lightning-bolt toggle beside Full preview is the master switch for
+// The hover-preview toggle beside Full preview (pointer + motion arc) is the master switch for
 // "pointing at something plays/renders it". It governs version rows too, not
 // just the preview buttons — hovering a version re-renders every canvas, which
 // is the same kind of surprise the toggle exists to put under the user's
@@ -480,8 +480,8 @@ function dmRenderCustomSelect(container, options, activeVal, onSelect, opts) {
   const triggerTitle = !isVersionSelect
     ? 'Click destination for this version — pick a data column, or leave on the project default'
     : (wantsHoverPreview
-        ? 'Active version — click a row to switch to it, or just point at one to preview it. Hover preview is armed (lightning bolt, beside Full preview).'
-        : 'Active version — click a row to switch to it. Arm hover preview (lightning bolt, beside Full preview) to preview a version by pointing at it.');
+        ? 'Active version — click a row to switch to it, or just point at one to preview it. Hover preview is armed (the pointer button beside Full preview).'
+        : 'Active version — click a row to switch to it. Arm hover preview (the pointer button beside Full preview) to preview a version by pointing at it.');
   const existingDropdown = container.querySelector('.custom-select-dropdown');
   // Mid-hover or while open: leave the open dropdown intact (see dmVersionHoverActive).
   if (existingDropdown && (existingDropdown.style.display === 'block' || dmVersionHoverActive)) return;
@@ -606,7 +606,8 @@ function renderPreviewVersionBar() {
     const armed = (typeof hoverPreviewIsArmed === 'function') ? hoverPreviewIsArmed() : null;
     const boltHtml = (armed === null) ? '' :
       `<button id="preview-hover-preview" class="btn${armed ? ' active' : ''}" aria-pressed="${armed ? 'true' : 'false'}" style="${arrowCss} margin-left:2px;">` +
-      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4.5 13H11l-1 9 8.5-11H12l1-9z"/></svg></button>';
+      // Same pointer-with-motion-arc icon as the top bar's copy (see index.html).
+      '<svg width="13" height="13" viewBox="0 0 512 512" fill="currentColor"><path d="m282.308 512c-16.027 0-31.094-6.241-42.427-17.574-5.789-5.789-10.259-12.559-13.284-20.122-.038-.094-.075-.188-.11-.282l-105.09-274.721c-8.84-22.285-3.61-47.612 13.348-64.57 16.959-16.958 42.287-22.188 64.571-13.348l274.72 105.091c.095.036.189.073.284.111 7.563 3.026 14.333 7.496 20.122 13.285 23.393 23.393 23.393 61.458-.001 84.852-5.183 5.184-11.182 9.327-17.83 12.312l-89.372 40.148c-2.201.989-4.198 2.371-5.936 4.108s-3.119 3.734-4.108 5.935l-40.149 89.375c-2.984 6.644-7.126 12.643-12.311 17.828-11.333 11.331-26.4 17.572-42.427 17.572zm-18.525-52.438c1.001 2.458 2.475 4.671 4.383 6.579 3.778 3.779 8.801 5.859 14.143 5.859s10.364-2.081 14.142-5.858c1.737-1.738 3.119-3.734 4.107-5.933l40.15-89.376c2.986-6.646 7.127-12.645 12.311-17.828 5.184-5.184 11.182-9.326 17.829-12.312l89.374-40.149c2.202-.989 4.198-2.37 5.934-4.107 7.799-7.799 7.799-20.487.001-28.285-1.907-1.907-4.12-3.381-6.579-4.383l-274.676-105.073c-.094-.036-.188-.072-.281-.11-7.447-2.979-15.921-1.239-21.592 4.429-5.669 5.669-7.408 14.145-4.429 21.592.038.094.074.188.11.281z"/><path d="m61.631 256.015c-38.582-26.111-61.617-69.481-61.617-116.015 0-77.196 62.804-140 140-140 46.539 0 89.912 23.039 116.023 61.628 6.19 9.148 3.792 21.583-5.356 27.772-9.148 6.188-21.583 3.792-27.772-5.356-18.662-27.579-49.65-44.044-82.895-44.044-55.14 0-100 44.86-100 100 0 33.241 16.462 64.227 44.036 82.888 9.148 6.191 11.545 18.625 5.354 27.773-6.19 9.147-18.624 11.545-27.773 5.354z"/></svg></button>';
     inner += '<span style="font-size:11px;color:#9aa1b6;font-weight:600;white-space:nowrap;">Version</span>' +
       `<button id="preview-version-prev" class="btn" title="Previous version" style="${arrowCss}">` +
       '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg></button>' +
