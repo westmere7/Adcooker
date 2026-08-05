@@ -2718,6 +2718,13 @@ function openSettings() {
         clearBtn.style.display = '';
         saveBtn.textContent = 'Replace with current';
         if (modeOpt) { modeOpt.disabled = false; modeOpt.textContent = 'Your saved default project'; }
+        // Say plainly whether it is actually in use, so a saved-but-not-selected
+        // default can't look like it is doing something it isn't.
+        if (localStorage.getItem('adflow-startup-mode') !== STARTUP_MODE_DEFAULT_PROJECT) {
+          statusEl.textContent += ' Not currently in use — pick “Your saved default project” above.';
+        } else {
+          statusEl.textContent += ' In use for new projects.';
+        }
         return;
       }
 
@@ -2761,6 +2768,12 @@ function openSettings() {
         tempSettings.startupMode = STARTUP_MODE_DEFAULT_PROJECT;
         if (modeOpt) modeOpt.disabled = false;
         if (selectStartupMode) selectStartupMode.value = STARTUP_MODE_DEFAULT_PROJECT;
+        // Committed here, NOT left to the dialog's Save button. The upload has
+        // already happened and cannot be rolled back, so staging only half of the
+        // action meant closing Settings without pressing Save uploaded the default
+        // and then ignored it — New Project carried on handing out blank boards.
+        // The dialog's cancel path never touches this key, so writing it now is safe.
+        localStorage.setItem('adflow-startup-mode', STARTUP_MODE_DEFAULT_PROJECT);
         showCanvasNotification(`“${meta.name}” is now the default for new projects.`, { type: 'success' });
       } catch (e) {
         console.error(e);
@@ -2775,10 +2788,13 @@ function openSettings() {
     clearBtn.addEventListener('click', async () => {
       if (!(await showAdflowConfirm('Delete your saved default startup project? New projects will start from an empty board again.'))) return;
       try {
+        // Same reasoning as the save side: the delete is immediate, so the
+        // preference that depended on it commits immediately too.
+        // clearDefaultStartupProject() already writes 'fresh' to the key.
         await clearDefaultStartupProject();
         tempSettings.startupMode = 'fresh';
         if (selectStartupMode) selectStartupMode.value = 'fresh';
-        showCanvasNotification('Default startup project cleared.', { type: 'info' });
+        showCanvasNotification('Default startup project cleared. New projects will start from an empty board.', { type: 'info' });
       } catch (e) {
         console.error(e);
         showCanvasNotification(e.message || 'Could not clear the default startup project.', { type: 'error' });
