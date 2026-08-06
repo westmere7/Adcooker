@@ -891,6 +891,14 @@ document.getElementById('menu-help-documentation').addEventListener('click', ope
 
 const CHANGELOG_DATA = [
   {
+    version: 'v0.51.4',
+    date: 'August 2026 — Engine v3.0',
+    items: [
+      'Share Links Can Now Run to 90 Days, or Not Expire At All: the expiry list stopped at 30 days, which is shorter than plenty of campaigns and meant handing a client a replacement link partway through a review. It gains "90 Days" and "Never — until I delete it". 30 Days stays the default and is still the one to pick when nothing argues otherwise.',
+      'Choosing Never Explains What You Are Taking On: an expiry date is the only part of a share link that cleans up after itself, so removing it is a real decision and the dialog says so as you make it, not after. Selecting Never reveals a warning: nothing will ever close the link for you, so anyone it is forwarded to keeps access to the project — and to every cloud save you make afterwards — until you return to this dialog and delete it. A link with no expiry then says exactly that on the screen showing it, in place of the expiry date it no longer has.'
+    ]
+  },
+  {
     version: 'v0.51.3',
     date: 'August 2026 — Engine v3.0',
     items: [

@@ -15,7 +15,8 @@
 // project itself must therefore not carry them — see stripShareLink callers.
 const SHARE_LINK_FIELDS = [
   'previewUrl', 'previewExpiry', 'previewSharePath',
-  'previewShareProjectId', 'previewSharedBy', 'previewSharedAt'
+  'previewShareProjectId', 'previewSharedBy', 'previewSharedAt',
+  'previewNeverExpires'
 ];
 function stripShareLink(o) {
   if (!o) return o;

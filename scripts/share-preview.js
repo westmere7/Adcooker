@@ -35,6 +35,15 @@ const _shareModalIsOpen = () => !!(_shareModalEl && _shareModalEl.isConnected);
 // creation while the first is mid-flight.
 let _shareCreateInFlight = false;
 
+// "Never" is a promise the underlying storage cannot literally make: a signed
+// URL always carries an expiry, so the honest implementation of never is a
+// lifetime longer than the project it points at. Ten years is chosen over
+// something absurd like a century because the number goes into a signature the
+// storage service has to accept, and a plausible one is likelier to survive any
+// server-side ceiling. The link still ends the moment you delete it, which is
+// what the option actually offers and what the warning says.
+const SHARE_NEVER_EXPIRES_SECONDS = 10 * 365 * 24 * 60 * 60;
+
 async function openSharePreviewModal() {
   if (_shareModalIsOpen()) {
     _shareModalEl.querySelector('.modal')?.animate?.(
@@ -126,7 +135,10 @@ async function openSharePreviewModal() {
     const h = Math.floor(m / 60);
     if (h < 24) return `in ${h} hour${h > 1 ? 's' : ''}`;
     const d = Math.floor(h / 24);
-    return `in ${d} day${d > 1 ? 's' : ''}`;
+    if (d < 90) return `in ${d} day${d > 1 ? 's' : ''}`;
+    const mo = Math.floor(d / 30);
+    if (mo < 24) return `in ${mo} months`;
+    return `in ${Math.floor(d / 365)} years`;
   }
 
   function showConfigScreen(showCancelToActive = false) {
@@ -142,7 +154,16 @@ async function openSharePreviewModal() {
             <option value="86400">1 Day</option>
             <option value="604800">7 Days</option>
             <option value="2592000" selected>30 Days (Recommended)</option>
+            <option value="7776000">90 Days</option>
+            <option value="never">Never — until I delete it</option>
           </select>
+          <div id="share-expiry-warning" hidden style="margin-top: 10px; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.28); border-radius: 6px; padding: 10px 12px; font-size: 12px; line-height: 1.55; color: var(--text-muted); display: flex; gap: 8px; align-items: flex-start;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-top:1px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <div>
+              <strong style="color: var(--text-main); font-weight: 600;">This link will never expire on its own.</strong>
+              Nothing will ever close it for you, so anyone it is forwarded to keeps access to this project — and to every cloud save you make afterwards — until you come back to this dialog and delete it. An expiry date is the only part of a share link that cleans up after itself; choose a dated option unless you genuinely need one that outlives the campaign.
+            </div>
+          </div>
         </div>
 
         <div style="display: flex; gap: 8px; justify-content: flex-end;">
@@ -152,6 +173,12 @@ async function openSharePreviewModal() {
       </div>
     `;
     
+    const expirySelect = bg.querySelector('#share-expiry-select');
+    const expiryWarning = bg.querySelector('#share-expiry-warning');
+    // Shown on selection rather than as a confirm on submit: the point is to
+    // inform the choice while it is still being made, not to interrupt it after.
+    expirySelect.onchange = () => { expiryWarning.hidden = expirySelect.value !== 'never'; };
+
     bg.querySelector('#btn-share-settings-cancel').onclick = () => {
       if (showCancelToActive && state.previewUrl && typeof state.previewExpiry === 'number' && state.previewExpiry > Date.now()) {
         showActiveLinkScreen();
@@ -163,7 +190,8 @@ async function openSharePreviewModal() {
     bg.querySelector('#btn-make-share-link').onclick = async () => {
       if (_shareCreateInFlight) return;
       _shareCreateInFlight = true;
-      const expires = parseInt(bg.querySelector('#share-expiry-select').value);
+      const neverExpires = expirySelect.value === 'never';
+      const expires = neverExpires ? SHARE_NEVER_EXPIRES_SECONDS : parseInt(expirySelect.value);
 
       bodyEl.innerHTML = `
         <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 0; gap: 12px;">
@@ -207,6 +235,12 @@ async function openSharePreviewModal() {
           state.previewSharePath = path;
           state.previewShareProjectId = state.projectId;
           state.previewExpiry = Date.now() + expires * 1000;
+          // previewExpiry stays a real date even for a never-link — the portal
+          // and every guard in here compare against it, and a link with no date
+          // at all would read as "expired" to all of them. The flag is only how
+          // the dialog knows not to quote a date nobody chose.
+          if (neverExpires) state.previewNeverExpires = true;
+          else delete state.previewNeverExpires;
           state.previewSharedBy = u.email;
           state.previewSharedAt = Date.now();
           delete state.previewUrl;
@@ -318,7 +352,9 @@ async function openSharePreviewModal() {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-base)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-top:1px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
           <div>
             Anyone with this link can view the preview — no login needed. It updates each time you save to cloud.
-            <div style="margin-top: 4px; font-weight: 500;">Link expires ${_formatFutureTime(state.previewExpiry)} (on ${new Date(state.previewExpiry).toLocaleDateString()}).</div>
+            <div style="margin-top: 4px; font-weight: 500;">${state.previewNeverExpires
+              ? 'This link has no expiry date. It stays live until you delete it here.'
+              : `Link expires ${_formatFutureTime(state.previewExpiry)} (on ${new Date(state.previewExpiry).toLocaleDateString()}).`}</div>
           </div>
         </div>
 
