@@ -891,6 +891,13 @@ document.getElementById('menu-help-documentation').addEventListener('click', ope
 
 const CHANGELOG_DATA = [
   {
+    version: 'v0.51.6',
+    date: 'August 2026 — Engine v3.0',
+    items: [
+      'The Side Panels Now Show When There Is More to Scroll To: both columns clip their contents with nothing to say so. A section header sitting flush against the bottom edge looked like the end of the panel rather than the middle of it, and the only way to find out otherwise was to try scrolling. A soft fade now appears at whichever edge has content beyond it — at the bottom when there is more below, at the top once you have scrolled away from it, at both when you are somewhere in the middle, and at neither when everything already fits. It follows the panels as they change: collapsing a section, selecting a different element, or resizing the window all re-check whether an edge is still clipped.'
+    ]
+  },
+  {
     version: 'v0.51.5',
     date: 'August 2026 — Engine v3.0',
     items: [
