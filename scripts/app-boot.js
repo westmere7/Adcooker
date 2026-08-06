@@ -1048,6 +1048,58 @@ window.addEventListener('beforeunload', () => {
 });
 
 
+// Scroll-edge fades for the two side columns.
+//
+// CSS paints the gradients (see .panel-scroll::before/::after) but cannot ask
+// where a scroller currently sits, so the two state classes are set here.
+// Three things change whether an edge is clipped and all three have to be
+// watched: scrolling, the panel resizing, and the content inside it changing
+// height — the props column is rebuilt on every selection, and the left column
+// grows and shrinks as sections collapse.
+function initPanelScrollFades() {
+  document.querySelectorAll('.panel-scroll').forEach(scroller => {
+    if (scroller.dataset.scrollFadeInit === 'true') return;
+    scroller.dataset.scrollFadeInit = 'true';
+
+    let queued = false;
+    const update = () => {
+      queued = false;
+      // 1px of slack: fractional scroll offsets (zoom, hidpi) otherwise leave a
+      // fade stuck on at a hard stop.
+      const max = scroller.scrollHeight - scroller.clientHeight;
+      scroller.classList.toggle('scroll-above', scroller.scrollTop > 1);
+      scroller.classList.toggle('scroll-below', scroller.scrollTop < max - 1);
+    };
+    // Content mutations arrive in bursts (a whole panel re-render is hundreds of
+    // them); coalesce to one measurement per frame so this never becomes the
+    // expensive part of a re-render.
+    const schedule = () => {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(update);
+    };
+
+    scroller.addEventListener('scroll', schedule, { passive: true });
+    if (typeof ResizeObserver !== 'undefined') {
+      // The scroller for viewport height, its children for content height —
+      // observing the scroller alone misses content growing inside a box whose
+      // own size never changes.
+      const ro = new ResizeObserver(schedule);
+      ro.observe(scroller);
+      [...scroller.children].forEach(ch => ro.observe(ch));
+      // Children come and go (the props panel replaces its contents wholesale),
+      // so newly added ones have to be picked up as they appear.
+      new MutationObserver(muts => {
+        muts.forEach(m => m.addedNodes.forEach(n => {
+          if (n.nodeType === 1) ro.observe(n);
+        }));
+        schedule();
+      }).observe(scroller, { childList: true, subtree: true });
+    }
+    schedule();
+  });
+}
+
 function initCollapsiblePanels() {
   document.querySelectorAll('.panel-header-collapsible').forEach(header => {
     if (header.dataset.collapsibleInit === 'true') return;
@@ -1323,7 +1375,7 @@ const appSplash = (() => {
         const verEl = document.createElement('span');
         verEl.className = 'app-splash-version';
         verEl.style.cssText = 'font-size: 10px; color: var(--text-muted, #8b8f9c); border: 1px solid rgba(139, 143, 156, 0.4); padding: 2px 8px; border-radius: 10px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: inline-flex; align-items: center; justify-content: center; line-height: 1; margin-top: 2px;';
-        verEl.textContent = 'v0.51.5';
+        verEl.textContent = 'v0.51.6';
         logoEl.appendChild(verEl);
       }
     }
@@ -1552,6 +1604,7 @@ async function loadStartupTemplate(fileName, customProjectName, customCompressFo
   }
   setActiveTool(state.activeTool || 'select');
   initCollapsiblePanels();
+  initPanelScrollFades();
   appSplash.setPhase(4);
   checkVersionUpdate();
   initVersionWatch();

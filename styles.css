@@ -1849,6 +1849,45 @@ body.theme-rmit-navy {
       height: 100%;
     }
 
+    /* ---------- scroll-edge fades ----------
+       Both side columns clip their contents with no outward sign of it: a
+       section header sitting flush against the bottom edge looks like the end
+       of the panel, not the middle of it. A soft fade at whichever edge has
+       content beyond it says otherwise.
+
+       Sticky pseudo-elements rather than absolutely-positioned overlays,
+       because these live INSIDE the scroller — an absolute child would scroll
+       away with the content, and hanging them on .panel instead would have to
+       account for the pinned header and the sequencer that sit outside the
+       scroll area. Negative margins keep them out of the flow, so they overlay
+       the first and last 28px instead of displacing anything.
+
+       The .scroll-above / .scroll-below classes come from JS (initPanelScrollFades),
+       since CSS cannot ask where a scroller currently sits. */
+    .panel-scroll::before,
+    .panel-scroll::after {
+      content: '';
+      position: sticky;
+      z-index: 5;
+      flex: 0 0 auto;
+      height: 28px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .18s ease;
+    }
+    .panel-scroll::before {
+      top: 0;
+      margin-bottom: -28px;
+      background: linear-gradient(to bottom, var(--bg-panel) 15%, transparent);
+    }
+    .panel-scroll::after {
+      bottom: 0;
+      margin-top: -28px;
+      background: linear-gradient(to top, var(--bg-panel) 15%, transparent);
+    }
+    .panel-scroll.scroll-above::before { opacity: 1; }
+    .panel-scroll.scroll-below::after { opacity: 1; }
+
     .panel-section.sibling-hidden {
       display: none !important;
     }
