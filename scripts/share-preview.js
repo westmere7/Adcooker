@@ -25,15 +25,19 @@
 // is pressed, so interleaving them left both pointing at the same old path,
 // both deleting it, and one freshly-signed snapshot alive with nothing in the
 // project referencing it — a second share link, permanent until it expired.
-let _shareModalOpen = false;
+// Tracked as the element rather than a boolean on purpose: other flows remove
+// `.modal-bg` nodes wholesale (pullCloudProject does), which would never run
+// our close handler and would leave a flag stuck true — Share unopenable for
+// the rest of the session. isConnected can't get out of step that way.
+let _shareModalEl = null;
+const _shareModalIsOpen = () => !!(_shareModalEl && _shareModalEl.isConnected);
 // Second guard, one level down: the same dialog must not start a second
 // creation while the first is mid-flight.
 let _shareCreateInFlight = false;
 
 async function openSharePreviewModal() {
-  if (_shareModalOpen) {
-    const existing = document.querySelector('.modal-bg .modal');
-    if (existing) existing.animate?.(
+  if (_shareModalIsOpen()) {
+    _shareModalEl.querySelector('.modal')?.animate?.(
       [{ transform: 'scale(1)' }, { transform: 'scale(1.015)' }, { transform: 'scale(1)' }],
       { duration: 180 }
     );
@@ -68,9 +72,9 @@ async function openSharePreviewModal() {
       </div>
     `;
     document.body.appendChild(bg);
-    _shareModalOpen = true;
+    _shareModalEl = bg;
 
-    const closeFn = () => { _shareModalOpen = false; bg.remove(); };
+    const closeFn = () => { _shareModalEl = null; bg.remove(); };
     bg.querySelector('#modal-close').onclick = closeFn;
     bg.querySelector('#btn-share-cancel').onclick = closeFn;
     bg.querySelector('#btn-share-login').onclick = () => {
@@ -97,14 +101,14 @@ async function openSharePreviewModal() {
     </div>
   `;
   document.body.appendChild(bg);
-  _shareModalOpen = true;
+  _shareModalEl = bg;
 
   // Closing mid-creation would abandon a half-built share (snapshot uploaded,
   // pointer not yet saved), so the dialog refuses to go away while a link is
   // being made. The flow always ends on a screen with its own way out.
   const closeFn = () => {
     if (_shareCreateInFlight) return;
-    _shareModalOpen = false;
+    _shareModalEl = null;
     bg.remove();
   };
   bg.querySelector('#modal-close').onclick = closeFn;
