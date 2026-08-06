@@ -58,9 +58,7 @@ async function createNewProject({ name, presetIndices, sizeLimitKb, bgColor, cli
   // A brand-new project has never been shared — drop any preview-share metadata
   // carried over from the previously open project, so the Share dialog opens to
   // the "create link" screen instead of showing a stale active link.
-  delete state.previewUrl;
-  delete state.previewExpiry;
-  delete state.previewSharePath;
+  stripShareLink(state);
   // Same reasoning for the cloud-save stamp: a brand-new project has never been
   // pushed, so it must not inherit the last project's "Updated ..." line.
   delete state.cloudSavedAt;
@@ -159,11 +157,7 @@ async function createProjectFromDefaultStartup({ name, compressFormat, overrides
   // Belt and braces: buildFlowBlob strips these when the default is saved, but a
   // snapshot written by an older build could still carry them, and inheriting a
   // share link or a cloud stamp is exactly the confusion this must not create.
-  delete state.previewUrl;
-  delete state.previewExpiry;
-  delete state.previewSharePath;
-  delete state.previewSharedBy;
-  delete state.previewSharedAt;
+  stripShareLink(state);
   delete state.cloudSavedAt;
   delete state.cloudSavedBy;
   delete state.spaceId;
@@ -2180,7 +2174,7 @@ document.getElementById('menu-help-shortcuts').addEventListener('click', () => {
 
 
 function checkVersionUpdate() {
-  const currentVersion = 'v0.51.2';
+  const currentVersion = 'v0.51.3';
   const lastSeen = localStorage.getItem('last-seen-version');
   
   if (!lastSeen) {
@@ -2412,7 +2406,7 @@ function openSettings() {
           <div class="modal-head" style="border-bottom:1px solid var(--border-light); background:var(--bg-panel); flex-shrink:0;">
             <div style="display:flex; align-items:center; gap:12px; flex:1;">
               <h2 style="margin:0; font-size:14px; font-weight:600; color:var(--text-bright);">Settings</h2>
-              <span style="font-size:11px; color:var(--text-muted);">v0.51.2</span>
+              <span style="font-size:11px; color:var(--text-muted);">v0.51.3</span>
               <button id="settings-changelog" title="See what changed in this and previous versions of Adflow" class="btn" style="padding:4px 8px; font-size:10px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; cursor:pointer;">Changelog</button>
             </div>
             <button class="btn" id="settings-close" title="Close without keeping any change made since the dialog opened">Close</button>

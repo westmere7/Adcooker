@@ -19,7 +19,26 @@
   }
 })();
 
+// Only one share dialog at a time. Nothing stopped the toolbar button and the
+// File menu item from each opening their own before, and two dialogs are two
+// independent flows: each reads the CURRENT snapshot path when its Make button
+// is pressed, so interleaving them left both pointing at the same old path,
+// both deleting it, and one freshly-signed snapshot alive with nothing in the
+// project referencing it — a second share link, permanent until it expired.
+let _shareModalOpen = false;
+// Second guard, one level down: the same dialog must not start a second
+// creation while the first is mid-flight.
+let _shareCreateInFlight = false;
+
 async function openSharePreviewModal() {
+  if (_shareModalOpen) {
+    const existing = document.querySelector('.modal-bg .modal');
+    if (existing) existing.animate?.(
+      [{ transform: 'scale(1)' }, { transform: 'scale(1.015)' }, { transform: 'scale(1)' }],
+      { duration: 180 }
+    );
+    return;
+  }
   const u = typeof authState !== 'undefined' ? authState.currentUser() : null;
   if (!u || !sb) {
     const body = `
@@ -49,8 +68,9 @@ async function openSharePreviewModal() {
       </div>
     `;
     document.body.appendChild(bg);
-    
-    const closeFn = () => bg.remove();
+    _shareModalOpen = true;
+
+    const closeFn = () => { _shareModalOpen = false; bg.remove(); };
     bg.querySelector('#modal-close').onclick = closeFn;
     bg.querySelector('#btn-share-cancel').onclick = closeFn;
     bg.querySelector('#btn-share-login').onclick = () => {
@@ -77,8 +97,16 @@ async function openSharePreviewModal() {
     </div>
   `;
   document.body.appendChild(bg);
-  
-  const closeFn = () => bg.remove();
+  _shareModalOpen = true;
+
+  // Closing mid-creation would abandon a half-built share (snapshot uploaded,
+  // pointer not yet saved), so the dialog refuses to go away while a link is
+  // being made. The flow always ends on a screen with its own way out.
+  const closeFn = () => {
+    if (_shareCreateInFlight) return;
+    _shareModalOpen = false;
+    bg.remove();
+  };
   bg.querySelector('#modal-close').onclick = closeFn;
   bg.onclick = (e) => { if (e.target === bg) closeFn(); };
 
@@ -129,8 +157,10 @@ async function openSharePreviewModal() {
     };
     
     bg.querySelector('#btn-make-share-link').onclick = async () => {
+      if (_shareCreateInFlight) return;
+      _shareCreateInFlight = true;
       const expires = parseInt(bg.querySelector('#share-expiry-select').value);
-      
+
       bodyEl.innerHTML = `
         <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 0; gap: 12px;">
           <div class="adflow-share-spinner" style="width: 28px; height: 28px; border: 3px solid var(--accent-base); border-top-color: transparent; border-radius: 50%;"></div>
@@ -148,6 +178,7 @@ async function openSharePreviewModal() {
         // it (pushed), keep sharing — only bail out if they cancelled, so the dialog
         // no longer closes out from under a successful Replace/Rename.
         if (pushRes && pushRes.collisionHandled && !pushRes.pushed) {
+          _shareCreateInFlight = false;
           closeFn();
           return;
         }
@@ -160,14 +191,17 @@ async function openSharePreviewModal() {
         const token = (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
         const path = `${u.id}/shares/${token}.flow`;
         const oldPath = state.previewSharePath;
-        const oldExpiry = state.previewExpiry;
-        const oldUrl = state.previewUrl;
+        const prev = Object.fromEntries(SHARE_LINK_FIELDS.map(k => [k, state[k]]));
+        let snapshotUploaded = false;
 
         try {
           // Bake share metadata into the snapshot BEFORE building it: the
           // portal validates previewSharePath/previewExpiry inside the loaded
           // file (previewUrl is only known after signing, so it can't be baked).
+          // previewShareProjectId is what lets every other copy of this project
+          // recognise the snapshot as not theirs (see dropInheritedShareLink).
           state.previewSharePath = path;
+          state.previewShareProjectId = state.projectId;
           state.previewExpiry = Date.now() + expires * 1000;
           state.previewSharedBy = u.email;
           state.previewSharedAt = Date.now();
@@ -181,6 +215,7 @@ async function openSharePreviewModal() {
           // updated snapshot at the same path isn't served stale by the CDN.
           const { error: upErr } = await sb.storage.from('projects').upload(path, blob, PROJECT_BLOB_UPLOAD_OPTS);
           if (upErr) throw upErr;
+          snapshotUploaded = true;
 
           // Generate signed URL for the snapshot
           if (textEl) textEl.textContent = 'Generating secure signed URL...';
@@ -191,29 +226,68 @@ async function openSharePreviewModal() {
           const username = u.email ? u.email.split('@')[0] : 'Unknown';
           const shareTime = Date.now();
           state.previewUrl = window.location.origin + window.location.pathname.replace('index.html', '') + 'preview.html?url=' + encodeURIComponent(data.signedUrl) + '&by=' + encodeURIComponent(username) + '&at=' + shareTime;
+
+          // Record the new pointer in the CLOUD copy before anything else, and
+          // treat a failure here as a failure of the whole operation.
+          //
+          // This used to be a scheduleAutosave() — IndexedDB only, with the
+          // pointer riding along on whatever cloud push happened next. Reopen
+          // the project from the cloud on another machine (or after clearing
+          // local data) and the pointer was the PREVIOUS one, so making a link
+          // revoked a snapshot that was already dead and left the real, live
+          // one referenced by nothing: a second working link, invisible to the
+          // dialog, to project deletion, and to the storage audit.
+          if (textEl) textEl.textContent = 'Saving share link to cloud...';
+          await pushCurrentProjectToCloud({ skipCollisionCheck: true });
         } catch (err) {
-          // Roll back metadata so a failed attempt doesn't leave the project
-          // pointing at a snapshot that was never created.
-          state.previewSharePath = oldPath;
-          state.previewExpiry = oldExpiry;
-          delete state.previewSharedBy;
-          delete state.previewSharedAt;
-          if (oldUrl) state.previewUrl = oldUrl; else delete state.previewUrl;
+          // Roll back everything a failed attempt might have left behind: the
+          // metadata, so the project isn't pointing at a snapshot that isn't
+          // serving anything, and the snapshot itself if it got as far as being
+          // uploaded. The previous link is untouched and still works.
+          for (const k of SHARE_LINK_FIELDS) {
+            if (prev[k] === undefined) delete state[k]; else state[k] = prev[k];
+          }
+          if (snapshotUploaded) {
+            try { await sb.storage.from('projects').remove([path]); } catch (e) {
+              console.warn('Could not clean up the abandoned snapshot at', path, e);
+            }
+          }
           throw err;
         }
 
-        // Revoke the previous link by removing its snapshot (best-effort —
-        // v0.20.0-era links pointed at the live file and have no snapshot).
+        // Only now — with the new link live and its pointer durably in the
+        // cloud — is it safe to revoke the previous one. Doing it earlier meant
+        // a later failure could take out the old link without producing a new.
+        //
+        // v0.20.0-era links pointed at the live project file and have no
+        // snapshot of their own, so "nothing was deleted" is expected there.
         if (oldPath && oldPath !== path) {
-          try { await sb.storage.from('projects').remove([oldPath]); } catch (e) {}
+          if (textEl) textEl.textContent = 'Revoking the previous link...';
+          let revoked = false;
+          try {
+            const { data: removed, error: rmErr } = await sb.storage.from('projects').remove([oldPath]);
+            if (rmErr) throw rmErr;
+            revoked = Array.isArray(removed) && removed.length > 0;
+          } catch (e) {
+            console.warn('Could not revoke the previous share snapshot at', oldPath, e);
+          }
+          // The dialog promises the old link stops working immediately. When the
+          // delete doesn't land, that promise is false and the user is the only
+          // one who can act on it — so say so rather than swallowing it, which
+          // is what this did before.
+          if (!revoked && typeof showCanvasNotification === 'function') {
+            showCanvasNotification(
+              'New link created, but the previous one could not be revoked — it may keep working until it expires. Delete and recreate the link to retry.',
+              { type: 'warning', duration: 9000 }
+            );
+          }
         }
 
-        // Persist via autosave; the metadata rides along on the next cloud push.
-        if (typeof scheduleAutosave === 'function') scheduleAutosave();
-
+        _shareCreateInFlight = false;
         showActiveLinkScreen();
 
       } catch (err) {
+        _shareCreateInFlight = false;
         showErrorScreen(err);
       }
     };
@@ -304,11 +378,20 @@ async function openSharePreviewModal() {
           if (rmErr) throw rmErr;
         }
 
-        // Remove preview metadata (persisted via autosave / next cloud push).
-        delete state.previewUrl;
-        delete state.previewExpiry;
-        delete state.previewSharePath;
-        if (typeof scheduleAutosave === 'function') scheduleAutosave();
+        // Clear the pointer in the cloud copy too, not just locally. A cloud
+        // blob still naming a deleted snapshot is what let a revoked link come
+        // back: reopen elsewhere, push, and `upsert: true` recreates the object
+        // under a signed URL that never stopped being valid.
+        stripShareLink(state);
+        if (textEl) textEl.textContent = 'Saving to cloud...';
+        try {
+          await pushCurrentProjectToCloud({ skipCollisionCheck: true });
+        } catch (e) {
+          // The link is already dead — the snapshot is gone. Only the bookkeeping
+          // failed, and autosave plus the next push will finish it.
+          console.warn('Could not persist share-link removal to cloud:', e);
+          if (typeof scheduleAutosave === 'function') scheduleAutosave();
+        }
 
         showConfigScreen(false);
         if (typeof showCanvasNotification === 'function') {

@@ -9,6 +9,38 @@
 // second one for identity: a default that carried a share link or a cloud-save
 // stamp would hand both to every project created from it. createNewProject deletes
 // exactly these fields for the same reason.
+// The fields that bind a project to a LIVE share snapshot. They are identity,
+// not content: whoever holds them can overwrite the file a reviewer is looking
+// at, and can revoke their link by making a new one. Any copy that is not the
+// project itself must therefore not carry them — see stripShareLink callers.
+const SHARE_LINK_FIELDS = [
+  'previewUrl', 'previewExpiry', 'previewSharePath',
+  'previewShareProjectId', 'previewSharedBy', 'previewSharedAt'
+];
+function stripShareLink(o) {
+  if (!o) return o;
+  for (const k of SHARE_LINK_FIELDS) delete o[k];
+  return o;
+}
+
+// A share snapshot belongs to exactly ONE project id (stamped as
+// previewShareProjectId when the link is made). A .flow travels — it gets
+// exported, re-imported, cloned into a team space — and every copy used to
+// arrive still claiming the original's snapshot, which meant pushing the COPY
+// overwrote what the ORIGINAL's reviewers were looking at, and sharing the copy
+// silently revoked the original's link. So on load, a pointer that names a
+// different project than the one we ended up as is somebody else's and is
+// dropped. Links made before the stamp existed have no id to compare and are
+// left alone, so existing shares keep working.
+function dropInheritedShareLink() {
+  if (!state.previewSharePath) return;
+  if (!state.previewShareProjectId) return;
+  if (state.previewShareProjectId === state.projectId) return;
+  console.warn('Dropping inherited share link', state.previewSharePath,
+    '— it belongs to project', state.previewShareProjectId, 'not', state.projectId);
+  stripShareLink(state);
+}
+
 async function buildFlowBlob(isTemplate = false, opts = {}) {
   if (typeof JSZip === 'undefined') throw new Error('JSZip is not loaded.');
   const forDefaultStartup = !!opts.forDefaultStartup;
@@ -24,6 +56,10 @@ async function buildFlowBlob(isTemplate = false, opts = {}) {
     delete exportState.projectId;
     delete exportState.cloudId;
     delete exportState.cloudFolder;
+    // A template seeds NEW projects, and it drops projectId right above — so a
+    // share pointer riding along here would land in a project that can never be
+    // matched back to it, and would let that project revoke the real owner's link.
+    stripShareLink(exportState);
 
     exportState.selectedElementId = null;
     exportState.layerSelection = [];
@@ -68,11 +104,7 @@ async function buildFlowBlob(isTemplate = false, opts = {}) {
     if (forDefaultStartup) {
       // Identity, not content. A default-startup snapshot is a starting point for
       // projects that have never been shared or pushed, so it must not carry:
-      delete exportState.previewUrl;          // …an active share link,
-      delete exportState.previewExpiry;
-      delete exportState.previewSharePath;
-      delete exportState.previewSharedBy;
-      delete exportState.previewSharedAt;
+      stripShareLink(exportState);            // …an active share link,
       delete exportState.cloudSavedAt;        // …a "saved to cloud" stamp,
       delete exportState.cloudSavedBy;
       delete exportState.spaceId;             // …or a team-space binding.
@@ -464,9 +496,7 @@ async function loadProjectFromState(loadedState) {
   // the project being loaded. Object.assign restores previewSharePath/previewExpiry
   // from the file if it has them; previewUrl is session-only (never baked) and
   // stays cleared, so a project that was never shared shows no active link.
-  delete state.previewUrl;
-  delete state.previewExpiry;
-  delete state.previewSharePath;
+  stripShareLink(state);
   // Cleared then restored by the Object.assign below if the file carries one,
   // exactly like the share metadata above — the preview portal's "Updated ..."
   // line depends on this travelling inside the .flow.
@@ -476,6 +506,9 @@ async function loadProjectFromState(loadedState) {
   Object.assign(state, loadedState);
   delete state.isTemplate;
   if (!state.projectId) state.projectId = uid('proj_');
+  // projectId is settled — now decide whether the share pointer we just merged
+  // in is actually ours.
+  dropInheritedShareLink();
 
   // Re-home legacy centre-anchored layouts onto the smaller board.
   const positionsMigrated = normalizeCanvasPositions();
@@ -600,9 +633,7 @@ async function loadProjectFromBlob(file, customProjectName, existingProgress = n
     // Clear the previously open project's share-link metadata before merging so it
     // can't leak into the loaded project (see loadProjectFromState). Object.assign
     // restores previewSharePath/previewExpiry from the file if present.
-    delete state.previewUrl;
-    delete state.previewExpiry;
-    delete state.previewSharePath;
+    stripShareLink(state);
     // Cleared then restored by the Object.assign below if the file carries one,
     // exactly like the share metadata above — the preview portal's "Updated ..."
     // line depends on this travelling inside the .flow.
@@ -623,6 +654,9 @@ async function loadProjectFromBlob(file, customProjectName, existingProgress = n
     state.zoom = 1.0;
     state.assets = newAssets || {};
     if (!state.projectId) state.projectId = uid('proj_');
+    // projectId is settled — now decide whether the share pointer we just merged
+    // in is actually ours.
+    dropInheritedShareLink();
     // Re-home legacy centre-anchored layouts onto the smaller board.
     const positionsMigrated = normalizeCanvasPositions();
     await syncRmitAssets();

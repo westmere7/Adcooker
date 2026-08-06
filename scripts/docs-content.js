@@ -891,6 +891,18 @@ document.getElementById('menu-help-documentation').addEventListener('click', ope
 
 const CHANGELOG_DATA = [
   {
+    version: 'v0.51.3',
+    date: 'August 2026 — Engine v3.0',
+    items: [
+      'A Project Can Now Only Ever Have One Share Link: making a new link is supposed to replace the old one, and the dialog says so. It did not always happen. A share link points at a snapshot file, and the only record of which snapshot belongs to a project was being written to this browser rather than to the project’s cloud copy. Open the same project on another machine, or after clearing your browser data, and Adflow was working from the previous snapshot’s address: making a new link revoked one that was already dead and left the real, live link belonging to nothing. It kept working, for as long as its expiry allowed, invisible to the Share dialog, to deleting the project and to the storage audit. The pointer is now saved to the cloud as part of making the link, and the old snapshot is not removed until that has succeeded.',
+      'The Share Dialog Opens Once: the toolbar button and File ▸ Share each used to open their own copy, and two dialogs are two separate attempts. Start a link in both and each revokes the same old snapshot while one of the two new ones survives with nothing referencing it. Pressing either now brings the dialog you already have forward, and the Make button ignores a second press while the first is still working.',
+      'You Are Told When the Old Link Survives: revoking the previous snapshot was a silent, best-effort delete. If it failed, the dialog still said the previous link had stopped working immediately, and nobody found out that it had not. A failed revocation now raises a warning telling you the old link may keep working until it expires, and what to do about it.',
+      'A Copy of a Shared Project No Longer Borrows Its Link: duplicating a team space copies every project in it, and each copy arrived still claiming the original’s snapshot. The first time you saved the copy, it published itself to the original’s reviewers, at the original’s link. Sharing the copy revoked the original’s link outright. Share links now record which project they belong to, copies are made without one, and a link that names a different project than the one you have open is ignored rather than acted on. Templates and the base project were already stripped this way; ordinary copies now are too.',
+      'Deleted Links Stay Deleted: deleting a link removes the snapshot, but the address stays valid until the link’s expiry, so anything that later wrote a file back to that address brought the link back to life. Adflow now clears the record from the cloud copy when you delete a link, and refuses to write to a snapshot address that no longer holds a file.',
+      'A Failed Attempt Leaves Nothing Behind: if making a link failed partway — usually a dropped connection while signing the URL — the snapshot it had already uploaded stayed in your storage, referenced by nothing. The attempt now cleans up after itself and leaves your existing link exactly as it was.'
+    ]
+  },
+  {
     version: 'v0.51.2',
     date: 'August 2026 — Engine v3.0',
     items: [

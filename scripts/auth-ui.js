@@ -182,9 +182,14 @@ const spacesState = (() => {
         // of the project into the new space.
         const blob = await downloadProjectBlobFresh(p.storage_path);
         if (!blob) continue;
+        // A byte-for-byte copy would carry the source's share pointer into the
+        // new space, and the copy's first push would then republish itself over
+        // the original's live reviewer link. The copy is a new project; it
+        // starts with no link of its own.
+        const copyBlob = await blobWithoutShareLink(blob);
         const newId = (crypto.randomUUID && crypto.randomUUID()) || uid('proj_');
         const newPath = `spaces/${newSpace.id}/${newId}.flow`;
-        const { error: upErr } = await sb.storage.from('projects').upload(newPath, blob, PROJECT_BLOB_UPLOAD_OPTS);
+        const { error: upErr } = await sb.storage.from('projects').upload(newPath, copyBlob, PROJECT_BLOB_UPLOAD_OPTS);
         if (upErr) continue;
         await sb.from('projects').insert({
           user_id: u.id,
@@ -192,7 +197,7 @@ const spacesState = (() => {
           folder_id: folderMap[p.folder_id] || null,
           name: p.name,
           ad_size_limit_kb: p.ad_size_limit_kb || 150,
-          size_bytes: p.size_bytes || blob.size,
+          size_bytes: copyBlob.size,
           storage_path: newPath
         });
       } catch (e) { console.warn('Copy project failed:', e); }
@@ -606,6 +611,26 @@ const PROJECT_BLOB_UPLOAD_OPTS = Object.freeze({
   cacheControl: '0'
 });
 
+// Does an object still exist at this path?
+//
+// Needed because `upsert: true` above turns any write into a CREATE when the
+// object is gone, and a Supabase signed URL is keyed on path + expiry rather
+// than on the object it was signed for. Re-uploading to the path of a REVOKED
+// share snapshot therefore brings the revoked link back to life. Every mirror
+// write to a share path is gated on this.
+//
+// list() is used rather than a signed HEAD because createSignedUrl succeeds for
+// paths that hold nothing, which is exactly the case being tested for.
+async function storageObjectExists(path) {
+  const i = path.lastIndexOf('/');
+  const dir = i === -1 ? '' : path.slice(0, i);
+  const name = path.slice(i + 1);
+  const { data, error } = await sb.storage.from('projects')
+    .list(dir, { limit: 1, search: name });
+  if (error) throw error;
+  return !!(data || []).some(r => r.name === name);
+}
+
 // ...and read through a one-off signed URL with a cache-buster, so blobs that
 // were written BEFORE the fix above (and therefore still carry max-age=3600)
 // are also read correctly rather than staying stale until they expire.
@@ -747,6 +772,28 @@ async function getDefaultStartupInfo() {
 // extra download on a delete is a fair price for not leaking; it is best-effort
 // throughout, because failing to find a snapshot must never block the delete the
 // user actually asked for.
+// Rewrite a .flow blob with its share pointer removed, for the copy paths that
+// must not inherit one (space duplication today). Returns the ORIGINAL blob if
+// the rewrite can't be done — a copy that still carries the pointer is caught
+// later by dropInheritedShareLink() and by the ownership gate on the mirror
+// upload, so failing open here degrades rather than breaks.
+async function blobWithoutShareLink(blob) {
+  if (typeof JSZip === 'undefined') return blob;
+  try {
+    const zip = await JSZip.loadAsync(blob);
+    const projFile = zip.file('project.json');
+    if (!projFile) return blob;
+    const st = JSON.parse(await projFile.async('string'));
+    if (!st || !SHARE_LINK_FIELDS.some(k => k in st)) return blob;
+    stripShareLink(st);
+    zip.file('project.json', JSON.stringify(st, null, 2));
+    return await zip.generateAsync({ type: 'blob' });
+  } catch (e) {
+    console.warn('Could not strip share link from copied project blob:', e);
+    return blob;
+  }
+}
+
 async function snapshotPathForProjectBlob(storagePath) {
   if (!storagePath || typeof JSZip === 'undefined') return null;
   try {
@@ -947,7 +994,28 @@ async function pushCurrentProjectToCloud(opts = {}) {
   // must never fail the project save itself.
   if (state.previewSharePath && state.previewExpiry && state.previewExpiry > Date.now()) {
     try {
-      await sb.storage.from('projects').upload(state.previewSharePath, blob, PROJECT_BLOB_UPLOAD_OPTS);
+      // Two gates before writing to a share path, both of which used to be
+      // missing and both of which produced a link nobody intended:
+      //
+      //   1. The snapshot must belong to THIS project. A blob carries its
+      //      pointer with it, so a copy of a shared project (a re-imported
+      //      .flow, a duplicated space) arrived claiming the original's
+      //      snapshot — and its first push republished the copy's design to
+      //      the original's reviewers. Links predating the stamp have no id to
+      //      check and are trusted, as they were before.
+      //   2. The object must still be there. Writing to the path of a deleted
+      //      snapshot recreates it, and the "revoked" signed URL starts
+      //      working again for the rest of its original lifetime.
+      const ownsSnapshot = !state.previewShareProjectId
+        || state.previewShareProjectId === state.projectId;
+      if (!ownsSnapshot) {
+        console.warn('Skipping share sync — snapshot belongs to project', state.previewShareProjectId);
+      } else if (!(await storageObjectExists(state.previewSharePath))) {
+        console.warn('Skipping share sync — snapshot no longer exists (link was revoked):', state.previewSharePath);
+        stripShareLink(state);
+      } else {
+        await sb.storage.from('projects').upload(state.previewSharePath, blob, PROJECT_BLOB_UPLOAD_OPTS);
+      }
     } catch (e) {
       console.warn('Share preview sync failed (project save succeeded):', e);
     }
@@ -1007,13 +1075,19 @@ document.getElementById('menu-file-cloud-copy')?.addEventListener('click', async
   if (!newName) return;
 
   // Snapshot the current identity so we can roll back on cancel/failure.
+  // The whole share block is captured, not just path + expiry: leaving
+  // previewUrl (and the sharedBy/sharedAt attribution) behind on the copy meant
+  // the Share dialog could still show the ORIGINAL project's link while editing
+  // the copy, and restore() could only put back half of what it took.
   const orig = {
     id: state.projectId, name: state.projectName,
-    sharePath: state.previewSharePath, expiry: state.previewExpiry
+    share: Object.fromEntries(SHARE_LINK_FIELDS.map(k => [k, state[k]]))
   };
   const restore = () => {
     state.projectId = orig.id; state.projectName = orig.name;
-    state.previewSharePath = orig.sharePath; state.previewExpiry = orig.expiry;
+    for (const k of SHARE_LINK_FIELDS) {
+      if (orig.share[k] === undefined) delete state[k]; else state[k] = orig.share[k];
+    }
     try { render(true); } catch (e) {}
   };
 
@@ -1021,8 +1095,7 @@ document.getElementById('menu-file-cloud-copy')?.addEventListener('click', async
   // inherited share link so the copy starts without one.
   state.projectId = undefined;
   state.projectName = newName;
-  state.previewSharePath = undefined;
-  state.previewExpiry = undefined;
+  stripShareLink(state);
 
   try {
     const res = await pushCurrentProjectToCloud();
