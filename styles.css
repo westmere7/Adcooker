@@ -6852,6 +6852,59 @@ body.fullscreen-mode #sequencer-panel { display: none; }
     transparent calc(var(--seq-stripe) / 2.4) var(--seq-stripe));
 }
 
+/* --- Hover affordance ------------------------------------------------------
+   A resting FX bar is a static striped outline that looks painted on, and the
+   click that opens focus mode was discoverable only by trying it. Hovering now
+   lifts the bar and names what the click will do, so the interaction announces
+   itself instead of waiting to be found. */
+.seq-fx-veil {
+  /* Lets the label below query THIS bar's width rather than the viewport's.
+     Safe here because the veil is sized by left/width (or left/right), never by
+     its contents, which is the one thing inline-size containment takes away. */
+  container-type: inline-size;
+  transition: background-color .12s ease, border-color .12s ease, box-shadow .12s ease;
+}
+.seq-fx-veil:hover {
+  background: rgba(47, 158, 143, 0.46);
+  border-color: #46c4b2;
+  box-shadow: 0 0 0 1px rgba(70, 196, 178, 0.45), 0 2px 8px -2px rgba(0, 0, 0, 0.45);
+}
+.seq-fx-veil::after {
+  /* Honest about the two-step: a click on an unselected row selects the layer,
+     and only a click on the row that is ALREADY the sole selection isolates it
+     (see the wasSelected check in seqBarMouseDown). */
+  content: 'Click to select';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .6);
+  background: rgba(10, 30, 28, 0.45);
+  opacity: 0;
+  transition: opacity .12s ease;
+  pointer-events: none;
+}
+.seq-track.seq-selected .seq-fx-veil::after { content: 'Click to edit'; }
+/* Over a buried IN/OUT end (set by the veil's mousemove): the cursor already
+   says ew-resize, so the label must not still be offering something else. */
+.seq-fx-veil.seq-fx-veil-over-edge::after,
+.seq-track.seq-selected .seq-fx-veil.seq-fx-veil-over-edge::after { content: 'Drag to resize'; }
+/* Already in focus mode — the bar is doing the thing, so stop offering it. */
+.seq-track.seq-fx-edit .seq-fx-veil::after { content: none; }
+/* Short bars can't hold the label without clipping it mid-word, and a truncated
+   instruction is worse than none. The veil is its own query container, so each
+   bar decides for itself based on its own width. */
+@container (min-width: 84px) {
+  .seq-fx-veil:hover::after { opacity: 1; }
+}
+
 /* --- FX isolation ("edit mode") ------------------------------------------- */
 /* Clicking an already-selected layer's FX bar isolates it: IN/OUT recede and
    the whole FX bar becomes draggable and resizable. */
@@ -6874,6 +6927,11 @@ body.fullscreen-mode #sequencer-panel { display: none; }
   background: repeating-linear-gradient(135deg,
     rgba(255, 255, 255, 0.45) 0 calc(var(--seq-stripe) / 2.4),
     transparent calc(var(--seq-stripe) / 2.4) var(--seq-stripe));
+  /* Crawling stripes are the badge of focus mode, and only of focus mode. They
+     used to run on any selected row, which meant the timeline was in motion for
+     a state the user had not asked to enter — and made the one bar that IS
+     editable look no different from the rest. Now the motion marks it. */
+  animation: seq-fx-stripe 1.8s linear infinite;
 }
 /* Resize handles only exist while isolated, so they can't be buried by IN/OUT. */
 .seq-fx-veil .seq-handle {
@@ -6886,17 +6944,12 @@ body.fullscreen-mode #sequencer-panel { display: none; }
 }
 .seq-fx-veil .seq-handle-l { left: 0; border-left: 2.5px solid #2f9e8f; }
 .seq-fx-veil .seq-handle-r { right: 0; border-right: 2.5px solid #2f9e8f; }
-/* Stripes only crawl on the selected row — ambient motion on every FX bar at
-   once would make the timeline noisy. */
-.seq-track.seq-selected .seq-fx-veil::before {
-  animation: seq-fx-stripe 1.8s linear infinite;
-}
 @keyframes seq-fx-stripe {
   /* One full period horizontally = period / cos(45deg). */
   to { transform: translateX(calc(var(--seq-stripe) * 1.41421)); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .seq-track.seq-selected .seq-fx-veil::before { animation: none; }
+  .seq-track.seq-fx-edit .seq-fx-veil::before { animation: none; }
 }
 .seq-fx-veil-infinite {
   border-right: none;

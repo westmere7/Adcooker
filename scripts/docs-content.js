@@ -891,6 +891,15 @@ document.getElementById('menu-help-documentation').addEventListener('click', ope
 
 const CHANGELOG_DATA = [
   {
+    version: 'v0.51.5',
+    date: 'August 2026 — Engine v3.0',
+    items: [
+      'The Animation FX Bar Only Crawls While You Are Editing It: the diagonal stripes on an FX bar used to start moving whenever its row was selected, which put the timeline in motion for a state nobody asked to enter, and made the one bar that was actually editable look no different from the rest. The stripes now run only in focus mode — the isolated bar you get by clicking one that is already selected. Motion means something again: whatever is moving is what you are editing.',
+      'The FX Bar Says What Clicking It Does: a resting FX bar is a static striped outline, and the click that opens focus mode could only be found by trying it. Hovering one now lifts it and names the action in the middle of the bar — "Click to select" on a row that is not selected yet, "Click to edit" on the row that is. Bars too short to hold the words without cutting them mid-way leave the label off rather than showing half of it, and a bar already in focus mode stops offering what you are doing.',
+      'IN and OUT Bars Can Be Resized Where the FX Bar Covers Them: an FX bar frequently spans the whole row and sits above the IN and OUT bars, so their end grips were unreachable — you could drag those bars sideways underneath it, but never resize them. Starting a drag from the last few pixels of a buried IN or OUT bar now resizes it from that end, exactly as grabbing the exposed grip does; the cursor changes to the resize arrows and the hover label switches to "Drag to resize" so the zone is visible before you commit. Dragging from anywhere else still moves the bar, and a plain click anywhere still opens the FX bar for editing.'
+    ]
+  },
+  {
     version: 'v0.51.4',
     date: 'August 2026 — Engine v3.0',
     items: [

@@ -497,7 +497,7 @@ function seqRenderBody() {
     const fxLabel = seqPresetLabel('fx', el.effectType);
     return `<div class="seq-fx-veil ${b.infinite ? 'seq-fx-veil-infinite' : ''}"
       data-el="${el.id}" data-veil="fx" style="${geom}"
-      title="${editing ? `FX · ${fxLabel} — drag to move, drag edges to resize. Esc to exit.` : `FX · ${fxLabel} — drag to move, click to isolate for editing.`}">
+      title="${editing ? `FX · ${fxLabel} — drag to move, drag edges to resize. Esc to exit.` : `FX · ${fxLabel} — click to isolate for editing, drag to move. Over an IN/OUT bar underneath: drag to move it, or drag from its end to resize it.`}">
       ${editing ? '<span class="seq-handle seq-handle-l"></span>' : ''}
       ${editing && !b.infinite ? '<span class="seq-handle seq-handle-r"></span>' : ''}
     </div>`;
@@ -620,6 +620,22 @@ function seqRenderBody() {
   body.querySelectorAll('.seq-fx-veil').forEach(veil => {
     const fxBar = body.querySelector(`.seq-bar[data-el="${veil.dataset.el}"][data-kind="fx"]`);
     if (fxBar) veil.addEventListener('mousedown', (e) => seqBarMouseDown(e, fxBar, pxPerSec));
+    // The IN/OUT resize zones under the veil are reachable (seqOverlapHit) but
+    // invisible — the veil owns the cursor, so CSS on the buried .seq-handle
+    // never fires. Paint the cursor from the same geometry the mousedown uses,
+    // so the edge advertises itself the way an exposed handle would. Only
+    // outside focus mode, where the veil is the FX bar's own drag surface.
+    veil.addEventListener('mousemove', (e) => {
+      if (seqFxEditId === veil.dataset.el) return;
+      const hit = seqOverlapHit(veil.dataset.el, e.clientX);
+      const resizing = hit && hit.mode !== 'move';
+      veil.style.cursor = resizing ? 'ew-resize' : '';
+      veil.classList.toggle('seq-fx-veil-over-edge', !!resizing);
+    });
+    veil.addEventListener('mouseleave', () => {
+      veil.style.cursor = '';
+      veil.classList.remove('seq-fx-veil-over-edge');
+    });
   });
 
   if (seqPlaying) seqEnsurePlayhead();
@@ -703,6 +719,39 @@ function seqChipClick(elId, kind, anchorRect) {
 // Bar drag / resize — 0.1s snapped; commits through updateProp on release.
 // ---------------------------------------------------------------------------
 
+// Width of the grab zone at each end of a bar. Matches .seq-handle in the CSS,
+// which is the affordance this stands in for.
+const SEQ_EDGE_PX = 7;
+
+// Which IN/OUT bar sits under this x on the given row, and whether the pointer
+// is over one of its ends.
+//
+// The FX veil covers the whole FX span and hit-tests above the IN/OUT bars, so
+// their own .seq-handle children are unreachable wherever the two overlap —
+// which, for a full-row FX bar, is everywhere. Rather than cutting holes in the
+// veil (which would cost the FX bar the click and hover it needs along its
+// whole length), the veil keeps the pointer and hands back what it is standing
+// on: geometry, resolved here, in place of a DOM hit.
+function seqOverlapHit(elId, clientX) {
+  const track = document.querySelector(`.seq-track[data-el="${elId}"]`);
+  if (!track) return null;
+  for (const kind of ['in', 'out']) {
+    const bar = track.querySelector(`.seq-bar-${kind}`);
+    if (!bar) continue;
+    const rect = bar.getBoundingClientRect();
+    if (clientX < rect.left || clientX > rect.right) continue;
+    // A bar narrow enough for its two edge zones to meet has no middle left, so
+    // the nearer end wins outright and 'move' stops being reachable there.
+    const half = rect.width / 2;
+    const edge = Math.min(SEQ_EDGE_PX, half);
+    const mode = (clientX - rect.left <= edge) ? 'l'
+      : (rect.right - clientX <= edge) ? 'r'
+      : 'move';
+    return { bar, kind, mode };
+  }
+  return null;
+}
+
 function seqBarMouseDown(e, bar, pxPerSec) {
   e.preventDefault();
   e.stopPropagation();
@@ -715,23 +764,7 @@ function seqBarMouseDown(e, bar, pxPerSec) {
   // so dragging promotes to the IN/OUT bar while single clicks remain FX clicks (to isolate).
   let overlapBar = null;
   if (origKind === 'fx' && seqFxEditId !== elId) {
-    const track = document.querySelector(`.seq-track[data-el="${elId}"]`);
-    if (track) {
-      const inBar = track.querySelector('.seq-bar-in');
-      const outBar = track.querySelector('.seq-bar-out');
-      if (inBar) {
-        const rect = inBar.getBoundingClientRect();
-        if (e.clientX >= rect.left && e.clientX <= rect.right) {
-          overlapBar = { bar: inBar, kind: 'in' };
-        }
-      }
-      if (!overlapBar && outBar) {
-        const rect = outBar.getBoundingClientRect();
-        if (e.clientX >= rect.left && e.clientX <= rect.right) {
-          overlapBar = { bar: outBar, kind: 'out' };
-        }
-      }
-    }
+    overlapBar = seqOverlapHit(elId, e.clientX);
   }
 
   const c = getActiveCanvas();
@@ -801,6 +834,12 @@ function seqBarMouseMove(e) {
     if (d.overlapBar && d.kind === 'fx') {
       // Promote drag to the overlapping IN or OUT bar!
       d.kind = d.overlapBar.kind;
+      // …and to the gesture the grab point implied. Without this the mode was
+      // always read off the veil, which has no handles of its own outside focus
+      // mode, so every promoted drag became a move and the IN/OUT bars could not
+      // be resized anywhere the FX bar lay over them. Starting the drag from an
+      // end now resizes from that end, exactly as grabbing the bare handle does.
+      d.mode = d.overlapBar.mode;
       const c = getActiveCanvas();
       const el = c && c.elements.find(x => x.id === d.elId);
       const mb = el && seqBars(el)[d.kind];
