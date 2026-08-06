@@ -134,11 +134,16 @@ async function openSharePreviewModal() {
     if (m < 60) return `in ${m} minute${m > 1 ? 's' : ''}`;
     const h = Math.floor(m / 60);
     if (h < 24) return `in ${h} hour${h > 1 ? 's' : ''}`;
-    const d = Math.floor(h / 24);
-    if (d < 90) return `in ${d} day${d > 1 ? 's' : ''}`;
-    const mo = Math.floor(d / 30);
+    // Rounded, not floored, from here down: the seconds spent creating the link
+    // are enough to turn a 90-day choice into "in 89 days" on the very screen
+    // that confirms it, which reads as a bug. 90 stays in the days bucket for
+    // the same reason — it is one of the offered options and should be echoed
+    // back in the words it was chosen in.
+    const d = Math.round(s / 86400);
+    if (d <= 90) return `in ${d} day${d > 1 ? 's' : ''}`;
+    const mo = Math.round(d / 30);
     if (mo < 24) return `in ${mo} months`;
-    return `in ${Math.floor(d / 365)} years`;
+    return `in ${Math.round(d / 365)} years`;
   }
 
   function showConfigScreen(showCancelToActive = false) {
