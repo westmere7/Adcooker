@@ -162,13 +162,7 @@ async function openSharePreviewModal() {
             <option value="7776000">90 Days</option>
             <option value="never">Never — until I delete it</option>
           </select>
-          <div id="share-expiry-warning" hidden style="margin-top: 10px; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.28); border-radius: 6px; padding: 10px 12px; font-size: 12px; line-height: 1.55; color: var(--text-muted); display: flex; gap: 8px; align-items: flex-start;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-top:1px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            <div>
-              <strong style="color: var(--text-main); font-weight: 600;">This link will never expire on its own.</strong>
-              Nothing will ever close it for you, so anyone it is forwarded to keeps access to this project — and to every cloud save you make afterwards — until you come back to this dialog and delete it. An expiry date is the only part of a share link that cleans up after itself; choose a dated option unless you genuinely need one that outlives the campaign.
-            </div>
-          </div>
+          <div id="share-expiry-note" style="margin-top: 8px; font-size: 12px; line-height: 1.5;"></div>
         </div>
 
         <div style="display: flex; gap: 8px; justify-content: flex-end;">
@@ -179,10 +173,37 @@ async function openSharePreviewModal() {
     `;
     
     const expirySelect = bg.querySelector('#share-expiry-select');
-    const expiryWarning = bg.querySelector('#share-expiry-warning');
+    const expiryNote = bg.querySelector('#share-expiry-note');
+
+    // One line per dated option, so the list is never silent about what it just
+    // did, and the amber box stays meaningful by being reserved for the one
+    // choice that has a consequence to warn about.
+    const EXPIRY_NOTES = {
+      '86400': 'Stops working after 1 day.',
+      '604800': 'Stops working after 7 days.',
+      '2592000': 'Stops working after 30 days. Right for most reviews.',
+      '7776000': 'Stops working after 90 days — enough for a full campaign.'
+    };
+
+    // Rendered by swapping content rather than toggling `hidden`: the box
+    // carries an inline `display: flex`, and an inline display beats the
+    // browser's own `[hidden] { display: none }`, so the attribute did nothing
+    // and the warning showed against every option.
+    function renderExpiryNote() {
+      if (expirySelect.value === 'never') {
+        expiryNote.innerHTML = `
+          <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.28); border-radius: 6px; padding: 9px 11px; color: var(--text-muted); display: flex; gap: 8px; align-items: flex-start;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-top:2px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <div><strong style="color: var(--text-main); font-weight: 600;">Never stops working on its own.</strong> Anyone it reaches keeps access — including to every later cloud save — until you delete it here.</div>
+          </div>`;
+      } else {
+        expiryNote.innerHTML = `<span style="color: var(--text-muted);">${EXPIRY_NOTES[expirySelect.value] || ''}</span>`;
+      }
+    }
     // Shown on selection rather than as a confirm on submit: the point is to
     // inform the choice while it is still being made, not to interrupt it after.
-    expirySelect.onchange = () => { expiryWarning.hidden = expirySelect.value !== 'never'; };
+    expirySelect.onchange = renderExpiryNote;
+    renderExpiryNote();
 
     bg.querySelector('#btn-share-settings-cancel').onclick = () => {
       if (showCancelToActive && state.previewUrl && typeof state.previewExpiry === 'number' && state.previewExpiry > Date.now()) {
