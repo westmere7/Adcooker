@@ -942,19 +942,29 @@ function openVideoExportSettingsPopup(c, format = 'video') {
     ? (Math.round(b / (1024 * 1024) * 10) / 10) + ' MB'
     : Math.max(1, Math.round(b / 1024)) + ' KB';
 
-  // 1:1 unless the viewport genuinely cannot take it, in which case scale down
-  // and say so rather than silently lying about the size.
-  //
-  // Side by side, the preview shares the panel's height with the controls rather
-  // than adding to it, so its budget is the whole window minus the header and
-  // the preview's own label/stats. Stacked, it has to fit under the controls, so
-  // their height comes off the top.
+  // Try 100% scale (1:1) always if it fits within the viewport. If 100% cannot be shown,
+  // scale down so it fits within max 80% VP height and 70% VP width without scrollbars.
+  // Note: measure controls height EXCLUDING the preview stage so preview dimensions
+  // remain 100% deterministic and identical across re-renders.
   const previewBox = (adW, adH) => {
-    const CHROME_H = sideBySide ? 118 : 118 + (overlay.querySelector('#vqe-col').offsetHeight + GAP);
-    const CHROME_W = PANEL_PAD * 2 + 2 + (sideBySide ? SETTINGS_W + GAP : 0);
-    const maxW = Math.max(160, window.innerWidth * 0.96 - CHROME_W);
-    const maxH = Math.max(140, window.innerHeight * 0.94 - CHROME_H);
-    const scale = Math.min(1, maxW / adW, maxH / adH);
+    const settingsEl = overlay.querySelector('#vqe-settings');
+    const noteEl = overlay.querySelector('#vqe-note');
+    const footEl = overlay.querySelector('#vqe-foot');
+    const controlsH = (settingsEl ? settingsEl.offsetHeight : 150) + 
+                      (noteEl ? noteEl.offsetHeight : 60) + 
+                      (footEl ? footEl.offsetHeight : 45);
+
+    const CHROME_H = sideBySide ? 130 : 130 + controlsH + GAP;
+    const CHROME_W = PANEL_PAD * 2 + 10 + (sideBySide ? SETTINGS_W + GAP : 0);
+
+    const maxAvailableW = Math.max(160, window.innerWidth * 0.94 - CHROME_W);
+    const maxAvailableH = Math.max(140, window.innerHeight * 0.92 - CHROME_H);
+
+    const targetW = Math.min(window.innerWidth * 0.70, maxAvailableW);
+    const targetH = Math.min(window.innerHeight * 0.80, maxAvailableH);
+
+    const fits100 = adW <= targetW && adH <= targetH;
+    const scale = fits100 ? 1 : Math.min(1, targetW / adW, targetH / adH);
     return { w: Math.round(adW * scale), h: Math.round(adH * scale), scale };
   };
 
