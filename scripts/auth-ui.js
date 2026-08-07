@@ -742,6 +742,11 @@ function placementLibraryPath(userId) {
   return `${userId}/${PLACEMENT_LIBRARY_FILE}`;
 }
 
+// DIMENSIONS ONLY. The canvas name is deliberately not part of this and must never be
+// added: a 1080 × 1080 is a 1080 × 1080 whether it arrived as "Instagram Square", as a
+// hand-typed custom size, or renamed afterwards, and a placement that stopped applying
+// because a label differed would be indistinguishable from one that had been lost.
+// Rounding normalises the odd fractional width so 1080 and 1080.0 cannot key apart.
 const placementSizeKey = (w, h) => `${Math.round(w)}x${Math.round(h)}`;
 
 // True only when a remembered placement could exist AND be trusted: the library is an
