@@ -1,6 +1,11 @@
 // ============================================================================
-// New Project dialog
+// New Project & Project Settings dialogs
 // ============================================================================
+const escHtml = (s) => String(s || '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+function getAppVersion() {
+  return (typeof _appBootVersion === 'string' && _appBootVersion) ? _appBootVersion : 'v0.53.0';
+}
+
 // Stack a list of {width, height} into one block of rows on the board and return
 // where each one goes.
 //
@@ -112,6 +117,10 @@ async function createNewProject({ name, sizes, presetIndices, sizeLimitKb, bgCol
 
   state.projectName = (name || 'RMIT_ad').trim() || 'RMIT_ad';
   state.projectId = uid('proj_');
+  state.author = '';
+  state.comment = '';
+  state.createdAt = new Date().toISOString();
+  state.createdAtVersion = getAppVersion();
   // A brand-new project has never been shared — drop any preview-share metadata
   // carried over from the previously open project, so the Share dialog opens to
   // the "create link" screen instead of showing a stale active link.
@@ -239,8 +248,6 @@ function openNewProjectDialog() {
     name: p.name, width: p.width, height: p.height, checked: true, custom: false
   }));
 
-  const escHtml = (s) => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-
   const CANVAS_MIN_PX = 20;
   // Matched to the board rather than picked out of the air: a canvas wider or taller
   // than BOARD_SIZE has corners that cannot be panned to.
@@ -306,14 +313,12 @@ function openNewProjectDialog() {
           </div>
         </div>
 
-        <!-- Where the project starts from. One radio group of three peers rather
-             than a "Use template" checkbox sitting above a pair of radios. -->
-        <div style="border-bottom: 1px solid var(--border-light); padding-bottom: 12px; margin-bottom: 4px; display:flex; flex-direction:column; gap:8px;">
+        <div style="border-bottom: 1px solid var(--border-light); padding-bottom: 12px; display:flex; flex-direction:column; gap:8px;">
           <div id="np-start-choice" style="display:flex; flex-direction:column; gap:1px;">
             <div class="np-start-row" id="np-start-row-default" style="display:none;">
               <label class="np-start-label" title="Start from your base project — set it in Settings">
                 <input type="radio" name="np-start-from" value="default" style="margin:1px 0 0 0;" />
-                <span><span class="np-start-title">Base project<span id="np-default-meta" style="font-weight:400; color:var(--text-muted); font-size:11px; margin-left:4px;"></span></span><span class="np-start-hint" id="np-default-hint">Canvases come from it; settings below still apply.</span></span>
+                <span><span class="np-start-title">Base project<span id="np-default-meta" style="font-weight:400; color:var(--text-muted); font-size:11px; margin-left:4px;"></span></span><span class="np-start-hint" id="np-default-hint">Start from your saved base project.</span></span>
               </label>
             </div>
             <div class="np-start-row" id="np-start-row-template">
@@ -321,8 +326,8 @@ function openNewProjectDialog() {
                 <input type="radio" name="np-start-from" value="template" style="margin:1px 0 0 0;" />
                 <span><span class="np-start-title">Use template</span><span class="np-start-hint">Start from a template file.</span></span>
               </label>
-              <div id="np-template-container" style="display:none; gap:6px; align-items:center; margin-left:auto; flex:1; min-width:0;">
-                <select id="np-startup-template-select" title="Start from one of the templates found in the Startup folder" style="flex:1; min-width:0; background:var(--bg-panel); border:1px solid var(--border-light); color:var(--text-main); border-radius:5px; padding:5px 7px; font-size:11px; outline:none; cursor:pointer;">
+              <div id="np-template-container" style="display:none; gap:6px; align-items:center; margin-left:auto; flex:none;">
+                <select id="np-startup-template-select" title="Start from one of the templates found in the Startup folder" style="width:200px; flex:none; background:var(--bg-panel); border:1px solid var(--border-light); color:var(--text-main); border-radius:5px; padding:5px 7px; font-size:11px; outline:none; cursor:pointer; text-overflow:ellipsis; overflow:hidden;">
                   <!-- populated dynamically -->
                 </select>
                 <button class="btn" id="np-rescan-templates-btn" title="Re-scan Startup folder templates" style="padding:5px 8px; font-size:11px; flex:none;">↻</button>
@@ -449,10 +454,10 @@ function openNewProjectDialog() {
   if (Array.isArray(startupTemplates) && startupTemplates.length > 0) {
     selectTemplate.innerHTML = startupTemplates.map(t => {
       const selected = t.fileName === activeTemplate || (activeTemplate === 'startup' && t.fileName === 'Adflow_startup.flow');
-      return `<option value="${t.fileName}" ${selected ? 'selected' : ''}>${t.projectName} (${t.fileName})</option>`;
+      return `<option value="${t.fileName}" ${selected ? 'selected' : ''}>${escHtml(t.projectName || t.fileName)}</option>`;
     }).join('');
   } else {
-    selectTemplate.innerHTML = `<option value="Adflow_startup.flow" selected>RMIT_ad (Adflow_startup.flow)</option>`;
+    selectTemplate.innerHTML = `<option value="Adflow_startup.flow" selected>RMIT_ad</option>`;
   }
 
   // Three ways to start, and each decides which of the fields below still mean
@@ -496,12 +501,12 @@ function openNewProjectDialog() {
     setDimmed(bg.querySelector('#np-clicktag-block'), useStartup);
     setDimmed(bg.querySelector('#np-size-cell'), useStartup);
     setDimmed(bg.querySelector('#np-bg-cell'), useStartup);
-    customConfigContainer.style.opacity = '1';
-    customConfigContainer.style.pointerEvents = 'auto';
 
     // Canvas sizes only mean anything when building a blank board; collapse the list
     // entirely otherwise rather than showing a dead one.
-    canvasesBlock.style.display = (useStartup || savedDefault) ? 'none' : '';
+    const showCanvases = !(useStartup || savedDefault);
+    customConfigContainer.style.display = showCanvases ? 'flex' : 'none';
+    canvasesBlock.style.display = showCanvases ? '' : 'none';
   };
 
   // Opening selection: the saved default wins whenever there is one — saving it is
@@ -643,7 +648,7 @@ function openNewProjectDialog() {
     if (ok) {
       if (Array.isArray(startupTemplates) && startupTemplates.length > 0) {
         selectTemplate.innerHTML = startupTemplates.map(t => {
-          return `<option value="${t.fileName}">${t.projectName} (${t.fileName})</option>`;
+          return `<option value="${t.fileName}">${escHtml(t.projectName || t.fileName)}</option>`;
         }).join('');
         showCanvasNotification(`Scan completed! Found ${startupTemplates.length} template(s).`, { type: 'success' });
       } else {
@@ -1016,35 +1021,120 @@ function openProjectSettingsDialog() {
               </div>
             </div>`;
 
+  // Compute Project Metadata values dynamically
+  const createdDate = state.createdAt ? new Date(state.createdAt) : null;
+  const createdStr = (createdDate && !isNaN(createdDate.getTime())) 
+    ? createdDate.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) 
+    : 'Legacy project';
+  const createdVer = state.createdAtVersion || getAppVersion();
+
+  const cvs = Array.isArray(state.canvases) ? state.canvases : [];
+  const canvasCount = cvs.length;
+  const canvasSummary = `${canvasCount} canvas${canvasCount === 1 ? '' : 'es'}`;
+
+  const assetsMap = state.assets || {};
+  const assetKeys = Object.keys(assetsMap);
+  const assetCount = assetKeys.length;
+  let totalAssetBytes = 0;
+  assetKeys.forEach(k => {
+    const src = assetsMap[k] || '';
+    if (typeof src === 'string' && src.startsWith('data:')) {
+      const b64 = src.split(',')[1] || '';
+      totalAssetBytes += Math.round((b64.length * 3) / 4);
+    }
+  });
+  const assetSizeStr = totalAssetBytes > 1024 * 1024 
+    ? `${(totalAssetBytes / (1024 * 1024)).toFixed(2)} MB` 
+    : `${Math.round(totalAssetBytes / 1024)} KB`;
+  const assetsSummary = `${assetCount} asset${assetCount === 1 ? '' : 's'} (${assetSizeStr})`;
+
+  const dmRows = (state.dataMerge && Array.isArray(state.dataMerge.rows)) ? state.dataMerge.rows : [];
+  const versionsSummary = dmRows.length > 0 
+    ? `${dmRows.length} version${dmRows.length === 1 ? '' : 's'}` 
+    : '1 (Default)';
+
+  let rawStateStr = '';
+  try { rawStateStr = JSON.stringify(state); } catch (e) {}
+  const totalPayloadBytes = (rawStateStr ? rawStateStr.length : 0) + totalAssetBytes;
+  const totalSizeStr = totalPayloadBytes > 1024 * 1024
+    ? `${(totalPayloadBytes / (1024 * 1024)).toFixed(2)} MB`
+    : `${Math.round(totalPayloadBytes / 1024)} KB`;
+
   bg.innerHTML = `
-    <div class="modal" style="max-width:400px;">
+    <div class="modal" style="max-width:500px;">
       <div class="modal-head">
         <h2>Project Settings</h2>
         <button class="btn" id="ps-close" title="Close settings">Close</button>
       </div>
-      <div class="modal-body" style="display:flex; flex-direction:column; gap:16px; padding:18px 22px;">
-        <div>
-          <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:6px;">Project Name</label>
-          <input type="text" id="ps-name" value="${(state.projectName || 'RMIT_ad').replace(/"/g, '&quot;')}" title="Enter the name for the project" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:7px 9px; font-size:12px; outline:none;" />
+      <div class="modal-body" style="display:flex; flex-direction:column; gap:12px; padding:16px 20px; max-height:80vh; overflow-y:auto;">
+        <div style="display:flex; gap:10px;">
+          <div style="flex:1.4; min-width:0;">
+            <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:4px;">Project Name</label>
+            <input type="text" id="ps-name" value="${(state.projectName || 'RMIT_ad').replace(/"/g, '&quot;')}" title="Enter the name for the project" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:5px 8px; font-size:11px; outline:none;" />
+          </div>
+          <div style="flex:1; min-width:0;">
+            <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:4px;">Author</label>
+            <input type="text" id="ps-author" value="${(state.author || '').replace(/"/g, '&quot;')}" placeholder="Designer / Team" title="Project author or creator" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:5px 8px; font-size:11px; outline:none;" />
+          </div>
         </div>
-        <div>
-          <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:6px;">ClickTag URL</label>
-          <input type="url" id="ps-clicktag" value="${(state.clickTag || 'https://www.rmit.edu.au/').replace(/"/g, '&quot;')}" title="Default exit/landing page URL for all canvases" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:7px 9px; font-size:12px; outline:none;" />
+
+        <div style="display:flex; gap:10px;">
+          <div style="flex:1.8; min-width:0;">
+            <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:4px;">ClickTag URL</label>
+            <input type="url" id="ps-clicktag" value="${(state.clickTag || 'https://www.rmit.edu.au/').replace(/"/g, '&quot;')}" title="Default exit/landing page URL for all canvases" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:5px 8px; font-size:11px; outline:none;" />
+          </div>
+          <div style="flex:1; min-width:0;">
+            <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:4px;">Max ad size (KB)</label>
+            <input type="number" id="ps-size-limit" value="${state.adSizeLimit || 150}" min="1" title="Target file size limit for export warning / Ads Validator (KB)" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:5px 8px; font-size:11px; outline:none;" />
+          </div>
         </div>
+
         <div>
-          <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:6px;">Max ad size (KB)</label>
-          <input type="number" id="ps-size-limit" value="${state.adSizeLimit || 150}" min="1" title="Target file size limit for export warning / Ads Validator (KB)" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:7px 9px; font-size:12px; outline:none;" />
-        </div>
-        <div>
-          <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:6px;">Auto-compression Format</label>
-          <select id="ps-compress-format" title="Auto-compression output format: JPEG/PNG (ad-server safe) or WebP" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:7px 9px; font-size:12px; outline:none; cursor:pointer;">
+          <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:4px;">Auto-compression Format</label>
+          <select id="ps-compress-format" title="Auto-compression output format: JPEG/PNG (ad-server safe) or WebP" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:5px 8px; font-size:11px; outline:none; cursor:pointer;">
             <option value="jpeg" ${state.compressFormat !== 'webp' ? 'selected' : ''}>JPEG / PNG (auto — ad-server safe)</option>
             <option value="webp" ${state.compressFormat === 'webp' ? 'selected' : ''}>WebP (smallest files)</option>
           </select>
         </div>
-        <div style="margin-top:4px;">
-          <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:6px;">Save &amp; Sync Status</label>
-          <div style="background:var(--bg-body, #0b0c0f); border:1px solid var(--border-light); border-radius:6px; padding:12px; display:flex; flex-direction:column; gap:8px;">
+
+        <div>
+          <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:4px;">Comments / Notes</label>
+          <textarea id="ps-comment" rows="2" placeholder="Project notes or specs..." style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; padding:5px 8px; font-size:11px; outline:none; resize:none; font-family:inherit; height:38px; line-height:1.35;">${escHtml(state.comment || '')}</textarea>
+        </div>
+
+        <div>
+          <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:4px;">Project Information &amp; Metadata</label>
+          <div style="background:var(--bg-panel, #141820); border:1px solid var(--border-light); border-radius:6px; padding:10px 12px; display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px 12px; font-size:11px;">
+            <div>
+              <span style="color:var(--text-muted); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.03em; font-weight:600; margin-bottom:2px;">Created</span>
+              <span style="color:var(--text-accent); font-weight:600;">${createdStr}</span>
+            </div>
+            <div>
+              <span style="color:var(--text-muted); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.03em; font-weight:600; margin-bottom:2px;">App Version</span>
+              <span style="color:var(--text-accent); font-weight:600;">${createdVer}</span>
+            </div>
+            <div>
+              <span style="color:var(--text-muted); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.03em; font-weight:600; margin-bottom:2px;">Variants</span>
+              <span style="color:var(--text-accent); font-weight:600;">${versionsSummary}</span>
+            </div>
+            <div>
+              <span style="color:var(--text-muted); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.03em; font-weight:600; margin-bottom:2px;">Canvases</span>
+              <span style="color:var(--text-accent); font-weight:600;">${canvasSummary}</span>
+            </div>
+            <div>
+              <span style="color:var(--text-muted); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.03em; font-weight:600; margin-bottom:2px;">Assets</span>
+              <span style="color:var(--text-accent); font-weight:600;">${assetsSummary}</span>
+            </div>
+            <div>
+              <span style="color:var(--text-muted); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.03em; font-weight:600; margin-bottom:2px;">Payload Size</span>
+              <span style="color:var(--text-accent); font-weight:600;">${totalSizeStr}</span>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:4px;">Save &amp; Sync Status</label>
+          <div style="background:var(--bg-body, #0b0c0f); border:1px solid var(--border-light); border-radius:6px; padding:9px 12px; display:flex; flex-direction:column; gap:8px;">
             <div style="display:flex; align-items:flex-start; gap:8px;">
               <div style="margin-top:2px;">
                 <svg class="save-icon-status local ${localConf.class}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="width:14px; height:14px; flex-shrink:0;">
@@ -1057,7 +1147,7 @@ function openProjectSettingsDialog() {
                 <span style="font-size:10px; color:var(--text-muted); font-style:italic;">Last Saved: ${_formatSaveTime(_lastLocalSaveTime)}</span>
               </div>
             </div>
-            <div style="height:1px; background:var(--border-light); margin:4px 0;"></div>
+            <div style="height:1px; background:var(--border-light); margin:2px 0;"></div>
             ${secondStatusHtml}
           </div>
         </div>
@@ -1079,11 +1169,15 @@ function openProjectSettingsDialog() {
 
   bg.querySelector('#ps-save').onclick = () => {
     const newName = bg.querySelector('#ps-name').value.trim() || 'RMIT_ad';
+    const newAuthor = bg.querySelector('#ps-author').value.trim();
+    const newComment = bg.querySelector('#ps-comment').value.trim();
     const newClickTag = bg.querySelector('#ps-clicktag').value.trim();
     const newSizeLimit = Math.max(1, parseInt(bg.querySelector('#ps-size-limit').value, 10) || 150);
     const newCompressFormat = bg.querySelector('#ps-compress-format').value;
 
     state.projectName = newName;
+    state.author = newAuthor;
+    state.comment = newComment;
     state.clickTag = newClickTag;
     state.adSizeLimit = newSizeLimit;
     state.compressFormat = newCompressFormat;
