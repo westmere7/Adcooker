@@ -1515,6 +1515,21 @@ function _shrinkToClear(low, high, gap) {
 // heading, subheading, rfwn) must not overlap each other. Walk pairs in
 // priority order — when two collide, the lower-priority one shrinks /
 // shifts to clear the higher-priority one.
+// True when the user has explicitly pinned this role's geometry for this canvas — either
+// on the canvas itself (this project, via c.layoutOverrides) or in the account-wide
+// placement library for this canvas SIZE. Both are the same statement of intent, so every
+// post-pass that used to check layoutOverrides now asks this instead: a placement you
+// chose is left exactly where you put it, whichever way you saved it.
+//
+// In guest mode getGlobalPlacement always answers null, so this reduces to the original
+// layoutOverrides check and the engine behaves precisely as it did before.
+function hasPinnedPlacement(target, role) {
+  if (!target || !role) return false;
+  if (target.layoutOverrides && target.layoutOverrides[role]) return true;
+  if (typeof getGlobalPlacement !== 'function') return false;
+  return !!getGlobalPlacement(target.width, target.height, role);
+}
+
 function resolveNoTouchCollisions(ctx) {
   const order = ['rmit-logo', 'cta-button', 'heading', 'subheading', 'rfwn'];
   for (let i = 0; i < order.length; i++) {
@@ -1523,7 +1538,7 @@ function resolveNoTouchCollisions(ctx) {
     for (let j = i + 1; j < order.length; j++) {
       const low = ctx.placedElements[order[j]];
       if (!low) continue;
-      if (ctx.target.layoutOverrides && ctx.target.layoutOverrides[order[j]]) continue;
+      if (hasPinnedPlacement(ctx.target, order[j])) continue;
       _shrinkToClear(low, high, 4);
     }
   }
@@ -1569,7 +1584,7 @@ function enforceHeadingSubheadAdjacency(ctx) {
 
   Object.entries(ctx.placedElements).forEach(([role, el]) => {
     if (role === 'heading' || role === 'subheading' || role === 'main-image' || role === 'background-image') return;
-    if (ctx.target.layoutOverrides && ctx.target.layoutOverrides[role]) return;
+    if (hasPinnedPlacement(ctx.target, role)) return;
     _shrinkToClear(el, zone, 4);
   });
 }
@@ -1581,7 +1596,7 @@ function clampToCanvas(ctx) {
   const allowOutside = new Set(['main-image', 'background-image']);
   Object.entries(ctx.placedElements).forEach(([role, el]) => {
     if (allowOutside.has(role)) return;
-    if (ctx.target.layoutOverrides && ctx.target.layoutOverrides[role]) return;
+    if (hasPinnedPlacement(ctx.target, role)) return;
     if (el.x < 0) {
       el.width = Math.max(20, el.width + el.x);
       el.x = 0;
@@ -1612,7 +1627,7 @@ function applyRelationR1(ctx) {
   const logo = ctx.placedElements['rmit-logo'];
   const rfwn = ctx.placedElements['rfwn'];
   if (!logo || !rfwn) return;
-  if (ctx.target.layoutOverrides && ctx.target.layoutOverrides['rfwn']) return;
+  if (hasPinnedPlacement(ctx.target, 'rfwn')) return;
 
   const w = ctx.target.width, h = ctx.target.height;
   const config = AUTO_ARRANGE_CONFIG[w + "x" + h];
@@ -1674,7 +1689,7 @@ function adjustCricosRelation(ctx) {
   const rfwn = ctx.placedElements['rfwn'];
   const cricos = ctx.placedElements['cricos'];
   if (!cricos) return;
-  if (ctx.target.layoutOverrides && ctx.target.layoutOverrides['cricos']) return;
+  if (hasPinnedPlacement(ctx.target, 'cricos')) return;
 
   const w = ctx.target.width, h = ctx.target.height;
   const config = AUTO_ARRANGE_CONFIG[w + "x" + h];
@@ -1808,12 +1823,23 @@ function runRuleBasedAutoResize(settings) {
         return;
       }
 
+      // Three tiers, most specific first: this canvas in this project, then the placement
+      // you remembered for this SIZE across your account, then the built-in rule. The
+      // middle tier is what makes a placement outlive the project it was set in; it is
+      // absent in guest mode, where this collapses back to the original two.
       let geom = null;
       if (target.layoutOverrides && target.layoutOverrides[role]) {
         geom = Object.assign({}, target.layoutOverrides[role]);
       } else {
-        const placer = PLACEMENT_RULES[role];
-        geom = placer ? placer(srcEl, target, ctx) : null;
+        const remembered = (typeof getGlobalPlacement === 'function')
+          ? getGlobalPlacement(target.width, target.height, role)
+          : null;
+        if (remembered) {
+          geom = Object.assign({}, remembered);
+        } else {
+          const placer = PLACEMENT_RULES[role];
+          geom = placer ? placer(srcEl, target, ctx) : null;
+        }
       }
       if (!geom) { droppedTotal++; return; }
 

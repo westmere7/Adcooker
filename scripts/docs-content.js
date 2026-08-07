@@ -891,6 +891,17 @@ document.getElementById('menu-help-documentation').addEventListener('click', ope
 
 const CHANGELOG_DATA = [
   {
+    version: 'v0.53.0',
+    date: 'August 2026 — Engine v3.0',
+    items: [
+      'Placements You Set Can Now Follow Your Account Instead of One Project: pinning where a role belongs used to write to the canvas you were on, inside the .flow you had open. Get a 300 × 250 laid out exactly right and the next project started from the built-in rules again. Placements can now be remembered against your account, keyed by canvas size and role, so Auto-Resize starts from your layout in every project, on every machine you sign in to. Project-only is still there and still the default choice; the two are separate destinations rather than a preference, and the menu says which is which.',
+      'Auto-arrange Is in the Canvas Menu, and Now Holds Both Halves of the Idea: Auto-arrange was reachable only from the element menu, so re-laying out a canvas meant selecting something on it first. It is now in the canvas right-click menu too, and in both menus it has become a submenu holding two things: the arrange itself, and Save placement. They belong together — one lays a canvas out from the rules, the other teaches the rules what you laid out — rather than sitting as two neighbours competing for the same spot in a long menu. From the canvas menu, Save placement records every role-assigned layer on that canvas at once; from a layer or a multi-selection it records just those, and the label counts them so you can see the scope before you commit.',
+      'One Command Instead of Two, and Forgetting Says Which Scope: "Define default placement" has gone from Advanced — the new submenu does the same job and names where it saves, and two commands for one action was the confusion worth removing. Forgetting is still per-scope and still explicit: separate entries for this project and for all projects, each appearing only when there is something to forget, so nothing account-wide is ever deleted as a side-effect of clearing something local.',
+      'Remembered Placements Are Visible and Reversible: Settings now lists how many placements are held across how many canvas sizes, with one button that forgets all of them. Invisible state that changes how Auto-Resize behaves in projects you have not opened yet needed somewhere to be seen and a way back to the built-in rules.',
+      'Signed-Out Adflow No Longer Shows Settings It Cannot Use: every control that needs an account was either sitting there greyed out with an explanation, or opening a dialog whose only content was a prompt to sign in. In local mode they are now simply absent — the cloud open and save entries, Share Preview and its toolbar button, the base project block, and the new remembered-placements block. They come back the moment you sign in, with no reload. An action you cannot take is not a menu item.'
+    ]
+  },
+  {
     version: 'v0.52.0',
     date: 'August 2026 — Engine v3.0',
     items: [

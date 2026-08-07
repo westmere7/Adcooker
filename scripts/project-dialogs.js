@@ -2398,7 +2398,7 @@ document.getElementById('menu-help-shortcuts').addEventListener('click', () => {
 
 
 function checkVersionUpdate() {
-  const currentVersion = 'v0.52.0';
+  const currentVersion = 'v0.53.0';
   const lastSeen = localStorage.getItem('last-seen-version');
   
   if (!lastSeen) {
@@ -2630,7 +2630,7 @@ function openSettings() {
           <div class="modal-head" style="border-bottom:1px solid var(--border-light); background:var(--bg-panel); flex-shrink:0;">
             <div style="display:flex; align-items:center; gap:12px; flex:1;">
               <h2 style="margin:0; font-size:14px; font-weight:600; color:var(--text-bright);">Settings</h2>
-              <span style="font-size:11px; color:var(--text-muted);">v0.52.0</span>
+              <span style="font-size:11px; color:var(--text-muted);">v0.53.0</span>
               <button id="settings-changelog" title="See what changed in this and previous versions of Adflow" class="btn" style="padding:4px 8px; font-size:10px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; cursor:pointer;">Changelog</button>
             </div>
             <button class="btn" id="settings-close" title="Close without keeping any change made since the dialog opened">Close</button>
@@ -2682,7 +2682,10 @@ function openSettings() {
                   <!-- Base project. Saved to your cloud account (not as a Cloud
                        Project — it is invisible to that list on purpose), so it
                        follows you to another machine when you sign in. -->
-                  <div style="display:flex; flex-direction:column; gap:8px; background:var(--bg-input); border:1px solid var(--border-light); border-radius:6px; padding:10px 12px;">
+                  <!-- Hidden outright in guest mode — renderAuthChip() owns that, keyed on
+                       this id, so this block never appears as a row explaining that it
+                       cannot be used. -->
+                  <div id="set-default-startup-block" style="display:flex; flex-direction:column; gap:8px; background:var(--bg-input); border:1px solid var(--border-light); border-radius:6px; padding:10px 12px;">
                     <div style="display:flex; align-items:center; gap:12px;">
                       <span style="flex:1; font-size:12px; color:var(--text-main);">Base project</span>
                       <button class="btn" id="set-default-startup-save" title="Save the project you have open now as the base for new projects. Replaces any previous base project." style="padding:4px 10px; font-size:11px; white-space:nowrap;">Use current project</button>
@@ -2691,6 +2694,22 @@ function openSettings() {
                     <div id="set-default-startup-status" style="font-size:11px; color:var(--text-muted); line-height:1.5;">Checking…</div>
                     <div style="font-size:11px; color:var(--text-muted); line-height:1.5;">
                       New projects start from this instead of an empty board, on every machine you sign in to. It supplies the canvases and their content; ClickTag, max ad size and background stay under your control in the New Project dialog and are applied on top. <b>Blank board</b> is always offered there as well. Layout guides, selection, zoom, undo history, share links and cloud stamps are not carried over.
+                    </div>
+                  </div>
+
+                  <!-- Remembered placements. Account-only for the same reason as the base
+                       project, and gated by the same id list. It exists chiefly so this
+                       state is not invisible: it changes auto-resize in projects you have
+                       not opened yet, so there has to be somewhere that says how much of
+                       it there is and one switch that undoes all of it. -->
+                  <div id="set-placement-library-block" style="display:flex; flex-direction:column; gap:8px; background:var(--bg-input); border:1px solid var(--border-light); border-radius:6px; padding:10px 12px;">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                      <span style="flex:1; font-size:12px; color:var(--text-main);">Remembered placements</span>
+                      <button class="btn" id="set-placement-forget-all" title="Forget every remembered placement, for every canvas size, on your account" style="padding:4px 10px; font-size:11px; white-space:nowrap;">Forget all</button>
+                    </div>
+                    <div id="set-placement-library-status" style="font-size:11px; color:var(--text-muted); line-height:1.5;">Checking…</div>
+                    <div style="font-size:11px; color:var(--text-muted); line-height:1.5;">
+                      Right-click a canvas or a layer and use <b>Save placement</b> ▸ <b>All projects</b> to record where a role belongs at that canvas size. Auto-Resize then starts from your placement instead of its built-in rule, in every project on this account. A placement saved to a project only is not listed here — it lives in that .flow file.
                     </div>
                   </div>
                 </section>
@@ -3018,7 +3037,13 @@ function openSettings() {
   }
 
   // ---- Base project (the saved starting point for new projects) ----------------
-  {
+  // Built on demand, so it missed the auth event that hides account-only controls — run
+  // the gate now. In guest mode the block below is hidden and its probe never fires.
+  if (typeof syncAccountOnlyUi === 'function') syncAccountOnlyUi();
+  if (typeof accountFeaturesAvailable === 'function' && !accountFeaturesAvailable()) {
+    // Nothing to wire: the row is not on screen, and probing the account for a base
+    // project we could not offer anyway is a request for no reason.
+  } else {
     const saveBtn = bg.querySelector('#set-default-startup-save');
     const clearBtn = bg.querySelector('#set-default-startup-clear');
     const statusEl = bg.querySelector('#set-default-startup-status');
@@ -3102,6 +3127,47 @@ function openSettings() {
     });
 
     refresh();
+
+    // ---- Remembered placements -------------------------------------------------
+    const pStatus = bg.querySelector('#set-placement-library-status');
+    const pForget = bg.querySelector('#set-placement-forget-all');
+    if (pStatus && pForget) {
+      const describe = () => {
+        const { sizes, roles } = describePlacementLibrary();
+        if (!sizes) {
+          pStatus.textContent = 'None remembered. Auto-Resize uses its built-in placement rules everywhere.';
+          pForget.disabled = true;
+          pForget.style.opacity = '0.55';
+          pForget.style.cursor = 'not-allowed';
+          return;
+        }
+        pStatus.textContent = `${roles} placement${roles === 1 ? '' : 's'} remembered across ${sizes} canvas size${sizes === 1 ? '' : 's'}.`;
+        pForget.disabled = false;
+        pForget.style.opacity = '';
+        pForget.style.cursor = '';
+      };
+
+      pForget.addEventListener('click', async () => {
+        if (pForget.disabled) return;
+        if (!(await showAdflowConfirm('Forget every remembered placement on your account? Auto-Resize will go back to its built-in rules for all canvas sizes. Placements saved to a project stay in that project.'))) return;
+        try {
+          await forgetAllPlacements();
+          showCanvasNotification('All remembered placements forgotten.', { type: 'info' });
+        } catch (e) {
+          console.error(e);
+          showCanvasNotification(e.message || 'Could not update your account.', { type: 'error' });
+        }
+        describe();
+      });
+
+      // Pull once so the count is right on a machine that has not read it yet, then
+      // describe from the cache either way.
+      if (typeof fetchPlacementLibrary === 'function') {
+        fetchPlacementLibrary().then(describe).catch(describe);
+      } else {
+        describe();
+      }
+    }
   }
 
   bg.querySelectorAll('.settings-theme-btn').forEach(btn => {

@@ -122,6 +122,133 @@ document.addEventListener('mousedown', (e) => {
   }
 }, true);
 
+// ============================================================================
+// Remembered placements — the menu, and the two scopes it can save to
+// ============================================================================
+// Auto-arrange lays a canvas out from the built-in rules. This is the other direction:
+// once you have nudged things to where they actually belong, it records that as the
+// placement for this canvas SIZE, so the next canvas of that size starts there instead.
+//
+// Two scopes, and they are genuinely different destinations rather than a preference:
+//   Project only — c.layoutOverrides on this canvas. Travels inside the .flow.
+//   Global       — the account placement library, keyed by size. Travels with YOU,
+//                  across projects and machines. Needs an account, so it is absent in
+//                  guest mode rather than shown disabled: an option that can never work
+//                  is not information.
+const AUTO_ARRANGE_SVG = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /></svg>`;
+const PLACEMENT_PIN_SVG = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>`;
+
+function placementLibraryOffered() {
+  return typeof placementLibraryAvailable === 'function' && placementLibraryAvailable();
+}
+
+// Auto-arrange owns both directions of one idea — laying a canvas out FROM the rules, and
+// teaching the rules what you laid out — so they live together under it rather than as two
+// neighbours competing for the same spot in a long menu. Identical in both context menus;
+// only the scope of what gets remembered differs, which is what the label says.
+//
+// `scope` is 'canvas' (every role-assigned layer here) or 'selection'.
+function autoArrangeMenuHtml(scope, selCount) {
+  const isSel = scope === 'selection';
+  const idPrefix = isSel ? 'ctx-el-place' : 'ctx-canvas-place';
+  const saveLabel = isSel
+    ? (selCount > 1 ? `Save placement of ${selCount} layers` : 'Save placement of this layer')
+    : 'Save placement of this canvas';
+  const saveTitle = isSel
+    ? 'Remember where the selected layer(s) sit, and reuse it the next time this canvas size is generated'
+    : 'Remember where every role-assigned layer on this canvas sits, and reuse it the next time this size is generated';
+
+  let html = `<div class="ctx-item highlight has-submenu" title="Lay this canvas out from its layers&#39; roles, or remember the layout it has now">
+    <span style="display:flex; align-items:center; gap:8px;">${AUTO_ARRANGE_SVG}Auto-arrange</span>
+    <div class="ctx-submenu">
+      <div class="ctx-item" id="ctx-canvas-auto-arrange" style="white-space:nowrap;" title="Re-lay out this canvas from its layers&#39; roles, respecting margins and safe zones">Auto-arrange elements</div>
+      <div class="ctx-divider"></div>
+      <div class="ctx-item has-submenu" title="${saveTitle}">
+        <span style="display:flex; align-items:center; gap:8px; white-space:nowrap;">${PLACEMENT_PIN_SVG}${saveLabel}</span>
+        <div class="ctx-submenu">
+          <div class="ctx-item" id="${idPrefix}-project" style="white-space:nowrap;" title="Remember this placement in this project only — it travels inside the .flow file">Project only</div>`;
+  if (placementLibraryOffered()) {
+    html += `<div class="ctx-item" id="${idPrefix}-global" style="white-space:nowrap;" title="Remember this placement for this canvas size in every project on your account">All projects (global)</div>`;
+  }
+  html += `</div></div></div></div>`;
+  return html;
+}
+
+// Roles worth remembering, newest layer winning when two share one. 'misc' is skipped
+// because it means "no role assigned" — a placement stored under it would claim to
+// describe every unclassified layer on the size.
+function collectPlacementEntries(elements) {
+  const entries = {};
+  (elements || []).forEach(el => {
+    if (!el || !el.role || el.role === 'misc') return;
+    entries[el.role] = el;
+  });
+  return entries;
+}
+
+function _placementRoleList(entries) {
+  const names = Object.keys(entries).map(r => (typeof ROLE_LABELS !== 'undefined' && ROLE_LABELS[r]) || r);
+  if (names.length <= 3) return names.join(', ');
+  return `${names.slice(0, 3).join(', ')} +${names.length - 3} more`;
+}
+
+// `scope` is 'canvas' (every role-assigned layer here) or 'selection'.
+function _placementTargets(scope) {
+  const c = getActiveCanvas();
+  if (!c) return { c: null, entries: {} };
+  if (scope === 'selection') {
+    const ids = (state.layerSelection && state.layerSelection.length)
+      ? state.layerSelection
+      : (state.selectedElementId ? [state.selectedElementId] : []);
+    return { c, entries: collectPlacementEntries(c.elements.filter(el => ids.includes(el.id))) };
+  }
+  return { c, entries: collectPlacementEntries(c.elements) };
+}
+
+function savePlacementProjectOnly(scope) {
+  const { c, entries } = _placementTargets(scope);
+  if (!c) return;
+  const roles = Object.keys(entries);
+  if (!roles.length) {
+    showCanvasNotification(
+      scope === 'selection'
+        ? 'Nothing to remember — none of the selected layers has a role assigned.'
+        : 'Nothing to remember — no layer on this canvas has a role assigned.',
+      { type: 'warning' });
+    return;
+  }
+  if (!c.layoutOverrides) c.layoutOverrides = {};
+  roles.forEach(r => { c.layoutOverrides[r] = pickPlacementGeom(entries[r]); });
+  pushHistory();
+  render();
+  showCanvasNotification(
+    `Placement remembered for this project — ${c.width} × ${c.height}: ${_placementRoleList(entries)}.`,
+    { type: 'success' });
+}
+
+async function savePlacementGlobally(scope) {
+  const { c, entries } = _placementTargets(scope);
+  if (!c) return;
+  const roles = Object.keys(entries);
+  if (!roles.length) {
+    showCanvasNotification(
+      scope === 'selection'
+        ? 'Nothing to remember — none of the selected layers has a role assigned.'
+        : 'Nothing to remember — no layer on this canvas has a role assigned.',
+      { type: 'warning' });
+    return;
+  }
+  try {
+    await savePlacementsToLibrary(c.width, c.height, entries);
+    showCanvasNotification(
+      `Placement remembered for every ${c.width} × ${c.height} canvas on your account: ${_placementRoleList(entries)}.`,
+      { type: 'success' });
+  } catch (err) {
+    console.warn('Global placement save failed:', err);
+    showCanvasNotification(`Could not save the placement to your account: ${err.message || err}`, { type: 'error' });
+  }
+}
+
 document.addEventListener('contextmenu', (e) => {
   if (e.target.closest('#app-splash')) {
     e.preventDefault();
@@ -321,8 +448,8 @@ document.addEventListener('contextmenu', (e) => {
     }
     html += ctxHeader(ctxLabel);
 
-    const autoArrangeSvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /></svg>`;
-    html += `<div class="ctx-item highlight" id="ctx-canvas-auto-arrange" title="Re-lay out this canvas from its layers&#39; roles, respecting margins and safe zones" style="display:flex; align-items:center; gap:8px;">${autoArrangeSvg}Auto-arrange elements</div>`;
+    // Scoped to the SELECTION here — the canvas menu carries the whole-canvas version.
+    html += autoArrangeMenuHtml('selection', selCount);
     html += `<div class="ctx-divider"></div>`;
 
     html += `<div class="ctx-item" id="ctx-bring-fwd" title="Move the selection one step up the layer stack (Ctrl+])">Bring Forward</div>`;
@@ -478,15 +605,28 @@ document.addEventListener('contextmenu', (e) => {
     html += `<div class="ctx-divider"></div>`;
     html += `<div class="ctx-item" id="ctx-save-asset" title="Save this image to the Assets panel so you can reuse it on other canvases and projects">Save to Assets</div>`;
 
+    // "Define default placement" used to live here. It is gone because the
+    // remember-placement submenu at the top of this menu does the same job and says which
+    // scope it saves to — two commands for one action is the confusion worth removing.
+    // Forgetting is still here, and stays split by scope: one item per place a placement
+    // can live, each naming its own, so nothing account-wide is ever deleted as a
+    // side-effect of clearing something local.
     if (activeEl && activeEl.role && activeEl.role !== 'misc') {
-      html += `<div class="ctx-divider"></div>`;
-      html += `<div class="ctx-item has-submenu" title="Less common layer actions">Advanced
-        <div class="ctx-submenu">
-          <div class="ctx-item" id="ctx-define-placement" style="white-space:nowrap;">Define default placement</div>`;
-      if (c.layoutOverrides && c.layoutOverrides[activeEl.role]) {
-        html += `<div class="ctx-item ctx-danger" id="ctx-clear-override" style="white-space:nowrap;">Clear placement override</div>`;
+      const hasLocalPin = !!(c.layoutOverrides && c.layoutOverrides[activeEl.role]);
+      const hasGlobalPin = placementLibraryOffered()
+        && !!getGlobalPlacement(c.width, c.height, activeEl.role);
+      if (hasLocalPin || hasGlobalPin) {
+        html += `<div class="ctx-divider"></div>`;
+        html += `<div class="ctx-item has-submenu" title="Less common layer actions">Advanced
+          <div class="ctx-submenu">`;
+        if (hasLocalPin) {
+          html += `<div class="ctx-item ctx-danger" id="ctx-clear-override" style="white-space:nowrap;" title="Stop pinning this role on this canvas in this project">Forget placement (this project)</div>`;
+        }
+        if (hasGlobalPin) {
+          html += `<div class="ctx-item ctx-danger" id="ctx-forget-global-placement" style="white-space:nowrap;" title="Stop remembering this role for ${c.width} × ${c.height} across your account">Forget placement (all projects)</div>`;
+        }
+        html += `</div></div>`;
       }
-      html += `</div></div>`;
     }
     html += `<div class="ctx-divider"></div>`;
     html += addElementsMenuHTML;
@@ -509,6 +649,10 @@ document.addEventListener('contextmenu', (e) => {
     // setting — when the user invokes via this menu they expect to pick targets.
     const autoResizeSvg = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3H13M21 3V11M21 3L11 13M3 21H11M3 21V13M3 21L13 11"/></svg>`;
     html += `<div class="ctx-item highlight" id="ctx-canvas-auto-resize" title="Generate the other banner sizes from this canvas" style="display:flex; align-items:center; gap:8px;">${autoResizeSvg}Auto-Resize</div>`;
+    // Auto-arrange was only reachable from the element menu, which meant re-laying out a
+    // canvas required selecting something on it first. It belongs here too, carrying the
+    // whole-canvas version of the remember-placement item inside it.
+    html += autoArrangeMenuHtml('canvas');
     // Export joins Preview and Auto-Resize as a top-level canvas action rather
     // than sitting down among the housekeeping items — it is what the canvas is
     // FOR. Same highlight treatment; the label is wrapped so has-submenu's
@@ -747,30 +891,23 @@ document.addEventListener('contextmenu', (e) => {
     }
   });
   bind('ctx-save-asset', async () => await saveSelectionAsAsset());
-  bind('ctx-define-placement', () => {
+  bind('ctx-forget-global-placement', async () => {
     const c = getActiveCanvas();
     const el = getSelectedElement() || (state.layerSelection?.length > 0 ? c.elements.find(x => x.id === state.layerSelection[0]) : null);
-    if (!c || !el || !el.role || el.role === 'misc') return;
-    
-    if (!c.layoutOverrides) {
-      c.layoutOverrides = {};
+    if (!c || !el || !el.role) return;
+    const roleName = (typeof ROLE_LABELS !== 'undefined' && ROLE_LABELS[el.role]) || el.role;
+    try {
+      const { forgotten } = await forgetPlacementsFromLibrary(c.width, c.height, [el.role]);
+      if (forgotten) {
+        showCanvasNotification(`No longer remembering "${roleName}" for ${c.width} × ${c.height} on your account.`, { type: 'success' });
+        render();
+      } else {
+        showCanvasNotification(`Nothing was remembered for "${roleName}" at ${c.width} × ${c.height}.`, { type: 'info' });
+      }
+    } catch (err) {
+      console.warn('Forget global placement failed:', err);
+      showCanvasNotification(`Could not update your account: ${err.message || err}`, { type: 'error' });
     }
-    
-    c.layoutOverrides[el.role] = {
-      x: el.x,
-      y: el.y,
-      width: el.width,
-      height: el.height,
-      fontSize: el.fontSize,
-      maxFontSize: el.maxFontSize,
-      textAlign: el.textAlign,
-      verticalAlign: el.verticalAlign
-    };
-
-    const roleName = ROLE_LABELS[el.role] || el.role;
-    showCanvasNotification(`Custom placement override for "${roleName}" saved for this canvas size.`, { type: 'success' });
-    pushHistory();
-    render();
   });
   bind('ctx-clear-override', () => {
     const c = getActiveCanvas();
@@ -966,6 +1103,10 @@ document.addEventListener('contextmenu', (e) => {
   bind('ctx-canvas-auto-arrange', () => {
     runAutoArrange(state.activeCanvasId, state.layerSelection);
   });
+  bind('ctx-canvas-place-project', () => savePlacementProjectOnly('canvas'));
+  bind('ctx-canvas-place-global',  () => savePlacementGlobally('canvas'));
+  bind('ctx-el-place-project',     () => savePlacementProjectOnly('selection'));
+  bind('ctx-el-place-global',      () => savePlacementGlobally('selection'));
   bind('ctx-clear-current',   () => clearCurrentCanvasContents());
   bind('ctx-clear-others',    () => clearOtherCanvasesContents());
   bind('ctx-clear-all-canv',  () => clearAllCanvasesContents());
@@ -1375,7 +1516,7 @@ const appSplash = (() => {
         const verEl = document.createElement('span');
         verEl.className = 'app-splash-version';
         verEl.style.cssText = 'font-size: 10px; color: var(--text-muted, #8b8f9c); border: 1px solid rgba(139, 143, 156, 0.4); padding: 2px 8px; border-radius: 10px; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: inline-flex; align-items: center; justify-content: center; line-height: 1; margin-top: 2px;';
-        verEl.textContent = 'v0.52.0';
+        verEl.textContent = 'v0.53.0';
         logoEl.appendChild(verEl);
       }
     }

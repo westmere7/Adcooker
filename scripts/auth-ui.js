@@ -221,19 +221,47 @@ const spacesState = (() => {
 // Auth UI — top-bar chip, sign-in/up modal, Cloud Projects modal, push/pull.
 // Hidden entirely when SUPABASE_URL / SUPABASE_ANON_KEY are not configured.
 // ============================================================================
+// Every control that cannot do anything without an account, in one list.
+//
+// Guest mode hides them OUTRIGHT rather than showing them disabled, or letting them open
+// a dialog whose only content is "sign in first": an action you are not able to take is
+// not a menu item, and a build with no cloud configured should look like an app that
+// simply does not have the feature. `authState.enabled` false counts as guest, so both
+// "signed out" and "no cloud in this build" resolve the same way.
+//
+// The single gate for all of them. Called from renderAuthChip (so signing in or out
+// updates everything with no reload) and again whenever a dialog that contains one of
+// these is BUILT, since those are created on demand and miss the auth event. Anything
+// account-only added later belongs in this list and nowhere else.
+const ACCOUNT_ONLY_UI_IDS = Object.freeze([
+  'menu-file-cloud',           // Open ▸ From Cloud…
+  'menu-file-push',            // Save ▸ Save (Cloud)
+  'menu-file-cloud-copy',      // Save ▸ Save as (Cloud)…
+  'menu-file-revert',          // Revert to Cloud Version
+  'menu-file-share',           // Share Preview… — snapshots live in cloud storage
+  'btn-share-top',             // the toolbar's Share button, same feature
+  'set-default-startup-block', // Settings ▸ Base project (stored on the account)
+  'set-placement-library-block' // Settings ▸ Remembered placements (same)
+]);
+
+function accountFeaturesAvailable() {
+  return !!(typeof authState !== 'undefined' && authState.enabled && authState.currentUser());
+}
+
+function syncAccountOnlyUi() {
+  const on = accountFeaturesAvailable();
+  ACCOUNT_ONLY_UI_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = on ? '' : 'none';
+  });
+}
+
 function renderAuthChip() {
   const chip = document.getElementById('auth-chip');
   if (!chip) return;
+  syncAccountOnlyUi();
   if (!authState.enabled) { chip.style.display = 'none'; return; }
   const u = authState.currentUser();
-  const cloudMenuItem = document.getElementById('menu-file-cloud');
-  const pushMenuItem = document.getElementById('menu-file-push');
-  const revertMenuItem = document.getElementById('menu-file-revert');
-  const copyMenuItem = document.getElementById('menu-file-cloud-copy');
-  if (cloudMenuItem) cloudMenuItem.style.display = u ? '' : 'none';
-  if (pushMenuItem) pushMenuItem.style.display = u ? '' : 'none';
-  if (revertMenuItem) revertMenuItem.style.display = u ? '' : 'none';
-  if (copyMenuItem) copyMenuItem.style.display = u ? '' : 'none';
   chip.style.display = '';
   if (!u) {
     chip.innerHTML = `
@@ -688,6 +716,179 @@ function readDefaultStartupMeta() {
   catch (e) { return null; }
 }
 
+// ---------------------------------------------------------------------------
+// Placement library — remembered element placements, per canvas SIZE and role,
+// belonging to the account rather than to a project.
+//
+// `c.layoutOverrides[role]` already pins a role's geometry, but it lives on one canvas
+// inside one .flow: get a 300 × 250 laid out the way you want it and the next project
+// starts from the built-in rules again. This is the same information keyed by
+// `<width>x<height>` → role, kept on the account, so it survives across projects and
+// machines.
+//
+// Shape: { version: 1, savedAt, sizes: { "300x250": { heading: {x,y,width,height,…} } } }
+//
+// Reads must be SYNCHRONOUS — the auto-resize engine resolves geometry inside a tight
+// per-element loop — so the authority for reading is a localStorage cache, refreshed
+// from storage on sign-in. Writes go to storage first and only update the cache once
+// that succeeds, so the cache can never claim something the account does not have.
+const PLACEMENT_LIBRARY_FILE = 'placement-library.json';
+const PLACEMENT_LIBRARY_KEY = 'adflow-placement-library';
+const PLACEMENT_GEOM_KEYS = Object.freeze([
+  'x', 'y', 'width', 'height', 'fontSize', 'maxFontSize', 'textAlign', 'verticalAlign', 'hidden'
+]);
+
+function placementLibraryPath(userId) {
+  return `${userId}/${PLACEMENT_LIBRARY_FILE}`;
+}
+
+const placementSizeKey = (w, h) => `${Math.round(w)}x${Math.round(h)}`;
+
+// True only when a remembered placement could exist AND be trusted: the library is an
+// account feature, so in guest mode it does not participate at all and every caller
+// falls back to exactly the behaviour it had before this existed.
+function placementLibraryAvailable() {
+  return !!(sb && typeof authState !== 'undefined' && authState.enabled && authState.currentUser());
+}
+
+function readPlacementLibrary() {
+  if (!placementLibraryAvailable()) return null;
+  try {
+    const lib = JSON.parse(localStorage.getItem(PLACEMENT_LIBRARY_KEY) || 'null');
+    return (lib && typeof lib === 'object' && lib.sizes) ? lib : null;
+  } catch (e) { return null; }
+}
+
+function _cachePlacementLibrary(lib) {
+  try { localStorage.setItem(PLACEMENT_LIBRARY_KEY, JSON.stringify(lib)); } catch (e) {}
+}
+
+// The one lookup the engine calls. Deliberately total-failure-tolerant: anything odd
+// about the cache returns null and the built-in placement rule runs, which is the
+// behaviour that existed before the library did.
+function getGlobalPlacement(width, height, role) {
+  if (!role) return null;
+  const lib = readPlacementLibrary();
+  if (!lib) return null;
+  const bucket = lib.sizes[placementSizeKey(width, height)];
+  const geom = bucket && bucket[role];
+  if (!geom || typeof geom.x !== 'number' || typeof geom.y !== 'number') return null;
+  return geom;
+}
+
+// Keep only the geometry keys, and only the ones actually present — writing `fontSize:
+// undefined` into JSON drops the key anyway, but an explicit null would later read as
+// "pinned to nothing" and clobber a real value.
+function pickPlacementGeom(el) {
+  const out = {};
+  PLACEMENT_GEOM_KEYS.forEach(k => { if (el[k] !== undefined && el[k] !== null) out[k] = el[k]; });
+  return out;
+}
+
+async function fetchPlacementLibrary() {
+  if (!placementLibraryAvailable()) return null;
+  const u = authState.currentUser();
+  try {
+    const blob = await downloadProjectBlobFresh(placementLibraryPath(u.id));
+    const lib = JSON.parse(await blob.text());
+    if (lib && typeof lib === 'object' && lib.sizes) {
+      _cachePlacementLibrary(lib);
+      return lib;
+    }
+  } catch (e) {
+    // No library yet is the normal first-run case, not an error worth surfacing.
+  }
+  return null;
+}
+
+async function _uploadPlacementLibrary(lib) {
+  const u = authState.currentUser();
+  const { error } = await sb.storage.from('projects').upload(
+    placementLibraryPath(u.id),
+    new Blob([JSON.stringify(lib)], { type: 'application/json' }),
+    Object.assign({}, PROJECT_BLOB_UPLOAD_OPTS, { contentType: 'application/json' }));
+  if (error) throw error;
+}
+
+// Remember `entries` ({ role: element }) for one canvas size. Merges rather than
+// replaces, at the role level, so saving a heading never forgets a button — and re-reads
+// storage first so a save made on another machine is not silently overwritten by this
+// one's cache.
+async function savePlacementsToLibrary(width, height, entries) {
+  if (!sb) throw new Error('Cloud is not configured.');
+  if (!authState.currentUser()) throw new Error('Sign in to remember placements across projects.');
+
+  const roles = Object.keys(entries || {});
+  if (!roles.length) return { saved: 0 };
+
+  const remote = await fetchPlacementLibrary();
+  const lib = remote || { version: 1, sizes: {} };
+  const key = placementSizeKey(width, height);
+  if (!lib.sizes[key]) lib.sizes[key] = {};
+  roles.forEach(role => { lib.sizes[key][role] = pickPlacementGeom(entries[role]); });
+  lib.savedAt = Date.now();
+
+  await _uploadPlacementLibrary(lib);
+  _cachePlacementLibrary(lib);
+  return { saved: roles.length };
+}
+
+// Forget remembered placements for one size. `roles` omitted forgets the whole size.
+async function forgetPlacementsFromLibrary(width, height, roles) {
+  if (!sb) throw new Error('Cloud is not configured.');
+  if (!authState.currentUser()) throw new Error('Not signed in.');
+
+  const remote = await fetchPlacementLibrary();
+  if (!remote) return { forgotten: 0 };
+  const key = placementSizeKey(width, height);
+  const bucket = remote.sizes[key];
+  if (!bucket) return { forgotten: 0 };
+
+  let forgotten = 0;
+  if (Array.isArray(roles) && roles.length) {
+    roles.forEach(r => { if (bucket[r]) { delete bucket[r]; forgotten++; } });
+  } else {
+    forgotten = Object.keys(bucket).length;
+    delete remote.sizes[key];
+  }
+  if (!forgotten) return { forgotten: 0 };
+  if (remote.sizes[key] && !Object.keys(remote.sizes[key]).length) delete remote.sizes[key];
+  remote.savedAt = Date.now();
+
+  await _uploadPlacementLibrary(remote);
+  _cachePlacementLibrary(remote);
+  return { forgotten };
+}
+
+// Forget every remembered placement, for every size. The library is invisible state that
+// changes how auto-resize behaves in projects you have not opened yet, so there has to be
+// one switch that puts it all back to the built-in rules.
+async function forgetAllPlacements() {
+  if (!sb) throw new Error('Cloud is not configured.');
+  const u = authState.currentUser();
+  if (!u) throw new Error('Not signed in.');
+  const { error } = await sb.storage.from('projects').remove([placementLibraryPath(u.id)]);
+  if (error) throw error;
+  clearPlacementLibraryCache();
+}
+
+// Signing out must not leave the next person on this browser inheriting the last
+// account's remembered placements — the cache is account data, not machine data.
+function clearPlacementLibraryCache() {
+  try { localStorage.removeItem(PLACEMENT_LIBRARY_KEY); } catch (e) {}
+}
+
+// Summary for the Settings screen: how many sizes and roles are remembered.
+function describePlacementLibrary() {
+  const lib = readPlacementLibrary();
+  if (!lib) return { sizes: 0, roles: 0 };
+  const keys = Object.keys(lib.sizes || {});
+  return {
+    sizes: keys.length,
+    roles: keys.reduce((n, k) => n + Object.keys(lib.sizes[k] || {}).length, 0)
+  };
+}
+
 async function saveDefaultStartupProject() {
   if (!sb) throw new Error('Cloud is not configured.');
   const u = authState.currentUser();
@@ -1048,6 +1249,17 @@ async function pullCloudProject(row, opts = {}) {
 // Wire chip + menu items once at boot. Both auth changes and space changes
 // trigger a chip re-render so the current-space label stays current.
 authState.subscribe(() => renderAuthChip());
+
+// Placement library follows the session. Pulled on sign-in so the synchronous cache the
+// auto-resize engine reads is populated before anyone runs it, and dropped on sign-out so
+// the next person on this browser does not inherit the last account's placements.
+authState.subscribe(u => {
+  if (u) {
+    fetchPlacementLibrary().catch(e => console.warn('Placement library not loaded:', e));
+  } else {
+    clearPlacementLibraryCache();
+  }
+});
 spacesState.subscribe(() => renderAuthChip());
 document.getElementById('menu-file-cloud')?.addEventListener('click', () => openCloudProjectsModal());
 document.getElementById('menu-file-push')?.addEventListener('click', async () => {
