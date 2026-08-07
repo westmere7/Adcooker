@@ -151,7 +151,7 @@ const VIDEO_BITRATE_DEFAULT = VIDEO_BITRATE_PRESETS.high;
 // GIF stores is exact and playback speed matches what was asked for. 25 is the
 // ceiling worth offering — browsers clamp delays under 2cs, and a banner-sized
 // GIF at 25fps is already heavy.
-const GIF_FPS_OPTIONS = [10, 20, 25];
+const GIF_FPS_OPTIONS = [10, 20, 25, 50];
 const GIF_FPS_DEFAULT = 20;
 const GIF_COLORS_OPTIONS = [32, 64, 128, 256];
 // 256 by default — the GIF maximum. Photographic artwork needs the headroom and
@@ -863,7 +863,6 @@ function openVideoExportSettingsPopup(c, format = 'video') {
         <div id="vqe-stage" style="display:none; flex-shrink:0;">
           <div style="display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin-bottom:6px;">
             <span style="font-size:11px; color:var(--text-muted, #8b8f9c); text-transform:uppercase; letter-spacing:.04em;">Preview <span style="text-transform:none; letter-spacing:0; opacity:.72;">— drag it out to save or drop into another app</span></span>
-            <span id="vqe-stale" style="display:none; font-size:11px; color:#e0b153;">Changed — re-render</span>
           </div>
           <!-- Sized to the media exactly, so there is never a gap around it.
                Checkerboard shows only where the ad is genuinely transparent. -->
@@ -884,7 +883,6 @@ function openVideoExportSettingsPopup(c, format = 'video') {
   const stage = overlay.querySelector('#vqe-stage');
   const host = overlay.querySelector('#vqe-preview');
   const stats = overlay.querySelector('#vqe-stats');
-  const stale = overlay.querySelector('#vqe-stale');
   const progressEl = overlay.querySelector('#vqe-progress');
   const ringEl = overlay.querySelector('#vqe-ring');
   const ringFill = overlay.querySelector('#vqe-ring-fill');
@@ -899,6 +897,21 @@ function openVideoExportSettingsPopup(c, format = 'video') {
   let currentUrl = null;
   let rendering = false;
   let aborter = null;
+  let isStale = false;
+  let lastStatsBits = [];
+
+  const updateStatsDisplay = () => {
+    if (!lastStatsBits.length) {
+      stats.innerHTML = '';
+      return;
+    }
+    const specsText = lastStatsBits.join('  ·  ');
+    if (isStale) {
+      stats.innerHTML = `${specsText}  ·  <span id="vqe-stale" style="color:#e0b153; font-weight:600; background:rgba(224,177,83,0.15); border:1px solid rgba(224,177,83,0.3); padding:1px 6px; border-radius:4px; font-size:10.5px; display:inline-block; vertical-align:baseline;">Changed — re-render</span>`;
+    } else {
+      stats.innerHTML = specsText;
+    }
+  };
 
   const settings = wireVideoSettings(overlay, 'vqe', {
     getDurationSec: () => durationSec,
@@ -910,8 +923,8 @@ function openVideoExportSettingsPopup(c, format = 'video') {
   // Any settings change invalidates what is on screen.
   const markStale = () => {
     if (!current || rendering) return;
-    stale.style.display = '';
-    host.style.opacity = '0.45';
+    isStale = true;
+    updateStatsDisplay();
     btnRender.textContent = 'Re-render';
     btnRender.style.display = '';
   };
@@ -1049,16 +1062,16 @@ function openVideoExportSettingsPopup(c, format = 'video') {
     host.appendChild(node);
     host.style.opacity = '1';
     stage.style.display = '';
-    stale.style.display = 'none';
+    isStale = false;
 
-    const bits = [
+    lastStatsBits = [
       `${res.width}×${res.height}`,
       `${res.frames} frames @ ${opts.fps}fps`,
       humanBytes(res.blob.size)
     ];
-    if (res.ext !== 'gif') bits.push(res.ext.toUpperCase());
-    if (box.scale < 1) bits.push(`shown at ${Math.round(box.scale * 100)}%`);
-    stats.textContent = bits.join('  ·  ');
+    if (res.ext !== 'gif') lastStatsBits.push(res.ext.toUpperCase());
+    if (box.scale < 1) lastStatsBits.push(`shown at ${Math.round(box.scale * 100)}%`);
+    updateStatsDisplay();
 
     // Stacked layout: widen the column to the preview so the two share an edge
     // instead of the controls sitting short of it.
