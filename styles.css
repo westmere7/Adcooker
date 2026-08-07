@@ -2644,6 +2644,26 @@ body.theme-rmit-navy {
 
 
 
+    /* A canvas dimension that has been edited but not applied yet. Placed AFTER the
+       :focus rule above deliberately — same specificity, so source order decides, and a
+       pending field must stay marked once focus moves to the Apply button. */
+    .prop-row input.dim-pending {
+      border-color: var(--accent-base);
+      color: var(--text-bright);
+    }
+
+    #c-swap-dims:hover {
+      color: var(--accent-base);
+      border-color: var(--accent-base);
+    }
+
+    /* The Add-canvas menu's group flyouts hold up to sixteen sizes, which is taller than
+       a short window — scroll the flyout rather than letting it run off the screen. */
+    #canvas-size-popup .sub-dropdown {
+      max-height: min(60vh, 420px);
+      overflow-y: auto;
+    }
+
     .prop-grid-2 {
 
       display: grid;

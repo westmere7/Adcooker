@@ -220,50 +220,179 @@ document.getElementById('btn-validator-dashboard-trigger').addEventListener('cli
   }
 });
 
-document.getElementById('btn-add-canvas').addEventListener('click', (e) => {
-  let popup = document.getElementById('canvas-size-popup');
-  if (!popup) {
-    popup = document.createElement('div');
-    popup.id = 'canvas-size-popup';
-    popup.style.position = 'absolute';
-    popup.style.background = 'var(--bg-panel)';
-    popup.style.border = '1px solid var(--border-light)';
-    popup.style.borderRadius = '6px';
-    popup.style.padding = '4px 0';
-    popup.style.zIndex = '2000';
-    popup.style.boxShadow = '0 8px 24px var(--shadow-medium)';
+// Where a newly added canvas goes: in free space near the ones already there, never on
+// top of one. The old rule was a fixed diagonal cascade off BOARD_MARGIN, which took no
+// account of where the existing canvases actually were — move the group once and the next
+// canvas you added landed straight on it.
+//
+// Returns { x, y, offBoard }. offBoard is true only when the board has no room for this
+// size at all; the caller says so rather than letting it be discovered later.
+function placeNewCanvas(w, h) {
+  const GAP = 60;
+  const others = (state.canvases || []).filter(o => o && o.width > 0 && o.height > 0);
+  if (!others.length) return { x: BOARD_MARGIN, y: BOARD_MARGIN, offBoard: false };
 
-    PRESET_SIZES.forEach(sz => {
-      const item = document.createElement('div');
-      item.className = 'dropdown-item';
-      item.innerText = `${sz.name} (${sz.width}x${sz.height})`;
-      item.addEventListener('click', () => {
-        const idx = state.canvases.length;
-        const c = seedCanvas(sz, idx % PRESET_SIZES.length);
-        if (state.defaultBg) c.bgColor = state.defaultBg;
-        if (idx >= PRESET_SIZES.length) {
-          c.workspaceX = BOARD_MARGIN + idx * 30;
-          c.workspaceY = BOARD_MARGIN + idx * 30;
-        }
-        state.canvases.push(c);
-        state.activeCanvasId = c.id;
-        pushHistory();
-        render();
-        popup.style.display = 'none';
-      });
-      popup.appendChild(item);
-    });
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  others.forEach(o => {
+    minX = Math.min(minX, o.workspaceX);
+    minY = Math.min(minY, o.workspaceY);
+    maxX = Math.max(maxX, o.workspaceX + o.width);
+    maxY = Math.max(maxY, o.workspaceY + o.height);
+  });
 
-    document.addEventListener('mousedown', (ev) => {
-      if (!popup.contains(ev.target) && ev.target.id !== 'btn-add-canvas') {
-        popup.style.display = 'none';
-      }
-    });
-    document.body.appendChild(popup);
+  // On the board, and `pad` clear of everything already on it.
+  const fits = (x, y, pad) => {
+    if (x < 0 || y < 0 || x + w > BOARD_SIZE || y + h > BOARD_SIZE) return false;
+    return !others.some(o =>
+      x - pad < o.workspaceX + o.width && o.workspaceX < x + w + pad &&
+      y - pad < o.workspaceY + o.height && o.workspaceY < y + h + pad);
+  };
+
+  // Carrying on from the group is the tidiest answer, so try that first, then carrying on
+  // from each canvas in it.
+  const preferred = [{ x: maxX + GAP, y: minY }, { x: minX, y: maxY + GAP }];
+  others.forEach(o => {
+    preferred.push({ x: o.workspaceX + o.width + GAP, y: o.workspaceY });
+    preferred.push({ x: o.workspaceX, y: o.workspaceY + o.height + GAP });
+  });
+
+  // Then a coarse sweep of the board, ordered by how close each spot lands to the group,
+  // so an addition that cannot simply continue the block still stays clustered with it
+  // rather than jumping to a far corner.
+  const sweep = [];
+  for (let y = 0; y + h <= BOARD_SIZE; y += 40) {
+    for (let x = 0; x + w <= BOARD_SIZE; x += 40) sweep.push({ x, y });
+  }
+  const near = (p) => (p.x - minX) * (p.x - minX) + (p.y - minY) * (p.y - minY);
+  sweep.sort((a, b) => near(a) - near(b));
+
+  // Full clearance first; settle for merely not touching before giving up.
+  for (const pad of [GAP, 8, 0]) {
+    const hit = preferred.find(p => fits(p.x, p.y, pad)) || sweep.find(p => fits(p.x, p.y, pad));
+    if (hit) return { x: hit.x, y: hit.y, offBoard: false };
   }
 
+  // No room anywhere. Continue below the group and run past the edge rather than dropping
+  // this on top of something: an overlap hides work that is already there, where running
+  // long leaves both canvases whole and draggable.
+  return { x: minX, y: maxY + GAP, offBoard: true };
+}
+
+function addCanvasOfSize(size) {
+  const c = seedCanvas(size, state.canvases.length);
+  if (state.defaultBg) c.bgColor = state.defaultBg;
+  const at = placeNewCanvas(size.width, size.height);
+  c.workspaceX = at.x;
+  c.workspaceY = at.y;
+  state.canvases.push(c);
+  state.activeCanvasId = c.id;
+  pushHistory();
+  render();
+  if (at.offBoard && typeof showCanvasNotification === 'function') {
+    showCanvasNotification(
+      `Added ${size.width} × ${size.height}, but the board has no free space that size — it sits below the others and runs past the edge. Move or resize a canvas to bring it fully on.`,
+      { type: 'warning' }
+    );
+  }
+}
+
+// The Add-canvas menu. Grouped into submenus rather than one flat list — the catalogue
+// runs to 43 sizes, and a 43-item dropdown is a list nobody reads. A custom W × H row
+// sits at the bottom, so this stays a way to make any canvas and not merely a picker of
+// the ones we thought of.
+function buildAddCanvasPopup() {
+  const popup = document.createElement('div');
+  popup.id = 'canvas-size-popup';
+  popup.style.position = 'absolute';
+  popup.style.background = 'var(--bg-panel)';
+  popup.style.border = '1px solid var(--border-light)';
+  popup.style.borderRadius = '6px';
+  popup.style.padding = '4px 0';
+  popup.style.zIndex = '2000';
+  popup.style.boxShadow = '0 8px 24px var(--shadow-medium)';
+
+  const close = () => { popup.style.display = 'none'; };
+
+  const groups = (typeof CANVAS_SIZE_CATALOG !== 'undefined' && CANVAS_SIZE_CATALOG.length)
+    ? CANVAS_SIZE_CATALOG
+    : [{ group: 'Standard sizes', sizes: PRESET_SIZES }];
+
+  groups.forEach(g => {
+    const row = document.createElement('div');
+    row.className = 'dropdown-item has-sub';
+    row.title = `${g.group} — ${g.sizes.length} sizes`;
+    row.innerHTML = `<span>${g.group}</span><span style="margin-left:12px; font-size:8px; opacity:0.5;">▶</span>`;
+
+    const sub = document.createElement('div');
+    sub.className = 'sub-dropdown';
+    g.sizes.forEach(sz => {
+      const item = document.createElement('div');
+      item.className = 'dropdown-item';
+      item.title = `Add a ${sz.width} × ${sz.height} canvas`;
+      item.innerHTML = `<span>${sz.name}</span><span style="margin-left:14px; opacity:0.65; font-variant-numeric:tabular-nums;">${sz.width} × ${sz.height}</span>`;
+      item.addEventListener('click', () => { addCanvasOfSize(sz); close(); });
+      sub.appendChild(item);
+    });
+
+    row.appendChild(sub);
+    popup.appendChild(row);
+  });
+
+  // Custom size, inline rather than behind a dialog: it is two numbers, and a modal for
+  // two numbers is a modal too many. Not a .dropdown-item — those fill with accent on
+  // hover, which is wrong for a row you are meant to type in.
+  const custom = document.createElement('div');
+  custom.style.cssText = 'border-top:1px solid var(--border-light); margin-top:4px; padding:8px 10px 6px;';
+  custom.innerHTML = `
+    <div style="font-size:9px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--text-muted); margin-bottom:6px;">Custom size</div>
+    <div style="display:flex; align-items:center; gap:6px;">
+      <input type="number" id="add-canvas-w" min="20" max="2900" placeholder="W" title="Width in pixels" style="width:70px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:5px; padding:4px 6px; font-size:11px; outline:none; text-align:center;" />
+      <span style="font-size:11px; color:var(--text-muted);">×</span>
+      <input type="number" id="add-canvas-h" min="20" max="2900" placeholder="H" title="Height in pixels" style="width:70px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:5px; padding:4px 6px; font-size:11px; outline:none; text-align:center;" />
+      <button class="btn" id="add-canvas-go" title="Add a canvas of this size" style="padding:4px 10px; font-size:11px; white-space:nowrap;">Add</button>
+    </div>`;
+  popup.appendChild(custom);
+
+  const wInp = custom.querySelector('#add-canvas-w');
+  const hInp = custom.querySelector('#add-canvas-h');
+  const addCustom = () => {
+    const w = Math.round(Number(wInp.value) || 0);
+    const h = Math.round(Number(hInp.value) || 0);
+    if (!(w >= 20 && h >= 20 && w <= 2900 && h <= 2900)) {
+      showAdflowAlert('Enter a width and height between 20 and 2900 pixels.');
+      return;
+    }
+    // A hand-typed standard size gets its proper name, same as in the New Project
+    // dialog — it is the same canvas either way, and the name is what labels it after.
+    const match = PRESET_SIZES.find(p => p.width === w && p.height === h)
+      || groups.flatMap(g => g.sizes).find(p => p.width === w && p.height === h);
+    addCanvasOfSize({ name: match ? match.name : 'Custom', width: w, height: h });
+    wInp.value = '';
+    hInp.value = '';
+    close();
+  };
+  custom.querySelector('#add-canvas-go').onclick = addCustom;
+  [wInp, hInp].forEach(inp => {
+    inp.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); addCustom(); }
+    });
+  });
+
+  document.addEventListener('mousedown', (ev) => {
+    if (!popup.contains(ev.target) && ev.target.id !== 'btn-add-canvas' && !ev.target.closest('#btn-add-canvas')) {
+      close();
+    }
+  });
+  document.body.appendChild(popup);
+  return popup;
+}
+
+document.getElementById('btn-add-canvas').addEventListener('click', (e) => {
+  const popup = document.getElementById('canvas-size-popup') || buildAddCanvasPopup();
   popup.style.display = 'block';
-  const rect = e.target.getBoundingClientRect();
+  // currentTarget, not target — clicking the icon inside the button would otherwise
+  // anchor the menu to the icon's box rather than the button's.
+  const rect = e.currentTarget.getBoundingClientRect();
   popup.style.left = rect.left + 'px';
   popup.style.top = (rect.bottom + 5) + 'px';
 });

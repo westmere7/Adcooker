@@ -1767,6 +1767,25 @@ function renderProps() {
     const autoSettings = (typeof getAutoResizeSettings === 'function') ? getAutoResizeSettings() : null;
     const isSyncCanvasBg = !!(autoSettings && autoSettings.behaviour && autoSettings.behaviour.syncCanvasBg === true);
 
+    // Canvas size presets — the SAME catalogue the New Project dialog offers, so
+    // retargeting a canvas to a standard size is a two-click job here rather than
+    // something you can only choose while starting a project. Flattened alongside the
+    // options so a chosen <option> resolves back to its size by plain index.
+    // The option matching the canvas's current size is pre-selected, which makes the
+    // picker double as a read-out of what this canvas actually is.
+    const canvasPresetFlat = [];
+    const canvasPresetOptions = (typeof CANVAS_SIZE_CATALOG !== 'undefined' ? CANVAS_SIZE_CATALOG : []).map(g => {
+      const opts = g.sizes.map(s => {
+        canvasPresetFlat.push(s);
+        const isCurrent = s.width === c.width && s.height === c.height;
+        return `<option value="${canvasPresetFlat.length - 1}"${isCurrent ? ' selected' : ''}>${esc(s.name)} — ${s.width} × ${s.height}</option>`;
+      }).join('');
+      return `<optgroup label="${esc(g.group)}">${opts}</optgroup>`;
+    }).join('');
+    const CANVAS_DIM_MIN = 20;
+    const CANVAS_DIM_MAX = 2900;
+    const swapIconSvg = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 20 7 16 11"/><path d="M20 7H9a4 4 0 0 0-4 4"/><polyline points="8 21 4 17 8 13"/><path d="M4 17h11a4 4 0 0 0 4-4"/></svg>';
+
     // show canvas properties when no element is selected
     propsEl.innerHTML = `
       ${dynamicHtml}
@@ -1778,12 +1797,39 @@ function renderProps() {
           </svg>
         </h3>
         <div class="panel-section-content">
+        <!-- Dimensions are COMMITTED, not live. Typing here used to resize the canvas on
+             every keystroke, which meant passing through 5 and 50 on the way to 500 and
+             reflowing every auto-sized layer each time. The boxes now hold a pending size
+             until you apply it; the Apply / Cancel row only exists while there is
+             something pending, so nothing new is in the way when there isn't. -->
         <div class="prop-row">
           <label>Dimensions</label>
-          <div class="prop-grid-2">
-            <input type="number" id="c-w" value="${c.width}" title="Canvas Width (px)" />
-            <input type="number" id="c-h" value="${c.height}" title="Canvas Height (px)" />
+          <div style="display:flex; align-items:center; gap:6px;">
+            <input type="number" id="c-w" value="${c.width}" min="${CANVAS_DIM_MIN}" max="${CANVAS_DIM_MAX}" title="Canvas width in pixels — press Enter or Apply to resize, Esc to discard" style="flex:1; min-width:0;" />
+            <button id="c-swap-dims" title="Swap width and height — turn this canvas on its side" style="
+              flex:none; width:24px; height:24px; padding:0; border-radius:6px; cursor:pointer;
+              background:var(--bg-btn); border:1px solid var(--border-light); color:var(--text-muted);
+              display:flex; align-items:center; justify-content:center; transition:color 0.15s, border-color 0.15s;
+            ">${swapIconSvg}</button>
+            <input type="number" id="c-h" value="${c.height}" min="${CANVAS_DIM_MIN}" max="${CANVAS_DIM_MAX}" title="Canvas height in pixels — press Enter or Apply to resize, Esc to discard" style="flex:1; min-width:0;" />
           </div>
+        </div>
+        <div class="prop-row" style="margin-top:6px;">
+          <select id="c-size-preset" title="Resize this canvas to a standard size — display ads, social, screens or raster design">
+            <option value="">Preset size…</option>
+            ${canvasPresetOptions}
+          </select>
+        </div>
+        <div class="prop-row" id="c-dims-commit" style="display:none; margin-top:6px; align-items:center; gap:6px;">
+          <span id="c-dims-preview" style="flex:1; min-width:0; font-size:10px; color:var(--text-muted); font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
+          <button id="c-dims-cancel" title="Discard the pending size and go back to the current one (Esc)" style="
+            flex:none; padding:3px 9px; border-radius:5px; cursor:pointer; font-family:inherit; font-size:11px;
+            background:var(--bg-btn); border:1px solid var(--border-light); color:var(--text-main);
+          ">Cancel</button>
+          <button id="c-dims-apply" title="Resize the canvas to the pending size (Enter)" style="
+            flex:none; padding:3px 11px; border-radius:5px; cursor:pointer; font-family:inherit; font-size:11px; font-weight:600;
+            background:var(--accent-base); border:1px solid var(--accent-base); color:var(--text-on-accent, #fff);
+          ">Apply</button>
         </div>
         <div class="prop-row" style="margin-top:12px;">
           <label>Background Color</label>
@@ -1933,12 +1979,95 @@ function renderProps() {
       ${frameTransitionSectionHtml}`;
     const wInp = document.getElementById('c-w');
     const hInp = document.getElementById('c-h');
+    const presetSel = document.getElementById('c-size-preset');
+    const dimsCommit = document.getElementById('c-dims-commit');
+    const dimsPreview = document.getElementById('c-dims-preview');
+    const btnSwapDims = document.getElementById('c-swap-dims');
 
-    wInp.addEventListener('input', e => { c.width = Math.max(20, +e.target.value || 20); render(true); });
-    wInp.addEventListener('change', () => pushHistory());
+    // Read a box without ever writing back to it while it is being typed in — rewriting
+    // the value mid-keystroke is what turns "500" into "20" the moment the 5 lands. A
+    // blank or nonsense box therefore means "leave this dimension alone", and an
+    // out-of-range number reports what it would be clamped to rather than silently
+    // becoming it.
+    const readDim = (inp, current) => {
+      const raw = String(inp.value).trim();
+      if (raw === '') return current;
+      const n = Math.round(Number(raw));
+      if (!isFinite(n) || n <= 0) return current;
+      return Math.max(CANVAS_DIM_MIN, Math.min(CANVAS_DIM_MAX, n));
+    };
+    const pendingDims = () => ({ w: readDim(wInp, c.width), h: readDim(hInp, c.height) });
 
-    hInp.addEventListener('input', e => { c.height = Math.max(20, +e.target.value || 20); render(true); });
-    hInp.addEventListener('change', () => pushHistory());
+    // Pending size lives in the boxes and nowhere else, so a panel rebuild (selecting a
+    // layer, undo, a preset applied elsewhere) discards it — the same as pressing Cancel.
+    const refreshDimsCommit = () => {
+      const p = pendingDims();
+      const dirty = p.w !== c.width || p.h !== c.height;
+      dimsCommit.style.display = dirty ? 'flex' : 'none';
+      wInp.classList.toggle('dim-pending', dirty);
+      hInp.classList.toggle('dim-pending', dirty);
+      // Labelled, but only the size it will BECOME — stating the old one alongside it spent
+      // most of the row on the thing you can already see for yourself.
+      if (dirty) dimsPreview.textContent = `New size: ${p.w} × ${p.h}`;
+    };
+
+    // Keep the picker honest about what is in the boxes: a size that is a standard one
+    // shows its name, anything else falls back to the placeholder.
+    const syncPresetSelect = () => {
+      const p = pendingDims();
+      const idx = canvasPresetFlat.findIndex(s => s.width === p.w && s.height === p.h);
+      presetSel.value = idx >= 0 ? String(idx) : '';
+    };
+
+    const applyDims = () => {
+      const p = pendingDims();
+      if (p.w === c.width && p.h === c.height) { refreshDimsCommit(); return; }
+      c.width = p.w;
+      c.height = p.h;
+      pushHistory();
+      render();   // full render, so the panel rebuilds with the new size as the committed one
+    };
+
+    const cancelDims = () => {
+      wInp.value = c.width;
+      hInp.value = c.height;
+      syncPresetSelect();
+      refreshDimsCommit();
+    };
+
+    [wInp, hInp].forEach(inp => {
+      inp.addEventListener('input', () => { syncPresetSelect(); refreshDimsCommit(); });
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault(); e.stopPropagation();
+          applyDims();
+        } else if (e.key === 'Escape') {
+          e.preventDefault(); e.stopPropagation();
+          cancelDims();
+        }
+      });
+    });
+
+    // Swap acts on the PENDING size, so it composes with a number just typed or a preset
+    // just picked, and still waits for Apply like everything else here.
+    btnSwapDims.onclick = () => {
+      const p = pendingDims();
+      wInp.value = p.h;
+      hInp.value = p.w;
+      syncPresetSelect();
+      refreshDimsCommit();
+    };
+
+    presetSel.onchange = () => {
+      const s = canvasPresetFlat[+presetSel.value];
+      if (!s) { syncPresetSelect(); return; }
+      wInp.value = s.width;
+      hInp.value = s.height;
+      refreshDimsCommit();
+    };
+
+    document.getElementById('c-dims-apply').onclick = applyDims;
+    document.getElementById('c-dims-cancel').onclick = cancelDims;
 
     const bgColor = document.getElementById('c-bg-color');
     const bgHex = document.getElementById('c-bg-color-hex');
