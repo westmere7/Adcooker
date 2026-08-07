@@ -3915,6 +3915,16 @@ body.theme-rmit-navy {
       color: #fff5f5;
     }
 
+    /* A menu command that cannot do anything in this context. Greyed and inert rather than
+       hidden: the command still belongs in the menu, and knowing it exists but has nothing
+       to apply is the useful half of the answer. Its id is dropped when disabled too, so
+       there is no handler to reach even if a click got through. */
+    .ctx-item.ctx-disabled {
+      opacity: 0.4;
+      cursor: default;
+      pointer-events: none;
+    }
+
     .ctx-item.has-submenu {
       position: relative;
       display: flex;

@@ -1551,6 +1551,36 @@ function solveBrandElements(canvas, present, config) {
   return false;
 }
 
+// The roles auto-arrange knows how to place. Every one of the six configured sizes handles
+// all six — deriving this from the AUTO_ARRANGE_CONFIG keys would be wrong, because 320x50
+// arranges a heading and a subheading without carrying config entries for either.
+const AUTO_ARRANGE_ROLES = Object.freeze(['heading', 'subheading', 'cta-button', 'rmit-logo', 'rfwn', 'cricos']);
+
+// Can auto-arrange place this role on this canvas? Mirrors what runAutoArrange actually
+// does, in the same order of precedence, so the menu can never promise something the run
+// would not deliver:
+//   1. a placement pinned on this canvas in this project
+//   2. a placement remembered for this canvas SIZE on your account
+//   3. a built-in rule, which exists for the six configured sizes and those roles only
+function autoArrangePlacementDefined(canvas, role) {
+  if (!canvas || !role || role === 'misc') return false;
+  if (canvas.layoutOverrides && canvas.layoutOverrides[role]) return true;
+  if (typeof getGlobalPlacement === 'function' && getGlobalPlacement(canvas.width, canvas.height, role)) return true;
+  const cfg = (typeof AUTO_ARRANGE_CONFIG !== 'undefined') && AUTO_ARRANGE_CONFIG[canvas.width + 'x' + canvas.height];
+  return !!cfg && AUTO_ARRANGE_ROLES.includes(role);
+}
+
+// { defined, total } over the role-assigned layers in `elements`. Unassigned layers are not
+// candidates at all, so they are not in the denominator — counting them would make a canvas
+// with a background and a fixed shape look half-broken.
+function autoArrangeCoverage(canvas, elements) {
+  const candidates = (elements || []).filter(el => el && el.role && el.role !== 'misc');
+  return {
+    total: candidates.length,
+    defined: candidates.filter(el => autoArrangePlacementDefined(canvas, el.role)).length
+  };
+}
+
 function runAutoArrange(canvasId, selectedIds) {
   const canvas = state.canvases.find(c => c.id === canvasId);
   if (!canvas) return;
@@ -2289,23 +2319,29 @@ function runAutoArrange(canvasId, selectedIds) {
     }
   }
 
-  if (canvas.layoutOverrides) {
-    canvas.elements.forEach(el => {
-      if (el.role && canvas.layoutOverrides[el.role] && isSelected(el)) {
-        const o = canvas.layoutOverrides[el.role];
-        if (typeof o.x === 'number') el.x = o.x;
-        if (typeof o.y === 'number') el.y = o.y;
-        if (typeof o.width === 'number') el.width = o.width;
-        if (typeof o.height === 'number') el.height = o.height;
-        if (typeof o.fontSize === 'number') el.fontSize = o.fontSize;
-        if (typeof o.maxFontSize === 'number') el.maxFontSize = o.maxFontSize;
-        if (typeof o.textAlign === 'string') el.textAlign = o.textAlign;
-        if (typeof o.verticalAlign === 'string') el.verticalAlign = o.verticalAlign;
-        el.autoArranged = true;
-        changed = true;
-      }
-    });
-  }
+  // Saved placements win over the built-in rules above, and run at ANY canvas size — which
+  // is what makes a placement usable on a size the engine has no rule for.
+  //
+  // Both scopes are honoured, project first: "Save placement ▸ All projects" lives inside
+  // the Auto-arrange menu, so a placement saved there has to actually drive auto-arrange.
+  // Only the account-wide tier was wired into Auto-Resize before this, which left the
+  // global option looking like it had done nothing when you arranged.
+  canvas.elements.forEach(el => {
+    if (!el.role || !isSelected(el)) return;
+    const o = (canvas.layoutOverrides && canvas.layoutOverrides[el.role])
+      || (typeof getGlobalPlacement === 'function' ? getGlobalPlacement(canvas.width, canvas.height, el.role) : null);
+    if (!o) return;
+    if (typeof o.x === 'number') el.x = o.x;
+    if (typeof o.y === 'number') el.y = o.y;
+    if (typeof o.width === 'number') el.width = o.width;
+    if (typeof o.height === 'number') el.height = o.height;
+    if (typeof o.fontSize === 'number') el.fontSize = o.fontSize;
+    if (typeof o.maxFontSize === 'number') el.maxFontSize = o.maxFontSize;
+    if (typeof o.textAlign === 'string') el.textAlign = o.textAlign;
+    if (typeof o.verticalAlign === 'string') el.verticalAlign = o.verticalAlign;
+    el.autoArranged = true;
+    changed = true;
+  });
 
   if (changed) {
     // Lock what was just arranged, in ONE place rather than at each of the two dozen sites

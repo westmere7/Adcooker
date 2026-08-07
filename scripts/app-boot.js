@@ -157,10 +157,43 @@ function autoArrangeMenuHtml(scope, selCount) {
     ? 'Remember where the selected layer(s) sit, and reuse it the next time this canvas size is generated'
     : 'Remember where every role-assigned layer on this canvas sits, and reuse it the next time this size is generated';
 
+  // What auto-arrange would actually do to this scope, worked out before the menu is drawn.
+  // A run command that silently does nothing is worse than one that says it cannot: the
+  // engine only has rules for six sizes and six roles, so on anything else the honest
+  // answer is that there is no placement to apply.
+  const c = getActiveCanvas();
+  const scopeEls = isSel
+    ? (c ? c.elements.filter(el => (state.layerSelection || []).includes(el.id)) : [])
+    : (c ? c.elements : []);
+  const cover = (typeof autoArrangeCoverage === 'function')
+    ? autoArrangeCoverage(c, scopeEls)
+    : { defined: 1, total: 1 };
+
+  // Ratio whenever there is more than one candidate — "3/5" answers "will this touch the
+  // thing I care about?" without having to run it and look.
+  const runLabel = cover.defined === 0
+    ? 'Auto-arrange not defined'
+    : (cover.total > 1 ? `Auto-arrange elements (${cover.defined}/${cover.total})` : 'Auto-arrange elements');
+  const scopeWord = isSel ? 'selected' : 'on this canvas';
+  let runTitle;
+  if (cover.defined === 0) {
+    runTitle = cover.total === 0
+      ? 'Nothing here has a role assigned, so there is nothing for auto-arrange to place'
+      : `Auto-arrange has no placement for ${c.width} × ${c.height} — save one from this menu, or use a standard ad size`;
+  } else if (cover.defined === cover.total) {
+    // No "…the rest are left where they are" when there is no rest.
+    runTitle = cover.total === 1
+      ? `This layer has an auto-arrange placement for ${c.width} × ${c.height}`
+      : `All ${cover.total} role-assigned layers ${scopeWord} have a placement for ${c.width} × ${c.height}`;
+  } else {
+    const left = cover.total - cover.defined;
+    runTitle = `${cover.defined} of the ${cover.total} role-assigned layers ${scopeWord} ${cover.defined === 1 ? 'has' : 'have'} a placement — the other ${left} ${left === 1 ? 'is' : 'are'} left where ${left === 1 ? 'it is' : 'they are'}`;
+  }
+
   let html = `<div class="ctx-item highlight has-submenu" title="Lay this canvas out from its layers&#39; roles, or remember the layout it has now">
     <span style="display:flex; align-items:center; gap:8px;">${AUTO_ARRANGE_SVG}Auto-arrange</span>
     <div class="ctx-submenu">
-      <div class="ctx-item" id="ctx-canvas-auto-arrange" style="white-space:nowrap;" title="Re-lay out this canvas from its layers&#39; roles, respecting margins and safe zones">Auto-arrange elements</div>
+      <div class="ctx-item${cover.defined === 0 ? ' ctx-disabled' : ''}" ${cover.defined === 0 ? '' : 'id="ctx-canvas-auto-arrange"'} style="white-space:nowrap;" title="${runTitle}">${runLabel}</div>
       <div class="ctx-divider"></div>
       <div class="ctx-item has-submenu" title="${saveTitle}">
         <span style="white-space:nowrap;">${saveLabel}</span>
@@ -169,7 +202,30 @@ function autoArrangeMenuHtml(scope, selCount) {
   if (placementLibraryOffered()) {
     html += `<div class="ctx-item" id="${idPrefix}-global" style="white-space:nowrap;" title="Remember this placement for this canvas size in every project on your account">All projects (global)</div>`;
   }
-  html += `</div></div></div></div>`;
+  html += `</div></div>`;
+
+  // Clear sits directly under Save and mirrors it — same scope, same two destinations — so
+  // the pair reads as one idea with an undo. Each entry appears only when that scope
+  // actually holds something for these layers, and the whole row is omitted when neither
+  // does: a Clear that can only tell you there was nothing to clear is not worth a click.
+  const clearable = _placementClearable(scope);
+  if (clearable.project.length || clearable.global.length) {
+    const clearLabel = isSel
+      ? (selCount > 1 ? `Clear placement of ${selCount} layers` : 'Clear placement of this layer')
+      : 'Clear placement of this canvas';
+    html += `<div class="ctx-item has-submenu" title="Stop using a saved placement for ${isSel ? 'the selected layer(s)' : 'this canvas'}, and go back to the built-in rule">
+        <span style="white-space:nowrap;">${clearLabel}</span>
+        <div class="ctx-submenu">`;
+    if (clearable.project.length) {
+      html += `<div class="ctx-item ctx-danger" id="${idPrefix}-clear-project" style="white-space:nowrap;" title="Forget the placement saved in this project for ${_placementRoleList(clearable.project)}">Project only</div>`;
+    }
+    if (clearable.global.length) {
+      html += `<div class="ctx-item ctx-danger" id="${idPrefix}-clear-global" style="white-space:nowrap;" title="Forget the placement remembered on your account for ${_placementRoleList(clearable.global)} at this canvas size">All projects (global)</div>`;
+    }
+    html += `</div></div>`;
+  }
+
+  html += `</div></div>`;
   return html;
 }
 
@@ -185,8 +241,10 @@ function collectPlacementEntries(elements) {
   return entries;
 }
 
-function _placementRoleList(entries) {
-  const names = Object.keys(entries).map(r => (typeof ROLE_LABELS !== 'undefined' && ROLE_LABELS[r]) || r);
+// Takes an ARRAY of roles (not the entries map) — both the save and clear paths need to
+// name a set of roles, and only the save path has elements to go with them.
+function _placementRoleList(roles) {
+  const names = (roles || []).map(r => (typeof ROLE_LABELS !== 'undefined' && ROLE_LABELS[r]) || r);
   if (names.length <= 3) return names.join(', ');
   return `${names.slice(0, 3).join(', ')} +${names.length - 3} more`;
 }
@@ -202,6 +260,60 @@ function _placementTargets(scope) {
     return { c, entries: collectPlacementEntries(c.elements.filter(el => ids.includes(el.id))) };
   }
   return { c, entries: collectPlacementEntries(c.elements) };
+}
+
+// Which roles in this scope actually have a saved placement, split by where it lives. Drives
+// both the Clear menu's visibility and what each entry does, so the menu cannot offer to
+// clear something that is not there.
+function _placementClearable(scope) {
+  const { c, entries } = _placementTargets(scope);
+  if (!c) return { project: [], global: [] };
+  const roles = Object.keys(entries);
+  return {
+    project: roles.filter(r => c.layoutOverrides && c.layoutOverrides[r]),
+    global: placementLibraryOffered()
+      ? roles.filter(r => getGlobalPlacement(c.width, c.height, r))
+      : []
+  };
+}
+
+function clearPlacementProjectOnly(scope) {
+  const { c } = _placementTargets(scope);
+  const roles = _placementClearable(scope).project;
+  if (!c || !roles.length) {
+    showCanvasNotification('No placement is saved in this project for that.', { type: 'info' });
+    return;
+  }
+  roles.forEach(r => { delete c.layoutOverrides[r]; });
+  // Drop the container rather than leave an empty object on the canvas — the .flow, the
+  // auto-arrange coverage count and hasPinnedPlacement all read its presence.
+  if (c.layoutOverrides && !Object.keys(c.layoutOverrides).length) delete c.layoutOverrides;
+  pushHistory();
+  render();
+  showCanvasNotification(
+    `Placement cleared for this project — ${_placementRoleList(roles)} at ${c.width} × ${c.height}.`,
+    { type: 'success' });
+}
+
+async function clearPlacementGlobally(scope) {
+  const { c } = _placementTargets(scope);
+  const roles = _placementClearable(scope).global;
+  if (!c || !roles.length) {
+    showCanvasNotification('Nothing is remembered on your account for that.', { type: 'info' });
+    return;
+  }
+  try {
+    const { forgotten } = await forgetPlacementsFromLibrary(c.width, c.height, roles);
+    render();
+    showCanvasNotification(
+      forgotten
+        ? `No longer remembering ${_placementRoleList(roles)} for ${c.width} × ${c.height} on your account.`
+        : `Nothing was remembered for ${_placementRoleList(roles)} at ${c.width} × ${c.height}.`,
+      { type: forgotten ? 'success' : 'info' });
+  } catch (err) {
+    console.warn('Global placement clear failed:', err);
+    showCanvasNotification(`Could not update your account: ${err.message || err}`, { type: 'error' });
+  }
 }
 
 function savePlacementProjectOnly(scope) {
@@ -221,7 +333,7 @@ function savePlacementProjectOnly(scope) {
   pushHistory();
   render();
   showCanvasNotification(
-    `Placement remembered for this project — ${c.width} × ${c.height}: ${_placementRoleList(entries)}.`,
+    `Placement remembered for this project — ${c.width} × ${c.height}: ${_placementRoleList(roles)}.`,
     { type: 'success' });
 }
 
@@ -240,7 +352,7 @@ async function savePlacementGlobally(scope) {
   try {
     await savePlacementsToLibrary(c.width, c.height, entries);
     showCanvasNotification(
-      `Placement remembered for every ${c.width} × ${c.height} canvas on your account: ${_placementRoleList(entries)}.`,
+      `Placement remembered for every ${c.width} × ${c.height} canvas on your account: ${_placementRoleList(roles)}.`,
       { type: 'success' });
   } catch (err) {
     console.warn('Global placement save failed:', err);
@@ -1055,6 +1167,10 @@ document.addEventListener('contextmenu', (e) => {
   bind('ctx-canvas-place-global',  () => savePlacementGlobally('canvas'));
   bind('ctx-el-place-project',     () => savePlacementProjectOnly('selection'));
   bind('ctx-el-place-global',      () => savePlacementGlobally('selection'));
+  bind('ctx-canvas-place-clear-project', () => clearPlacementProjectOnly('canvas'));
+  bind('ctx-canvas-place-clear-global',  () => clearPlacementGlobally('canvas'));
+  bind('ctx-el-place-clear-project',     () => clearPlacementProjectOnly('selection'));
+  bind('ctx-el-place-clear-global',      () => clearPlacementGlobally('selection'));
   bind('ctx-clear-current',   () => clearCurrentCanvasContents());
   bind('ctx-clear-others',    () => clearOtherCanvasesContents());
   bind('ctx-clear-all-canv',  () => clearAllCanvasesContents());
