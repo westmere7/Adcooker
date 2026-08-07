@@ -67,6 +67,9 @@ let isPanning = false;
 let panStartX = 0, panStartY = 0;
 let scrollStartX = 0, scrollStartY = 0;
 
+// The six sizes a blank board is built from unless you say otherwise — the RMIT
+// display set, not a catalogue. Deliberately short: every one of these is ticked by
+// default, so anything added here becomes a canvas in every new project.
 const PRESET_SIZES = [
   { name: 'Wide Skyscraper', width: 160, height: 600 },
   { name: 'Medium Rectangle', width: 300, height: 250 },
@@ -74,6 +77,75 @@ const PRESET_SIZES = [
   { name: 'Leaderboard', width: 728, height: 90 },
   { name: 'Mobile Leaderboard', width: 320, height: 50 },
   { name: 'Billboard', width: 970, height: 250 }
+];
+
+// The catalogue to PICK from, which is a different job to the one above: nothing here
+// is created unless it is chosen, so it can afford to be long. Grouped because a flat
+// list of forty sizes is a list nobody reads.
+//
+// Nothing exceeds 2900px on either side. That is not arbitrary — the board is
+// BOARD_SIZE (3000) square, so a canvas bigger than that has corners nobody can pan
+// to. It is why 4K and A4-at-300dpi are absent while QHD and A4-at-150dpi are here.
+const CANVAS_SIZE_CATALOG = [
+  {
+    group: 'Display ads', sizes: [
+      { name: 'Medium Rectangle', width: 300, height: 250 },
+      { name: 'Large Rectangle', width: 336, height: 280 },
+      { name: 'Square', width: 250, height: 250 },
+      { name: 'Small Square', width: 200, height: 200 },
+      { name: 'Half Page', width: 300, height: 600 },
+      { name: 'Portrait', width: 300, height: 1050 },
+      { name: 'Skyscraper', width: 120, height: 600 },
+      { name: 'Wide Skyscraper', width: 160, height: 600 },
+      { name: 'Leaderboard', width: 728, height: 90 },
+      { name: 'Large Leaderboard', width: 970, height: 90 },
+      { name: 'Billboard', width: 970, height: 250 },
+      { name: 'Mobile Banner', width: 300, height: 50 },
+      { name: 'Mobile Leaderboard', width: 320, height: 50 },
+      { name: 'Large Mobile Banner', width: 320, height: 100 },
+      { name: 'Mobile Interstitial', width: 320, height: 480 },
+      { name: 'Mobile Full Screen', width: 360, height: 640 }
+    ]
+  },
+  {
+    group: 'Social', sizes: [
+      { name: 'Instagram Square', width: 1080, height: 1080 },
+      { name: 'Instagram Portrait', width: 1080, height: 1350 },
+      { name: 'Story / Reel', width: 1080, height: 1920 },
+      { name: 'Facebook Feed', width: 1200, height: 630 },
+      { name: 'Facebook Cover', width: 820, height: 312 },
+      { name: 'LinkedIn Feed', width: 1200, height: 627 },
+      { name: 'X Post', width: 1600, height: 900 },
+      { name: 'YouTube Thumbnail', width: 1280, height: 720 },
+      { name: 'Pinterest Pin', width: 1000, height: 1500 }
+    ]
+  },
+  {
+    group: 'Screens & devices', sizes: [
+      { name: 'Laptop', width: 1366, height: 768 },
+      { name: 'Desktop HD', width: 1920, height: 1080 },
+      { name: 'Desktop QHD', width: 2560, height: 1440 },
+      { name: 'MacBook Air', width: 1440, height: 900 },
+      { name: 'iPad', width: 820, height: 1180 },
+      { name: 'iPad Pro', width: 1024, height: 1366 },
+      { name: 'iPhone', width: 390, height: 844 },
+      { name: 'iPhone Pro Max', width: 430, height: 932 },
+      { name: 'Android Phone', width: 412, height: 915 }
+    ]
+  },
+  {
+    group: 'Raster & design', sizes: [
+      { name: 'Square 500', width: 500, height: 500 },
+      { name: 'Square 1000', width: 1000, height: 1000 },
+      { name: 'Square 2000', width: 2000, height: 2000 },
+      { name: '4:3 Landscape', width: 800, height: 600 },
+      { name: '4:3 Large', width: 1600, height: 1200 },
+      { name: '3:2 Landscape', width: 1500, height: 1000 },
+      { name: 'A4 Portrait (150 dpi)', width: 1240, height: 1754 },
+      { name: 'A5 Portrait (150 dpi)', width: 874, height: 1240 },
+      { name: 'US Letter (150 dpi)', width: 1275, height: 1650 }
+    ]
+  }
 ];
 
 // The pannable board is BOARD_SIZE×BOARD_SIZE px (kept in sync with the

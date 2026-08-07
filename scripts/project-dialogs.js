@@ -1,57 +1,114 @@
 // ============================================================================
 // New Project dialog
 // ============================================================================
-// Builds a fresh project from picked canvas presets (all checked by default),
-// a name, an ad-size limit (KB) and a default canvas background. Replaces the
-// working state and lets the normal autosave persist it.
-async function createNewProject({ name, presetIndices, sizeLimitKb, bgColor, clickTag, compressFormat }) {
-  const bg = bgColor || '#0f172a';
-  
-  let currentX = BOARD_MARGIN;
-  let currentY = BOARD_MARGIN;
-  let rowMaxHeight = 0;
-  const maxRowWidth = 1400;
+// Stack a list of {width, height} into one block of rows on the board and return
+// where each one goes.
+//
+// Pulled out of createNewProject so the New Project dialog can run the SAME maths to
+// tell you up front when a picked set will not fit — a warning derived from a second,
+// approximate copy of the packing would drift from what actually gets built.
+//
+// Returns { positions, width, height, fits }: board coordinates in the order given,
+// the block's own size, and whether it fits the board at all.
+function layoutCanvasBlock(sizes) {
+  const EDGE = 40;   // breathing room kept between the block and the board edge
+  const GAP = 60;    // between canvases, and between rows
+  const usable = BOARD_SIZE - EDGE * 2;
+  if (!sizes.length) return { positions: [], width: 0, height: 0, fits: true };
 
-  const canvases = presetIndices.map((pi, i) => {
-    const preset = PRESET_SIZES[pi];
-    const c = seedCanvas(preset, i);
-    c.bgColor = bg;
-    
-    c.workspaceX = currentX;
-    c.workspaceY = currentY;
-    
-    currentX += preset.width + 60;
-    rowMaxHeight = Math.max(rowMaxHeight, preset.height);
-    
-    if (i < presetIndices.length - 1) {
-      const nextPreset = PRESET_SIZES[presetIndices[i + 1]];
-      if (currentX + nextPreset.width - BOARD_MARGIN > maxRowWidth) {
-        currentX = BOARD_MARGIN;
-        currentY += rowMaxHeight + 60;
+  // Rows no wider than `limit`, wrapping before the next canvas lands rather than after
+  // — so a row is never broken once it has already run long. Each row steps down by its
+  // own tallest canvas, which is what keeps rows from colliding however uneven the sizes.
+  const packInto = (limit) => {
+    let x = BOARD_MARGIN, y = BOARD_MARGIN, rowMaxHeight = 0, w = 0, h = 0;
+    const at = sizes.map((size, i) => {
+      const p = { x, y };
+      w = Math.max(w, x + size.width - BOARD_MARGIN);
+      h = Math.max(h, y + size.height - BOARD_MARGIN);
+
+      x += size.width + GAP;
+      rowMaxHeight = Math.max(rowMaxHeight, size.height);
+
+      const next = sizes[i + 1];
+      if (next && x + next.width - BOARD_MARGIN > limit) {
+        x = BOARD_MARGIN;
+        y += rowMaxHeight + GAP;
         rowMaxHeight = 0;
       }
-    }
-    
+      return p;
+    });
+    return { at, w, h };
+  };
+
+  // How wide a row may get. A flat 1400 was right while the list was always the same
+  // six presets; any list can be built now, and packing a dozen canvases — or one
+  // 1920-wide one — into a 1400 column makes a strip far taller than the board, which
+  // leaves part of it at a coordinate nobody can pan to. So: aim for a roughly square
+  // block, never narrower than the widest canvas in it, then keep widening while the
+  // block is still too tall to fit. Six presets works out at 1400 either way, so the
+  // layout every existing project was built with is untouched.
+  const widest = sizes.reduce((m, s) => Math.max(m, s.width), 0);
+  const packedArea = sizes.reduce((sum, s) => sum + (s.width + GAP) * (s.height + GAP), 0);
+  let limit = Math.max(1400, widest, Math.round(Math.sqrt(packedArea)));
+  let packed = packInto(limit);
+  while (packed.h > usable && limit < usable) {
+    limit = Math.min(usable, Math.round(limit * 1.25));
+    packed = packInto(limit);
+  }
+
+  // Centre the block on the board so a new project opens with even breathing room on
+  // every side, rather than pinned to the top-left margin where it was laid out — but
+  // never at the cost of pushing any of it off, since a canvas at a negative coordinate
+  // cannot be reached at all. A block too big to fit even after the widening above is
+  // anchored at the near edge and left to run long, where at least the start is
+  // reachable; `fits` is false so callers can say so before it happens.
+  let gMinX = Infinity, gMinY = Infinity, gMaxX = -Infinity, gMaxY = -Infinity;
+  packed.at.forEach((p, i) => {
+    gMinX = Math.min(gMinX, p.x);
+    gMinY = Math.min(gMinY, p.y);
+    gMaxX = Math.max(gMaxX, p.x + sizes[i].width);
+    gMaxY = Math.max(gMaxY, p.y + sizes[i].height);
+  });
+  const fit = (min, max) => {
+    if (max - min > usable) return EDGE - min;
+    const centred = Math.round(BOARD_SIZE / 2 - (min + max) / 2);
+    return Math.min(Math.max(centred, EDGE - min), BOARD_SIZE - EDGE - max);
+  };
+  const dx = fit(gMinX, gMaxX);
+  const dy = fit(gMinY, gMaxY);
+
+  return {
+    positions: packed.at.map(p => ({ x: p.x + dx, y: p.y + dy })),
+    width: packed.w,
+    height: packed.h,
+    fits: packed.w <= usable && packed.h <= usable
+  };
+}
+
+// Builds a fresh project from a picked list of canvas sizes, a name, an ad-size
+// limit (KB) and a default canvas background. Replaces the working state and lets
+// the normal autosave persist it.
+//
+// `sizes` is an explicit list of {name, width, height} — that is what the dialog
+// sends, so a size typed in by hand lays out through exactly the same packing as a
+// preset and lands stacked with the rest rather than parked somewhere of its own.
+// `presetIndices` is still accepted for older callers.
+async function createNewProject({ name, sizes, presetIndices, sizeLimitKb, bgColor, clickTag, compressFormat }) {
+  const bg = bgColor || '#0f172a';
+
+  const wanted = (Array.isArray(sizes) && sizes.length)
+    ? sizes
+    : (presetIndices || []).map(pi => PRESET_SIZES[pi]).filter(Boolean);
+
+  const laid = layoutCanvasBlock(wanted);
+  const canvases = wanted.map((size, i) => {
+    const c = seedCanvas(size, i);
+    c.bgColor = bg;
+    c.workspaceX = laid.positions[i].x;
+    c.workspaceY = laid.positions[i].y;
     c.elements = [];
-    
     return c;
   });
-
-  // Center the whole canvas group on the board so a new project opens with
-  // even breathing room on every side, rather than pinned to the top-left
-  // margin where the layout was built.
-  if (canvases.length) {
-    let gMinX = Infinity, gMinY = Infinity, gMaxX = -Infinity, gMaxY = -Infinity;
-    canvases.forEach(c => {
-      if (c.workspaceX < gMinX) gMinX = c.workspaceX;
-      if (c.workspaceY < gMinY) gMinY = c.workspaceY;
-      if (c.workspaceX + c.width > gMaxX) gMaxX = c.workspaceX + c.width;
-      if (c.workspaceY + c.height > gMaxY) gMaxY = c.workspaceY + c.height;
-    });
-    const dx = Math.round(BOARD_SIZE / 2 - (gMinX + gMaxX) / 2);
-    const dy = Math.round(BOARD_SIZE / 2 - (gMinY + gMaxY) / 2);
-    canvases.forEach(c => { c.workspaceX += dx; c.workspaceY += dy; });
-  }
 
   state.projectName = (name || 'RMIT_ad').trim() || 'RMIT_ad';
   state.projectId = uid('proj_');
@@ -173,12 +230,32 @@ function openNewProjectDialog() {
   const bg = document.createElement('div');
   bg.className = 'modal-bg';
 
-  const presetRows = PRESET_SIZES.map((p, i) => `
-    <label class="np-row" style="display:flex; align-items:center; gap:10px; padding:7px 10px; border-radius:6px; cursor:pointer;" title="Toggle canvas size ${p.width} × ${p.height}">
-      <input type="checkbox" class="np-canvas" data-idx="${i}" checked style="margin:0;" title="Toggle canvas size ${p.width} × ${p.height}" />
-      <span style="font-size:12px; color:var(--text-main);">${p.name}</span>
-      <span style="font-size:11px; color:var(--text-muted); margin-left:auto;">${p.width} × ${p.height}</span>
-    </label>`).join('');
+  // Every row in the Canvases list — preset or typed in by hand — is one entry here,
+  // and the list is rendered from this array rather than from PRESET_SIZES. That is
+  // what lets an added size be the same kind of thing as a preset: same row, same
+  // checkbox, same packing when the project is built. Checkbox state lives here too,
+  // so re-rendering after an add or a remove never loses it.
+  const canvasRows = PRESET_SIZES.map(p => ({
+    name: p.name, width: p.width, height: p.height, checked: true, custom: false
+  }));
+
+  const escHtml = (s) => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+
+  const CANVAS_MIN_PX = 20;
+  // Matched to the board rather than picked out of the air: a canvas wider or taller
+  // than BOARD_SIZE has corners that cannot be panned to.
+  const CANVAS_MAX_PX = 2900;
+
+  // The picker is flattened alongside the options so a chosen <option> resolves back to
+  // its size by plain index — no parsing the label, no second lookup table to keep true.
+  const catalogSizes = [];
+  const addPresetOptions = CANVAS_SIZE_CATALOG.map(g => {
+    const opts = g.sizes.map(s => {
+      catalogSizes.push(s);
+      return `<option value="${catalogSizes.length - 1}">${escHtml(s.name)} — ${s.width} × ${s.height}</option>`;
+    }).join('');
+    return `<optgroup label="${escHtml(g.group)}">${opts}</optgroup>`;
+  }).join('');
 
   let selectedLocalTemplateBlob = null;
   let selectedLocalTemplateName = '';
@@ -190,15 +267,22 @@ function openNewProjectDialog() {
         <button class="btn" id="np-close" title="Close dialog">Close</button>
       </div>
       <div class="modal-body" style="display:flex; flex-direction:column; gap:16px; padding:18px 22px;">
-        <!-- Name first, and deliberately the largest field in the dialog: it is the
-             one thing every new project needs, and the only one you always type
-             rather than pick. -->
-        <div>
-          <!-- The SECTION carries the emphasis, not the field: a brighter, larger
-               heading than the other labels. The input itself stays the same size as
-               every other input in the dialog. -->
-          <label for="np-name" style="font-size:12px; color:var(--text-bright); text-transform:uppercase; letter-spacing:.07em; font-weight:700; display:block; margin-bottom:7px;">Project name</label>
-          <input type="text" id="np-name" value="RMIT_ad" title="Enter the name for the new project" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:6px; padding:7px 9px; font-size:12px; outline:none;" />
+        <!-- The two fields you always TYPE rather than pick, on one row and leading the
+             dialog. Both carry the brighter heading the other labels do not, which is
+             what marks this row as the primary one; the 2 : 1 split then says which of
+             the two matters more, so the name keeps its emphasis without needing a
+             bigger field than everything else in the dialog.
+             ClickTag keeps its own #np-clicktag-block wrapper because it still dims on
+             its own when a template supplies one — the name never does. -->
+        <div style="display:flex; gap:12px; align-items:flex-start;">
+          <div style="flex:2; min-width:0;">
+            <label for="np-name" style="font-size:12px; color:var(--text-bright); text-transform:uppercase; letter-spacing:.07em; font-weight:700; display:block; margin-bottom:7px;">Project name</label>
+            <input type="text" id="np-name" value="RMIT_ad" title="Enter the name for the new project" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:6px; padding:7px 9px; font-size:12px; outline:none;" />
+          </div>
+          <div style="flex:1; min-width:0;" id="np-clicktag-block">
+            <label for="np-clicktag" style="font-size:12px; color:var(--text-bright); text-transform:uppercase; letter-spacing:.07em; font-weight:700; display:block; margin-bottom:7px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">ClickTag URL</label>
+            <input type="url" id="np-clicktag" value="${(state.clickTag || 'https://www.rmit.edu.au/').replace(/"/g, '&quot;')}" title="Default exit/landing page URL for all canvases" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:6px; padding:7px 9px; font-size:12px; outline:none;" />
+          </div>
         </div>
 
         <!-- Where the project starts from. One radio group of three peers rather
@@ -253,15 +337,18 @@ function openNewProjectDialog() {
              blank builder), so it is not inside the block that dims for a template —
              the two cells that genuinely lose are dimmed on their own. -->
         <div style="display:flex; gap:12px; align-items:flex-start;">
-          <div style="flex:1.15; min-width:0;">
+          <div style="flex:1; min-width:0;">
             <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:6px;">Auto-compression</label>
             <select id="np-compress-format" title="Auto-compression output format: JPEG / PNG is ad-server safe; WebP produces the smallest files" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:6px; padding:7px 9px; font-size:12px; outline:none; cursor:pointer;">
               <option value="jpeg" ${state.compressFormat !== 'webp' ? 'selected' : ''}>JPEG / PNG</option>
               <option value="webp" ${state.compressFormat === 'webp' ? 'selected' : ''}>WebP</option>
             </select>
           </div>
-          <div style="flex:0.85; min-width:0;" id="np-size-cell">
-            <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:6px;">Max ad size (KB)</label>
+          <!-- Sized to the number it holds, not to a share of the row: this is a
+               three-digit KB figure, so a field as wide as the compression picker only
+               made it look like it wanted a sentence. -->
+          <div style="flex:none; width:120px;" id="np-size-cell">
+            <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:6px; white-space:nowrap;">Max ad size (KB)</label>
             <input type="number" id="np-size-limit" value="${state.adSizeLimit || 150}" min="1" title="Target file size limit for export warning / Ads Validator (KB)" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:6px; padding:7px 9px; font-size:12px; outline:none;" />
           </div>
           <!-- flex:none, not flex:0 — the latter is basis:0% with shrink enabled, so
@@ -277,19 +364,38 @@ function openNewProjectDialog() {
         </div>
 
         <div id="np-custom-config-container" style="display:flex; flex-direction:column; gap:16px; transition: opacity 0.2s;">
-          <div id="np-clicktag-block">
-            <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:6px;">ClickTag URL</label>
-            <input type="url" id="np-clicktag" value="${(state.clickTag || 'https://www.rmit.edu.au/').replace(/"/g, '&quot;')}" title="Default exit/landing page URL for all canvases" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:6px; padding:7px 9px; font-size:12px; outline:none;" />
-          </div>
           <!-- Collapsed outright, not dimmed, whenever the canvases come from
                somewhere else: a greyed-out list of sizes that cannot be changed is
                just a taller dialog saying nothing. -->
           <div id="np-canvases-block">
             <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:flex; justify-content:space-between; margin-bottom:6px;">
               <span>Canvases</span>
-              <span id="np-canvas-toggle" style="cursor:pointer; color:var(--text-accent); text-transform:none; letter-spacing:0;" title="Select or deselect all preset canvas sizes">Toggle all</span>
+              <span id="np-canvas-toggle" style="cursor:pointer; color:var(--text-accent); text-transform:none; letter-spacing:0;" title="Select or deselect every canvas size in the list">Toggle all</span>
             </label>
-            <div style="border:1px solid var(--border-light); border-radius:6px; padding:4px;">${presetRows}</div>
+            <div style="border:1px solid var(--border-light); border-radius:6px;">
+              <div id="np-canvas-list" style="padding:4px; display:flex; flex-direction:column; gap:1px;"></div>
+              <!-- Adding a size. The preset picker is a shortcut that FILLS the two
+                   boxes rather than a second way to add, so there is one path in and
+                   a preset can be nudged before it is added. -->
+              <div style="display:flex; align-items:center; gap:6px; padding:7px 8px; border-top:1px solid var(--border-light);">
+                <select id="np-add-preset" title="Fill the width and height from a standard size — display ads, social, screens or raster design" style="flex:1; min-width:0; background:var(--bg-panel); border:1px solid var(--border-light); color:var(--text-main); border-radius:5px; padding:5px 7px; font-size:11px; outline:none; cursor:pointer;">
+                  <option value="">Preset size…</option>
+                  ${addPresetOptions}
+                </select>
+                <!-- Wide enough for four digits AND the spinner arrows: the catalogue
+                     runs to 2560, so a box that fits three was cutting off what it had
+                     just filled in. -->
+                <input type="number" id="np-add-w" min="${CANVAS_MIN_PX}" max="${CANVAS_MAX_PX}" placeholder="W" title="Width in pixels" style="width:80px; flex:none; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:5px; padding:5px 6px; font-size:11px; outline:none; text-align:center;" />
+                <span style="font-size:11px; color:var(--text-muted); flex:none;">×</span>
+                <input type="number" id="np-add-h" min="${CANVAS_MIN_PX}" max="${CANVAS_MAX_PX}" placeholder="H" title="Height in pixels" style="width:80px; flex:none; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:5px; padding:5px 6px; font-size:11px; outline:none; text-align:center;" />
+                <button class="btn" id="np-add-canvas-btn" title="Add a canvas of this size to the list" style="padding:5px 10px; font-size:11px; flex:none; white-space:nowrap;">Add</button>
+              </div>
+            </div>
+            <!-- The catalogue runs up to 2560 × 1440, so a few of these together can
+                 want more room than the board has. Said here, while it can still be
+                 changed, rather than discovered afterwards as canvases you cannot
+                 scroll to. -->
+            <div id="np-canvas-fit-warning" style="display:none; font-size:10px; color:#f59e0b; line-height:1.45; margin-top:7px;"></div>
           </div>
         </div>
         <p style="margin:0; font-size:11px; color:var(--text-muted); line-height:1.5;">This replaces your current project. Your existing work is auto-saved — save a <strong>.flow</strong> file first if you want a separate backup.</p>
@@ -573,11 +679,127 @@ function openNewProjectDialog() {
     }
   });
 
-  bg.querySelector('#np-canvas-toggle').onclick = () => {
-    const boxes = [...bg.querySelectorAll('.np-canvas')];
-    const allOn = boxes.every(b => b.checked);
-    boxes.forEach(b => { b.checked = !allOn; });
+  // ── Canvases list ─────────────────────────────────────────────────────────────
+  const canvasListEl = bg.querySelector('#np-canvas-list');
+  const addPresetSel = bg.querySelector('#np-add-preset');
+  const addWInp = bg.querySelector('#np-add-w');
+  const addHInp = bg.querySelector('#np-add-h');
+  const btnAddCanvas = bg.querySelector('#np-add-canvas-btn');
+
+  const fitWarnEl = bg.querySelector('#np-canvas-fit-warning');
+
+  // Run the real layout over what is ticked and report when the block will not fit the
+  // board. Not a block on creating it — the canvases are all still made, and moving or
+  // resizing one afterwards is a normal thing to do — but nobody should have to find
+  // this out by hunting for a canvas that is not on screen.
+  const updateFitWarning = () => {
+    const picked = canvasRows.filter(r => r.checked);
+    const laid = layoutCanvasBlock(picked);
+    if (!picked.length || laid.fits) {
+      fitWarnEl.style.display = 'none';
+      return;
+    }
+    fitWarnEl.style.display = 'block';
+    fitWarnEl.textContent = `Stacked, these ${picked.length} canvases need ${laid.width} × ${laid.height}px — more board than the ${BOARD_SIZE} × ${BOARD_SIZE} workspace has. Every one is still created, but the last of them land past the edge of the board; drop a size here, or move and resize them afterwards.`;
   };
+
+  const renderCanvasRows = () => {
+    canvasListEl.innerHTML = canvasRows.map((r, i) => {
+      const dim = `${r.width} × ${r.height}`;
+      // The remove button is a SIBLING of the label, not inside it: a <button> within
+      // a <label> has its click swallowed by the label toggling its own checkbox. Its
+      // slot is present on every row so the size column stays in one line down the
+      // list, and only filled on the rows that can be removed.
+      return `
+      <div class="np-row">
+        <label class="np-row-main" title="Toggle canvas size ${dim}">
+          <input type="checkbox" class="np-canvas" data-idx="${i}" ${r.checked ? 'checked' : ''} style="margin:0; flex:none;" title="Toggle canvas size ${dim}" />
+          <span class="np-row-name">${escHtml(r.name)}</span>
+          <span class="np-row-dim">${dim}</span>
+        </label>
+        <span class="np-row-slot">${r.custom
+          ? `<button class="btn ghost icon np-canvas-remove" data-idx="${i}" title="Remove ${dim} from the list" style="padding:1px 4px; font-size:11px; line-height:1;">&times;</button>`
+          : ''}</span>
+      </div>`;
+    }).join('');
+    updateFitWarning();
+  };
+
+  // Delegated, so the handlers survive every re-render. The model is the truth: a tick
+  // is written back to it immediately, which is why adding a row cannot reset the rest.
+  canvasListEl.addEventListener('change', (e) => {
+    const box = e.target.closest('.np-canvas');
+    if (!box) return;
+    const row = canvasRows[+box.dataset.idx];
+    if (row) row.checked = box.checked;
+    updateFitWarning();
+  });
+
+  canvasListEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('.np-canvas-remove');
+    if (!btn) return;
+    e.preventDefault();
+    canvasRows.splice(+btn.dataset.idx, 1);
+    renderCanvasRows();
+  });
+
+  // A preset only fills the boxes; Add is still the thing that adds. Reset back to the
+  // placeholder so picking the same preset twice in a row works.
+  addPresetSel.onchange = () => {
+    const p = catalogSizes[+addPresetSel.value];
+    if (p) {
+      addWInp.value = p.width;
+      addHInp.value = p.height;
+    }
+    addPresetSel.value = '';
+    addWInp.focus();
+  };
+
+  const addCanvasRow = () => {
+    const w = Math.round(+addWInp.value || 0);
+    const h = Math.round(+addHInp.value || 0);
+    if (!(w >= CANVAS_MIN_PX && h >= CANVAS_MIN_PX && w <= CANVAS_MAX_PX && h <= CANVAS_MAX_PX)) {
+      showAdflowAlert(`Enter a width and height between ${CANVAS_MIN_PX} and ${CANVAS_MAX_PX} pixels.`);
+      return;
+    }
+
+    // A size already listed but switched off is what is being asked for, so switch it
+    // back on instead of leaving a duplicate row beside a dead one. Two ticked rows of
+    // the same size are allowed — wanting two 300 × 250s is a real thing to want.
+    const dormant = canvasRows.find(r => r.width === w && r.height === h && !r.checked);
+    if (dormant) {
+      dormant.checked = true;
+      showCanvasNotification(`${w} × ${h} was already in the list — switched back on.`, { type: 'info' });
+    } else {
+      // A hand-typed standard size gets its proper name rather than "Custom": the two
+      // are the same canvas, and the name is what labels it everywhere afterwards. The
+      // display set is checked first, so 300 × 250 reads as Medium Rectangle and not as
+      // whichever catalogue entry happens to share those numbers.
+      const match = PRESET_SIZES.find(p => p.width === w && p.height === h)
+        || catalogSizes.find(p => p.width === w && p.height === h);
+      canvasRows.push({ name: match ? match.name : 'Custom', width: w, height: h, checked: true, custom: true });
+    }
+
+    renderCanvasRows();
+    addWInp.value = '';
+    addHInp.value = '';
+    addWInp.focus();
+  };
+
+  btnAddCanvas.onclick = addCanvasRow;
+  [addWInp, addHInp].forEach(inp => {
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); addCanvasRow(); }
+    });
+  });
+
+  bg.querySelector('#np-canvas-toggle').onclick = () => {
+    const allOn = canvasRows.every(r => r.checked);
+    canvasRows.forEach(r => { r.checked = !allOn; });
+    renderCanvasRows();
+  };
+
+  renderCanvasRows();
 
   bg.querySelector('#np-create').onclick = async () => {
     const useStartup = startFrom() === 'template';
@@ -656,15 +878,17 @@ function openNewProjectDialog() {
         }
       }
 
-      const presetIndices = [...bg.querySelectorAll('.np-canvas:checked')].map(b => +b.dataset.idx);
-      if (presetIndices.length === 0) {
+      const chosenSizes = canvasRows
+        .filter(r => r.checked)
+        .map(r => ({ name: r.name, width: r.width, height: r.height }));
+      if (chosenSizes.length === 0) {
         showAdflowAlert('Pick at least one canvas size.');
         setButtonsLoading(false);
         return;
       }
       await createNewProject({
         name,
-        presetIndices,
+        sizes: chosenSizes,
         sizeLimitKb: bg.querySelector('#np-size-limit').value,
         bgColor: hex,
         clickTag: bg.querySelector('#np-clicktag').value,
@@ -2174,7 +2398,7 @@ document.getElementById('menu-help-shortcuts').addEventListener('click', () => {
 
 
 function checkVersionUpdate() {
-  const currentVersion = 'v0.51.6';
+  const currentVersion = 'v0.52.0';
   const lastSeen = localStorage.getItem('last-seen-version');
   
   if (!lastSeen) {
@@ -2406,7 +2630,7 @@ function openSettings() {
           <div class="modal-head" style="border-bottom:1px solid var(--border-light); background:var(--bg-panel); flex-shrink:0;">
             <div style="display:flex; align-items:center; gap:12px; flex:1;">
               <h2 style="margin:0; font-size:14px; font-weight:600; color:var(--text-bright);">Settings</h2>
-              <span style="font-size:11px; color:var(--text-muted);">v0.51.6</span>
+              <span style="font-size:11px; color:var(--text-muted);">v0.52.0</span>
               <button id="settings-changelog" title="See what changed in this and previous versions of Adflow" class="btn" style="padding:4px 8px; font-size:10px; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:4px; cursor:pointer;">Changelog</button>
             </div>
             <button class="btn" id="settings-close" title="Close without keeping any change made since the dialog opened">Close</button>

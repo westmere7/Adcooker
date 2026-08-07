@@ -1455,6 +1455,69 @@ body.theme-rmit-navy {
       display: none;
     }
 
+    /* New Project ▸ Canvases. One row per size the blank board gets built from, and a
+       size typed in by hand is the same kind of row as a preset — nothing about the
+       row says where it came from except the remove button it can afford to have. */
+    .np-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 6px;
+      border-radius: 6px;
+      transition: background 0.12s ease;
+    }
+
+    .np-row:hover {
+      background: var(--overlay-hover);
+    }
+
+    /* The label owns the row except the remove button, which has to sit outside it:
+       a <button> inside a <label> loses its click to the label's own activation. */
+    .np-row .np-row-main {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      flex: 1;
+      min-width: 0;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .np-row .np-row-name {
+      font-size: 12px;
+      color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .np-row .np-row-dim {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-left: auto;
+      padding-left: 10px;
+      flex: none;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Most rows are ticked, so ticked is the resting look and it is the switched-off
+       ones that recede. Marking the ticked state instead would light up the whole box
+       and say nothing. */
+    .np-row:has(input:not(:checked)) .np-row-name,
+    .np-row:has(input:not(:checked)) .np-row-dim {
+      opacity: 0.45;
+    }
+
+    /* Held open on every row, filled only on the removable ones, so the size column
+       reads as one column all the way down. */
+    .np-row .np-row-slot {
+      width: 18px;
+      flex: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
     /* The preview version bar carries a second copy of the toggle, because the
        top bar is hidden inside a preview and the Version dropdown's hover is the
        one thing it still controls there. Same armed treatment as the original. */

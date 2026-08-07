@@ -891,6 +891,16 @@ document.getElementById('menu-help-documentation').addEventListener('click', ope
 
 const CHANGELOG_DATA = [
   {
+    version: 'v0.52.0',
+    date: 'August 2026 — Engine v3.0',
+    items: [
+      'A Blank Board Is No Longer Limited to the Six Standard Sizes: the Canvases list in New Project was a fixed set of six tick boxes, so any project needing anything else started by adding canvases one at a time afterwards. The list is now yours to build. Type a width and height and press Add, or pick from a catalogue of forty-three standard sizes — display ad units, social formats, screen and device sizes, and common raster design sizes including A4, A5 and US Letter — which fills the two boxes for you so you can nudge the numbers before committing. Anything you add joins the list as a row of its own, tick box and all, and can be removed again with the × beside it. The six RMIT display sizes are still there, still ticked, so a project you would have made before is made exactly the same way.',
+      'Added Canvases Stack With the Rest, Not Beside Them: a size you add lays out through the same packing as the presets, so a new project opens as one tidy block whatever it is made of, and no two canvases ever land on top of each other. The packing itself got smarter about it: it used to wrap rows at a fixed width, which was right for six small ad units but turned a longer list — or one 1920-wide canvas — into a tall thin strip that ran off the bottom of the board. It now aims for a roughly square block and widens further if that is what it takes to fit, and centring the block on the board is clamped so no canvas can end up at a coordinate you cannot reach. If a set genuinely needs more room than the 3000 × 3000 board has, the dialog says so while you can still change it, with the exact size it would need.',
+      'A Size You Type In Gets Its Proper Name: enter 300 × 250 by hand and the row says Medium Rectangle, not "Custom" — it is the same canvas either way, and that name is what labels it in the Canvases list, the batch panel and the export report afterwards. Adding a size that is already in the list but switched off simply switches it back on rather than leaving you with a duplicate row.',
+      'Project Name and ClickTag Now Share the Top Row: they are the two fields you always type rather than pick, so they lead the dialog together, with the name given two thirds of the width to keep it the more prominent of the pair. Max ad size is no longer as wide as the field beside it either — it holds a three-digit number, and being sized for a sentence only made it look like it wanted one.'
+    ]
+  },
+  {
     version: 'v0.51.6',
     date: 'August 2026 — Engine v3.0',
     items: [
