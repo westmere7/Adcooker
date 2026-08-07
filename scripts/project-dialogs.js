@@ -285,25 +285,37 @@ function openNewProjectDialog() {
           </div>
         </div>
 
+        <!-- Compression, ad weight and background on one row, positioned above
+             the start-from choices. -->
+        <div style="display:flex; gap:12px; align-items:flex-start;">
+          <div style="flex:1; min-width:0;">
+            <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:6px;">Auto-compression</label>
+            <select id="np-compress-format" title="Auto-compression output format: JPEG / PNG is ad-server safe; WebP produces the smallest files" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:6px; padding:7px 9px; font-size:12px; outline:none; cursor:pointer;">
+              <option value="jpeg" ${state.compressFormat !== 'webp' ? 'selected' : ''}>JPEG / PNG</option>
+              <option value="webp" ${state.compressFormat === 'webp' ? 'selected' : ''}>WebP</option>
+            </select>
+          </div>
+          <div style="flex:none; width:120px;" id="np-size-cell">
+            <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:6px; white-space:nowrap;">Max ad size (KB)</label>
+            <input type="number" id="np-size-limit" value="${state.adSizeLimit || 150}" min="1" title="Target file size limit for export warning / Ads Validator (KB)" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:6px; padding:7px 9px; font-size:12px; outline:none;" />
+          </div>
+          <div style="flex:none;" id="np-bg-cell">
+            <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:6px; white-space:nowrap;">Background</label>
+            <button class="cp-trigger" data-k="np-bg" id="np-bg" title="Choose default canvas background colour" style="width:56px; height:32px; padding:0; border:1px solid var(--border-light); border-radius:6px; background:${(state.defaultBg || '#0f172a')}; cursor:pointer; outline:none;"></button>
+            <input type="text" id="np-bg-hex" data-k="np-bg" value="${(state.defaultBg || '#0f172a').replace(/^#/, '').toUpperCase()}" maxlength="6" style="display:none;" />
+          </div>
+        </div>
+
         <!-- Where the project starts from. One radio group of three peers rather
-             than a "Use template" checkbox sitting above a pair of radios: all
-             three are the same kind of decision, so none of them outranks the
-             others. The saved-default row hides itself when the account has no
-             default, leaving a clean two-way choice. -->
+             than a "Use template" checkbox sitting above a pair of radios. -->
         <div style="border-bottom: 1px solid var(--border-light); padding-bottom: 12px; margin-bottom: 4px; display:flex; flex-direction:column; gap:8px;">
           <div id="np-start-choice" style="display:flex; flex-direction:column; gap:1px;">
-            <!-- The saved default leads and is preselected: it is the whole point of
-                 saving one. -->
             <div class="np-start-row" id="np-start-row-default" style="display:none;">
               <label class="np-start-label" title="Start from your base project — set it in Settings">
                 <input type="radio" name="np-start-from" value="default" style="margin:1px 0 0 0;" />
-                <span><span class="np-start-title">Base project</span><span class="np-start-hint" id="np-default-hint">Canvases come from it; settings below still apply.</span><span class="np-start-meta" id="np-default-meta"></span></span>
+                <span><span class="np-start-title">Base project<span id="np-default-meta" style="font-weight:400; color:var(--text-muted); font-size:11px; margin-left:4px;"></span></span><span class="np-start-hint" id="np-default-hint">Canvases come from it; settings below still apply.</span></span>
               </label>
             </div>
-            <!-- The picker lives on this row rather than below it, so the choice and
-                 the thing it needs are one line. The <label> deliberately wraps only
-                 the radio and its text — a <select> or button inside a label would be
-                 hijacked by the label's own activation. -->
             <div class="np-start-row" id="np-start-row-template">
               <label class="np-start-label" title="Start from a saved .flow template">
                 <input type="radio" name="np-start-from" value="template" style="margin:1px 0 0 0;" />
@@ -332,70 +344,61 @@ function openNewProjectDialog() {
           </div>
         </div>
 
-        <!-- Compression, ad weight and background on one row. Compression applies to
-             EVERY start-from choice (it is passed to the loader as well as to the
-             blank builder), so it is not inside the block that dims for a template —
-             the two cells that genuinely lose are dimmed on their own. -->
-        <div style="display:flex; gap:12px; align-items:flex-start;">
-          <div style="flex:1; min-width:0;">
-            <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:6px;">Auto-compression</label>
-            <select id="np-compress-format" title="Auto-compression output format: JPEG / PNG is ad-server safe; WebP produces the smallest files" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:6px; padding:7px 9px; font-size:12px; outline:none; cursor:pointer;">
-              <option value="jpeg" ${state.compressFormat !== 'webp' ? 'selected' : ''}>JPEG / PNG</option>
-              <option value="webp" ${state.compressFormat === 'webp' ? 'selected' : ''}>WebP</option>
-            </select>
-          </div>
-          <!-- Sized to the number it holds, not to a share of the row: this is a
-               three-digit KB figure, so a field as wide as the compression picker only
-               made it look like it wanted a sentence. -->
-          <div style="flex:none; width:120px;" id="np-size-cell">
-            <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:6px; white-space:nowrap;">Max ad size (KB)</label>
-            <input type="number" id="np-size-limit" value="${state.adSizeLimit || 150}" min="1" title="Target file size limit for export warning / Ads Validator (KB)" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:6px; padding:7px 9px; font-size:12px; outline:none;" />
-          </div>
-          <!-- flex:none, not flex:0 — the latter is basis:0% with shrink enabled, so
-               the cell collapses and the swatch overflows it. -->
-          <div style="flex:none;" id="np-bg-cell">
-            <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:block; margin-bottom:6px; white-space:nowrap;">Background</label>
-            <!-- The hex field stays in the DOM but hidden: the colour picker writes
-                 back through it (emitColorUpdate targets [data-k] and fires 'input'),
-                 and the create handler reads its value. The swatch is the control. -->
-            <button class="cp-trigger" data-k="np-bg" id="np-bg" title="Choose default canvas background colour" style="width:56px; height:32px; padding:0; border:1px solid var(--border-light); border-radius:6px; background:${(state.defaultBg || '#0f172a')}; cursor:pointer; outline:none;"></button>
-            <input type="text" id="np-bg-hex" data-k="np-bg" value="${(state.defaultBg || '#0f172a').replace(/^#/, '').toUpperCase()}" maxlength="6" style="display:none;" />
-          </div>
-        </div>
-
         <div id="np-custom-config-container" style="display:flex; flex-direction:column; gap:16px; transition: opacity 0.2s;">
-          <!-- Collapsed outright, not dimmed, whenever the canvases come from
-               somewhere else: a greyed-out list of sizes that cannot be changed is
-               just a taller dialog saying nothing. -->
           <div id="np-canvases-block">
-            <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; display:flex; justify-content:space-between; margin-bottom:6px;">
-              <span>Canvases</span>
-              <span id="np-canvas-toggle" style="cursor:pointer; color:var(--text-accent); text-transform:none; letter-spacing:0;" title="Select or deselect every canvas size in the list">Toggle all</span>
-            </label>
-            <div style="border:1px solid var(--border-light); border-radius:6px;">
-              <div id="np-canvas-list" style="padding:4px; display:flex; flex-direction:column; gap:1px;"></div>
-              <!-- Adding a size. The preset picker is a shortcut that FILLS the two
-                   boxes rather than a second way to add, so there is one path in and
-                   a preset can be nudged before it is added. -->
-              <div style="display:flex; align-items:center; gap:6px; padding:7px 8px; border-top:1px solid var(--border-light);">
-                <select id="np-add-preset" title="Fill the width and height from a standard size — display ads, social, screens or raster design" style="flex:1; min-width:0; background:var(--bg-panel); border:1px solid var(--border-light); color:var(--text-main); border-radius:5px; padding:5px 7px; font-size:11px; outline:none; cursor:pointer;">
-                  <option value="">Preset size…</option>
-                  ${addPresetOptions}
-                </select>
-                <!-- Wide enough for four digits AND the spinner arrows: the catalogue
-                     runs to 2560, so a box that fits three was cutting off what it had
-                     just filled in. -->
-                <input type="number" id="np-add-w" min="${CANVAS_MIN_PX}" max="${CANVAS_MAX_PX}" placeholder="W" title="Width in pixels" style="width:80px; flex:none; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:5px; padding:5px 6px; font-size:11px; outline:none; text-align:center;" />
-                <span style="font-size:11px; color:var(--text-muted); flex:none;">×</span>
-                <input type="number" id="np-add-h" min="${CANVAS_MIN_PX}" max="${CANVAS_MAX_PX}" placeholder="H" title="Height in pixels" style="width:80px; flex:none; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:5px; padding:5px 6px; font-size:11px; outline:none; text-align:center;" />
-                <button class="btn" id="np-add-canvas-btn" title="Add a canvas of this size to the list" style="padding:5px 10px; font-size:11px; flex:none; white-space:nowrap;">Add</button>
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:10px;">
+              <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; margin:0;">Canvases</label>
+              <div id="np-canvas-tab-switcher" style="display:inline-flex; background:var(--bg-input); border:1px solid var(--border-light); border-radius:6px; padding:2px; gap:2px;">
+                <button type="button" id="np-tab-single" class="btn ghost" style="padding:4px 12px; font-size:11px; border-radius:4px; font-weight:700; cursor:pointer; transition:all 0.15s ease;">Single Canvas</button>
+                <button type="button" id="np-tab-multiple" class="btn ghost" style="padding:4px 12px; font-size:11px; border-radius:4px; font-weight:700; cursor:pointer; transition:all 0.15s ease;">Multiple Canvases</button>
               </div>
             </div>
-            <!-- The catalogue runs up to 2560 × 1440, so a few of these together can
-                 want more room than the board has. Said here, while it can still be
-                 changed, rather than discovered afterwards as canvases you cannot
-                 scroll to. -->
-            <div id="np-canvas-fit-warning" style="display:none; font-size:10px; color:#f59e0b; line-height:1.45; margin-top:7px;"></div>
+
+            <!-- Single Canvas View -->
+            <div id="np-single-canvas-view" style="border:1px solid var(--border-light); border-radius:6px; padding:12px; display:flex; flex-direction:column; gap:10px; background:var(--bg-panel);">
+              <div style="display:flex; gap:10px; align-items:center;">
+                <div style="flex:1; min-width:0;">
+                  <label style="font-size:10px; color:var(--text-muted); display:block; margin-bottom:4px; font-weight:600;">Preset size</label>
+                  <select id="np-single-preset" title="Pick a standard size or enter custom dimensions" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:5px; padding:6px 8px; font-size:11px; outline:none; cursor:pointer;">
+                    <option value="">Preset size…</option>
+                    ${addPresetOptions}
+                  </select>
+                </div>
+                <div style="flex:none; width:80px;">
+                  <label style="font-size:10px; color:var(--text-muted); display:block; margin-bottom:4px; font-weight:600; text-align:center;">Width</label>
+                  <input type="number" id="np-single-w" value="300" min="${CANVAS_MIN_PX}" max="${CANVAS_MAX_PX}" placeholder="W" title="Width in pixels" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:5px; padding:6px; font-size:11px; outline:none; text-align:center;" />
+                </div>
+                <span style="font-size:11px; color:var(--text-muted); margin-top:16px;">×</span>
+                <div style="flex:none; width:80px;">
+                  <label style="font-size:10px; color:var(--text-muted); display:block; margin-bottom:4px; font-weight:600; text-align:center;">Height</label>
+                  <input type="number" id="np-single-h" value="250" min="${CANVAS_MIN_PX}" max="${CANVAS_MAX_PX}" placeholder="H" title="Height in pixels" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:5px; padding:6px; font-size:11px; outline:none; text-align:center;" />
+                </div>
+              </div>
+              <div style="display:flex; gap:10px; align-items:center;">
+                <div style="flex:1; min-width:0;">
+                  <label style="font-size:10px; color:var(--text-muted); display:block; margin-bottom:4px; font-weight:600;">Canvas name</label>
+                  <input type="text" id="np-single-name" value="Medium Rectangle" placeholder="e.g. Medium Rectangle" style="width:100%; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:5px; padding:6px 8px; font-size:11px; outline:none;" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Multiple Canvases View -->
+            <div id="np-multiple-canvas-view" style="display:none;">
+              <div style="border:1px solid var(--border-light); border-radius:6px;">
+                <div id="np-canvas-list" style="padding:4px; display:flex; flex-direction:column; gap:1px;"></div>
+                <div style="display:flex; align-items:center; gap:6px; padding:7px 8px; border-top:1px solid var(--border-light);">
+                  <select id="np-add-preset" title="Fill the width and height from a standard size — display ads, social, screens or raster design" style="flex:1; min-width:0; background:var(--bg-panel); border:1px solid var(--border-light); color:var(--text-main); border-radius:5px; padding:5px 7px; font-size:11px; outline:none; cursor:pointer;">
+                    <option value="">Preset size…</option>
+                    ${addPresetOptions}
+                  </select>
+                  <input type="number" id="np-add-w" min="${CANVAS_MIN_PX}" max="${CANVAS_MAX_PX}" placeholder="W" title="Width in pixels" style="width:80px; flex:none; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:5px; padding:5px 6px; font-size:11px; outline:none; text-align:center;" />
+                  <span style="font-size:11px; color:var(--text-muted); flex:none;">×</span>
+                  <input type="number" id="np-add-h" min="${CANVAS_MIN_PX}" max="${CANVAS_MAX_PX}" placeholder="H" title="Height in pixels" style="width:80px; flex:none; background:var(--bg-input); border:1px solid var(--border-light); color:var(--text-main); border-radius:5px; padding:5px 6px; font-size:11px; outline:none; text-align:center;" />
+                  <button class="btn" id="np-add-canvas-btn" title="Add a canvas of this size to the list" style="padding:5px 10px; font-size:11px; flex:none; white-space:nowrap;">Add</button>
+                </div>
+              </div>
+              <div id="np-canvas-fit-warning" style="display:none; font-size:10px; color:#f59e0b; line-height:1.45; margin-top:7px;"></div>
+            </div>
           </div>
         </div>
         <p style="margin:0; font-size:11px; color:var(--text-muted); line-height:1.5;">This replaces your current project. Your existing work is auto-saved — save a <strong>.flow</strong> file first if you want a separate backup.</p>
@@ -509,10 +512,9 @@ function openNewProjectDialog() {
 
   // "RMIT_ad · 1 frame · 6 canvases" then the sizes on their own line. Sourced from
   // the cloud sidecar, so it reads the same on a machine that has never saved one.
-  const hintEl = bg.querySelector('#np-default-hint');
   const metaEl = bg.querySelector('#np-default-meta');
   const describeDefault = (info) => {
-    if (!info || !info.exists) { metaEl.textContent = ''; return; }
+    if (!info || !info.exists) { if (metaEl) metaEl.textContent = ''; return; }
     const bits = [];
     if (info.name) bits.push(info.name);
     if (typeof info.frames === 'number' && info.frames > 0) {
@@ -520,17 +522,9 @@ function openNewProjectDialog() {
     }
     const cvs = Array.isArray(info.canvases) ? info.canvases : [];
     if (cvs.length) bits.push(cvs.length + (cvs.length === 1 ? ' canvas' : ' canvases'));
-    if (!bits.length) { metaEl.textContent = ''; return; }
+    if (!bits.length) { if (metaEl) metaEl.textContent = ''; return; }
 
-    hintEl.textContent = bits.join(' · ');
-    // Sizes are the useful detail but can run long, so cap the list rather than
-    // letting one many-size project stretch the row.
-    if (cvs.length) {
-      const shown = cvs.slice(0, 6).map(c => `${c.w}×${c.h}`).join(', ');
-      metaEl.textContent = cvs.length > 6 ? `${shown} +${cvs.length - 6} more` : shown;
-    } else {
-      metaEl.textContent = '';
-    }
+    if (metaEl) metaEl.textContent = ' · ' + bits.join(' · ');
   };
 
   const applyDefaultInfo = (info) => {
@@ -555,7 +549,14 @@ function openNewProjectDialog() {
   }
 
   startRadios().forEach(r => {
-    r.addEventListener('change', () => { userPickedStart = true; updateFieldsVisibility(); });
+    r.addEventListener('change', () => {
+      userPickedStart = true;
+      if (startFrom() === 'blank') {
+        canvasTabMode = 'single';
+        if (typeof updateCanvasTabUI === 'function') updateCanvasTabUI();
+      }
+      updateFieldsVisibility();
+    });
   });
 
   btnBrowse.onclick = () => {
@@ -679,7 +680,66 @@ function openNewProjectDialog() {
     }
   });
 
-  // ── Canvases list ─────────────────────────────────────────────────────────────
+  // ── Canvases list & Tabs ──────────────────────────────────────────────────────
+  let canvasTabMode = 'single';
+  const tabSingle = bg.querySelector('#np-tab-single');
+  const tabMultiple = bg.querySelector('#np-tab-multiple');
+  const viewSingle = bg.querySelector('#np-single-canvas-view');
+  const viewMultiple = bg.querySelector('#np-multiple-canvas-view');
+
+  const updateCanvasTabUI = () => {
+    if (canvasTabMode === 'single') {
+      tabSingle.style.background = 'var(--accent-base)';
+      tabSingle.style.color = '#ffffff';
+      tabSingle.style.fontWeight = '700';
+      tabSingle.style.boxShadow = '0 2px 8px rgba(124,92,255,0.45)';
+      tabSingle.style.opacity = '1';
+
+      tabMultiple.style.background = 'transparent';
+      tabMultiple.style.color = 'var(--text-muted)';
+      tabMultiple.style.fontWeight = '600';
+      tabMultiple.style.boxShadow = 'none';
+      tabMultiple.style.opacity = '0.8';
+
+      viewSingle.style.display = 'flex';
+      viewMultiple.style.display = 'none';
+    } else {
+      tabMultiple.style.background = 'var(--accent-base)';
+      tabMultiple.style.color = '#ffffff';
+      tabMultiple.style.fontWeight = '700';
+      tabMultiple.style.boxShadow = '0 2px 8px rgba(124,92,255,0.45)';
+      tabMultiple.style.opacity = '1';
+
+      tabSingle.style.background = 'transparent';
+      tabSingle.style.color = 'var(--text-muted)';
+      tabSingle.style.fontWeight = '600';
+      tabSingle.style.boxShadow = 'none';
+      tabSingle.style.opacity = '0.8';
+
+      viewSingle.style.display = 'none';
+      viewMultiple.style.display = 'block';
+    }
+  };
+
+  tabSingle.onclick = () => { canvasTabMode = 'single'; updateCanvasTabUI(); };
+  tabMultiple.onclick = () => { canvasTabMode = 'multiple'; updateCanvasTabUI(); };
+  updateCanvasTabUI();
+
+  const singlePresetSel = bg.querySelector('#np-single-preset');
+  const singleWInp = bg.querySelector('#np-single-w');
+  const singleHInp = bg.querySelector('#np-single-h');
+  const singleNameInp = bg.querySelector('#np-single-name');
+
+  singlePresetSel.onchange = () => {
+    const p = catalogSizes[+singlePresetSel.value];
+    if (p) {
+      singleWInp.value = p.width;
+      singleHInp.value = p.height;
+      singleNameInp.value = p.name;
+    }
+    singlePresetSel.value = '';
+  };
+
   const canvasListEl = bg.querySelector('#np-canvas-list');
   const addPresetSel = bg.querySelector('#np-add-preset');
   const addWInp = bg.querySelector('#np-add-w');
@@ -793,12 +853,6 @@ function openNewProjectDialog() {
     });
   });
 
-  bg.querySelector('#np-canvas-toggle').onclick = () => {
-    const allOn = canvasRows.every(r => r.checked);
-    canvasRows.forEach(r => { r.checked = !allOn; });
-    renderCanvasRows();
-  };
-
   renderCanvasRows();
 
   bg.querySelector('#np-create').onclick = async () => {
@@ -878,13 +932,26 @@ function openNewProjectDialog() {
         }
       }
 
-      const chosenSizes = canvasRows
-        .filter(r => r.checked)
-        .map(r => ({ name: r.name, width: r.width, height: r.height }));
-      if (chosenSizes.length === 0) {
-        showAdflowAlert('Pick at least one canvas size.');
-        setButtonsLoading(false);
-        return;
+      let chosenSizes = [];
+      if (canvasTabMode === 'single') {
+        const w = Math.round(+singleWInp.value || 0);
+        const h = Math.round(+singleHInp.value || 0);
+        const sName = singleNameInp.value.trim() || 'Canvas 1';
+        if (!(w >= CANVAS_MIN_PX && h >= CANVAS_MIN_PX && w <= CANVAS_MAX_PX && h <= CANVAS_MAX_PX)) {
+          showAdflowAlert(`Enter a canvas width and height between ${CANVAS_MIN_PX} and ${CANVAS_MAX_PX} pixels.`);
+          setButtonsLoading(false);
+          return;
+        }
+        chosenSizes = [{ name: sName, width: w, height: h }];
+      } else {
+        chosenSizes = canvasRows
+          .filter(r => r.checked)
+          .map(r => ({ name: r.name, width: r.width, height: r.height }));
+        if (chosenSizes.length === 0) {
+          showAdflowAlert('Pick at least one canvas size.');
+          setButtonsLoading(false);
+          return;
+        }
       }
       await createNewProject({
         name,
