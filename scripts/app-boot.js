@@ -136,7 +136,6 @@ document.addEventListener('mousedown', (e) => {
 //                  guest mode rather than shown disabled: an option that can never work
 //                  is not information.
 const AUTO_ARRANGE_SVG = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /></svg>`;
-const PLACEMENT_PIN_SVG = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></svg>`;
 
 function placementLibraryOffered() {
   return typeof placementLibraryAvailable === 'function' && placementLibraryAvailable();
@@ -164,7 +163,7 @@ function autoArrangeMenuHtml(scope, selCount) {
       <div class="ctx-item" id="ctx-canvas-auto-arrange" style="white-space:nowrap;" title="Re-lay out this canvas from its layers&#39; roles, respecting margins and safe zones">Auto-arrange elements</div>
       <div class="ctx-divider"></div>
       <div class="ctx-item has-submenu" title="${saveTitle}">
-        <span style="display:flex; align-items:center; gap:8px; white-space:nowrap;">${PLACEMENT_PIN_SVG}${saveLabel}</span>
+        <span style="white-space:nowrap;">${saveLabel}</span>
         <div class="ctx-submenu">
           <div class="ctx-item" id="${idPrefix}-project" style="white-space:nowrap;" title="Remember this placement in this project only — it travels inside the .flow file">Project only</div>`;
   if (placementLibraryOffered()) {
@@ -605,29 +604,12 @@ document.addEventListener('contextmenu', (e) => {
     html += `<div class="ctx-divider"></div>`;
     html += `<div class="ctx-item" id="ctx-save-asset" title="Save this image to the Assets panel so you can reuse it on other canvases and projects">Save to Assets</div>`;
 
-    // "Define default placement" used to live here. It is gone because the
-    // remember-placement submenu at the top of this menu does the same job and says which
-    // scope it saves to — two commands for one action is the confusion worth removing.
-    // Forgetting is still here, and stays split by scope: one item per place a placement
-    // can live, each naming its own, so nothing account-wide is ever deleted as a
-    // side-effect of clearing something local.
-    if (activeEl && activeEl.role && activeEl.role !== 'misc') {
-      const hasLocalPin = !!(c.layoutOverrides && c.layoutOverrides[activeEl.role]);
-      const hasGlobalPin = placementLibraryOffered()
-        && !!getGlobalPlacement(c.width, c.height, activeEl.role);
-      if (hasLocalPin || hasGlobalPin) {
-        html += `<div class="ctx-divider"></div>`;
-        html += `<div class="ctx-item has-submenu" title="Less common layer actions">Advanced
-          <div class="ctx-submenu">`;
-        if (hasLocalPin) {
-          html += `<div class="ctx-item ctx-danger" id="ctx-clear-override" style="white-space:nowrap;" title="Stop pinning this role on this canvas in this project">Forget placement (this project)</div>`;
-        }
-        if (hasGlobalPin) {
-          html += `<div class="ctx-item ctx-danger" id="ctx-forget-global-placement" style="white-space:nowrap;" title="Stop remembering this role for ${c.width} × ${c.height} across your account">Forget placement (all projects)</div>`;
-        }
-        html += `</div></div>`;
-      }
-    }
+    // The Advanced submenu is gone with the last thing in it. It held "Define default
+    // placement" — superseded by Auto-arrange ▸ Save placement, which does the same job and
+    // names the scope it saves to — and then the two per-scope Forget entries. Saving a
+    // placement again simply overwrites it, and Settings ▸ Remembered placements still has
+    // the one switch that clears the account-wide set, so nothing here was the only way
+    // back from anything.
     html += `<div class="ctx-divider"></div>`;
     html += addElementsMenuHTML;
     html += `<div class="ctx-divider"></div>`;
@@ -891,40 +873,6 @@ document.addEventListener('contextmenu', (e) => {
     }
   });
   bind('ctx-save-asset', async () => await saveSelectionAsAsset());
-  bind('ctx-forget-global-placement', async () => {
-    const c = getActiveCanvas();
-    const el = getSelectedElement() || (state.layerSelection?.length > 0 ? c.elements.find(x => x.id === state.layerSelection[0]) : null);
-    if (!c || !el || !el.role) return;
-    const roleName = (typeof ROLE_LABELS !== 'undefined' && ROLE_LABELS[el.role]) || el.role;
-    try {
-      const { forgotten } = await forgetPlacementsFromLibrary(c.width, c.height, [el.role]);
-      if (forgotten) {
-        showCanvasNotification(`No longer remembering "${roleName}" for ${c.width} × ${c.height} on your account.`, { type: 'success' });
-        render();
-      } else {
-        showCanvasNotification(`Nothing was remembered for "${roleName}" at ${c.width} × ${c.height}.`, { type: 'info' });
-      }
-    } catch (err) {
-      console.warn('Forget global placement failed:', err);
-      showCanvasNotification(`Could not update your account: ${err.message || err}`, { type: 'error' });
-    }
-  });
-  bind('ctx-clear-override', () => {
-    const c = getActiveCanvas();
-    const el = getSelectedElement() || (state.layerSelection?.length > 0 ? c.elements.find(x => x.id === state.layerSelection[0]) : null);
-    if (!c || !el || !el.role) return;
-    
-    if (c.layoutOverrides && c.layoutOverrides[el.role]) {
-      delete c.layoutOverrides[el.role];
-      if (Object.keys(c.layoutOverrides).length === 0) {
-        delete c.layoutOverrides;
-      }
-      const roleName = ROLE_LABELS[el.role] || el.role;
-      showCanvasNotification(`Cleared placement override for "${roleName}" on this canvas.`, { type: 'success' });
-      pushHistory();
-      render();
-    }
-  });
   bind('ctx-delete', () => {
     const c = getActiveCanvas();
     if (c && state.layerSelection) {

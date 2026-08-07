@@ -1535,11 +1535,14 @@ function solveBrandElements(canvas, present, config) {
         }
       }
 
-      const settings = (typeof getAutoResizeSettings === 'function') ? getAutoResizeSettings() : { behaviour: {} };
-      if (settings.behaviour?.lockBrandElements !== false) {
+      // Brand furniture obeys the arrange toggle like everything else on this path — it is
+      // NOT exempted via lockBrandElements any more, which is what left the logo and RFWN
+      // locked after the toggle was switched off. runAutoArrange reconciles this at the end
+      // of the run regardless; doing it here too just avoids a visible flip in between.
+      if (typeof autoArrangeLockWanted === 'function' && autoArrangeLockWanted()) {
         el.locked = true;
-      } else {
-        if (el.locked) delete el.locked;
+      } else if (el.locked) {
+        delete el.locked;
       }
       el.autoArranged = true;
     });
@@ -2305,10 +2308,27 @@ function runAutoArrange(canvasId, selectedIds) {
   }
 
   if (changed) {
+    // Lock what was just arranged, in ONE place rather than at each of the two dozen sites
+    // above that set el.autoArranged — those differ per canvas size and would drift. The
+    // rule itself lives in auto-resize-engine.js beside the setting it reads, and the
+    // settings modal applies the same rule to the whole project when you change it.
+    const lockArranged = (typeof getAutoResizeSettings === 'function')
+      && getAutoResizeSettings().behaviour?.lockAutoArranged !== false;
+    if (typeof autoArrangeLockWanted === 'function') {
+      const wantLock = autoArrangeLockWanted();
+      canvas.elements.forEach(el => {
+        if (!el.autoArranged || !isSelected(el)) return;
+        if (wantLock) el.locked = true;
+        else if (el.locked) delete el.locked;
+      });
+    }
+
     pushHistory();
     render();
     renderProps();
-    showCanvasNotification('Elements auto-arranged.', { type: 'success' });
+    showCanvasNotification(
+      lockArranged ? 'Elements auto-arranged and locked.' : 'Elements auto-arranged.',
+      { type: 'success' });
   } else {
     showCanvasNotification('No auto-arrange sets matched for this canvas size.', { type: 'info' });
   }

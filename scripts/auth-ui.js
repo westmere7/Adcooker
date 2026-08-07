@@ -838,32 +838,10 @@ async function savePlacementsToLibrary(width, height, entries) {
   return { saved: roles.length };
 }
 
-// Forget remembered placements for one size. `roles` omitted forgets the whole size.
-async function forgetPlacementsFromLibrary(width, height, roles) {
-  if (!sb) throw new Error('Cloud is not configured.');
-  if (!authState.currentUser()) throw new Error('Not signed in.');
-
-  const remote = await fetchPlacementLibrary();
-  if (!remote) return { forgotten: 0 };
-  const key = placementSizeKey(width, height);
-  const bucket = remote.sizes[key];
-  if (!bucket) return { forgotten: 0 };
-
-  let forgotten = 0;
-  if (Array.isArray(roles) && roles.length) {
-    roles.forEach(r => { if (bucket[r]) { delete bucket[r]; forgotten++; } });
-  } else {
-    forgotten = Object.keys(bucket).length;
-    delete remote.sizes[key];
-  }
-  if (!forgotten) return { forgotten: 0 };
-  if (remote.sizes[key] && !Object.keys(remote.sizes[key]).length) delete remote.sizes[key];
-  remote.savedAt = Date.now();
-
-  await _uploadPlacementLibrary(remote);
-  _cachePlacementLibrary(remote);
-  return { forgotten };
-}
+// There is deliberately no per-size / per-role forget. Re-saving a placement overwrites
+// it, which covers correcting one, and "Forget all" below covers starting over — a third
+// verb whose only caller was a context-menu entry that no longer exists would be machinery
+// kept alive for a feature that was removed.
 
 // Forget every remembered placement, for every size. The library is invisible state that
 // changes how auto-resize behaves in projects you have not opened yet, so there has to be

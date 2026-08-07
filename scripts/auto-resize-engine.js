@@ -494,9 +494,9 @@ function openAutoResizeModal() {
           <label style="display:flex; align-items:flex-start; gap:8px; font-size:12px; cursor:pointer;">
             <input type="checkbox" id="ar-lock-brand" title="Keep the RMIT logo, CRICOS line and other brand furniture at their correct size and position on each canvas rather than scaling them with the layout" ${persistedSettings.behaviour.lockBrandElements !== false ? 'checked' : ''} />
             <span>
-              <span style="color:var(--text-main); font-weight:500;">Lock brand elements (Logo, Tagline, CRICOS) after layout</span>
+              <span style="color:var(--text-main); font-weight:500;">Lock brand elements (Logo, RFWN, CRICOS) on generated canvases</span>
               <br>
-              <span style="color:var(--text-muted); font-size:10.5px;">On (default): automatically lock Logo, Tagline, and CRICOS layers so they cannot be accidentally moved.</span>
+              <span style="color:var(--text-muted); font-size:10.5px;">On (default): the brand layers copied onto each new canvas arrive locked, so they cannot be moved by accident. Auto-arrange has its own lock setting.</span>
             </span>
           </label>
 
@@ -2095,7 +2095,8 @@ const AUTO_RESIZE_DEFAULT_SETTINGS = {
     r1: true   // rmit-logo ↔ rfwn edge alignment
   },
   behaviour: {
-    lockBrandElements:    true,   // lock logo, tagline, cricos after layout/arrange
+    lockAutoArranged:     true,   // AUTO-ARRANGE: lock every layer it positions, brand included
+    lockBrandElements:    true,   // AUTO-RESIZE: lock the brand clones it generates. Separate paths.
     includeUnassigned:    false,  // remembered value for the misc-elements toggle
     showModalInCtxMenu:   true,   // show confirmation modal when resizing from context menu
     syncCanvasBg:         false,  // sync canvas background per-frame to all canvases
@@ -2119,6 +2120,7 @@ function getAutoResizeSettings() {
   if (!s.relations)    s.relations    = { ...AUTO_RESIZE_DEFAULT_SETTINGS.relations };
   if (!s.behaviour)    s.behaviour    = { ...AUTO_RESIZE_DEFAULT_SETTINGS.behaviour };
   // Backfill any behaviour keys missing on projects saved before this version.
+  if (typeof s.behaviour.lockAutoArranged     !== 'boolean') s.behaviour.lockAutoArranged     = true;
   if (typeof s.behaviour.lockBrandElements    !== 'boolean') s.behaviour.lockBrandElements    = true;
   if (typeof s.behaviour.includeUnassigned   !== 'boolean') s.behaviour.includeUnassigned   = false;
   if (typeof s.behaviour.showModalInCtxMenu  !== 'boolean') s.behaviour.showModalInCtxMenu  = true;
@@ -2126,11 +2128,15 @@ function getAutoResizeSettings() {
   if (!s.behaviour.liveLink) s.behaviour.liveLink = { ...AUTO_RESIZE_DEFAULT_SETTINGS.behaviour.liveLink };
   const ll = s.behaviour.liveLink;
   if (typeof ll.enabled        !== 'boolean') ll.enabled        = false;
-  if (typeof ll.syncText       !== 'boolean') ll.syncText       = true;
-  if (typeof ll.syncFont       !== 'boolean') ll.syncFont       = true;
-  if (typeof ll.syncColor      !== 'boolean') ll.syncColor      = true;
-  if (typeof ll.syncOpacity    !== 'boolean') ll.syncOpacity    = true;
-  if (typeof ll.syncAnimations !== 'boolean') ll.syncAnimations = true;
+  // Per-category live-link toggles were removed from the UI: live linking is one decision
+  // now. Pinned ON rather than backfilled, so a project saved while one of them was off
+  // does not keep carrying a setting nobody can see, find or change. The keys stay because
+  // the propagation code reads them.
+  ll.syncText       = true;
+  ll.syncFont       = true;
+  ll.syncColor      = true;
+  ll.syncOpacity    = true;
+  ll.syncAnimations = true;
   if ('allowCoverFallback'  in s.behaviour) delete s.behaviour.allowCoverFallback;
   if ('showProgress'        in s)           delete s.showProgress;
   if ('showProgress'        in s.behaviour) delete s.behaviour.showProgress;
@@ -2139,7 +2145,40 @@ function getAutoResizeSettings() {
 }
 
 
-// ----- Auto-Resize Settings modal (gear icon) -----------------------------
+// Should auto-arrange lock what it just placed? ONE rule, covering every role including
+// brand furniture.
+//
+// This used to also honour lockBrandElements, which meant switching this off still left
+// the logo, RFWN, CRICOS and tagline locked — the toggle said "lock layers after
+// auto-arrange" and then did not govern four of them. A control that is visibly off while
+// something else quietly overrides it is worse than not having the control. So the two
+// settings now own separate paths, and each label is true of exactly what it does:
+// this one governs auto-ARRANGE entirely, lockBrandElements governs the brand clones
+// auto-RESIZE generates (its original job — see the clone path above).
+function autoArrangeLockWanted() {
+  return getAutoResizeSettings().behaviour?.lockAutoArranged !== false;
+}
+
+// Bring every layer still sitting where auto-arrange put it into line with the current
+// settings, across the whole project.
+//
+// This exists because a toggle that only takes effect on the NEXT arrange is
+// indistinguishable from one that does not work: unticking the lock has to release the
+// layers that are already locked, then and there. `interactions.js` clears el.autoArranged
+// the moment a layer is dragged or edited, so this only ever touches layers genuinely
+// still in an arranged position — a layer you moved by hand is no longer its business.
+function reconcileAutoArrangeLocks() {
+  let touched = 0;
+  const want = autoArrangeLockWanted();
+  (state.canvases || []).forEach(cv => (cv.elements || []).forEach(el => {
+    if (!el.autoArranged) return;
+    if (want && el.locked !== true) { el.locked = true; touched++; }
+    else if (!want && el.locked) { delete el.locked; touched++; }
+  }));
+  return touched;
+}
+
+// ----- Auto Resize / Arrange Settings modal (gear icon) -------------------
 
 function openAutoResizeSettingsModal() {
   const s = getAutoResizeSettings();
@@ -2156,7 +2195,7 @@ function openAutoResizeSettingsModal() {
   bg.innerHTML = `
     <div class="modal" style="max-width:560px;">
       <div class="modal-head">
-        <h2 style="margin:0;">Auto-Resize Settings</h2>
+        <h2 style="margin:0;">Auto Resize / Arrange Settings</h2>
         <div style="display:flex; align-items:center; gap:10px; margin-left:auto;">
           <span class="ar-engine-pill" title="Auto-Resize engine version — bumps independently of the Adflow app version on substantive rule changes.">Engine ${ENGINE_VERSION}</span>
           <button class="btn" id="ars-modal-close" title="Close dialog">Close</button>
@@ -2217,10 +2256,17 @@ function openAutoResizeSettingsModal() {
             </div>
           </label>
           <label class="ars-row" style="display:flex; align-items:flex-start; gap:9px; padding:6px 8px; cursor:pointer; border-radius:4px;">
-            <input type="checkbox" id="ars-lock-brand" title="Keep the RMIT logo, CRICOS line and other brand furniture at their correct size and position rather than scaling them with the layout" ${s.behaviour.lockBrandElements !== false ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
+            <input type="checkbox" id="ars-lock-arranged" title="Lock every layer Auto-arrange positions — including the logo, RFWN and CRICOS — so a layout you just generated cannot be nudged out of place by accident" ${s.behaviour.lockAutoArranged !== false ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
             <div style="flex:1; min-width:0;">
-              <div style="font-size:12px; font-weight:600; color:var(--text-main); line-height:1.35;">Lock brand elements (Logo, Tagline, CRICOS) after layout</div>
-              <div style="font-size:10.5px; color:var(--text-muted); line-height:1.4; margin-top:2px;">Automatically lock Logo, Tagline, and CRICOS layers after auto-resize or auto-arrange.</div>
+              <div style="font-size:12px; font-weight:600; color:var(--text-main); line-height:1.35;">Lock layers after auto-arrange</div>
+              <div style="font-size:10.5px; color:var(--text-muted); line-height:1.4; margin-top:2px;">On by default. <b>Every</b> layer Auto-arrange positions is locked, brand furniture included, so the layout it produced cannot be dragged out of place by accident — unlock a layer in the Layers panel when you do want to move it. Off: nothing is locked by auto-arrange, and unticking this releases whatever it locked earlier straight away.</div>
+            </div>
+          </label>
+          <label class="ars-row" style="display:flex; align-items:flex-start; gap:9px; padding:6px 8px; cursor:pointer; border-radius:4px;">
+            <input type="checkbox" id="ars-lock-brand" title="Lock the logo, RFWN and CRICOS layers on the canvases Auto-Resize generates, so brand furniture is not nudged out of place afterwards" ${s.behaviour.lockBrandElements !== false ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
+            <div style="flex:1; min-width:0;">
+              <div style="font-size:12px; font-weight:600; color:var(--text-main); line-height:1.35;">Lock brand elements (Logo, RFWN, CRICOS) on generated canvases</div>
+              <div style="font-size:10.5px; color:var(--text-muted); line-height:1.4; margin-top:2px;">Applies to <b>Auto-Resize</b> only — the brand layers it copies onto each new canvas arrive locked. Auto-arrange is governed entirely by the toggle above, so the two never disagree about the same layer.</div>
             </div>
           </label>
           <label class="ars-row" style="display:flex; align-items:flex-start; gap:9px; padding:6px 8px; cursor:pointer; border-radius:4px;">
@@ -2248,45 +2294,12 @@ function openAutoResizeSettingsModal() {
               <div style="font-size:10.5px; color:var(--text-muted); line-height:1.4; margin-top:2px;">When on, every target element joins the source's link group with real-time propagation — edits on the source update every target instantly. Off: target elements are independent copies after the resize completes.</div>
             </div>
           </label>
-          <div id="ars-ll-sub" style="display:flex; flex-direction:column; gap:2px; margin-left:24px; padding-left:8px; border-left:1px solid var(--border-light);">
-            <label class="ars-row" style="display:flex; align-items:flex-start; gap:9px; padding:5px 8px; cursor:pointer; border-radius:4px;">
-              <input type="checkbox" id="ars-ll-text" title="Include the wording when live-linking generated layers" ${s.behaviour.liveLink.syncText !== false ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
-              <div style="flex:1; min-width:0;">
-                <div style="font-size:11.5px; font-weight:600; color:var(--text-main); line-height:1.3;">Text content</div>
-                <div style="font-size:10px; color:var(--text-muted); line-height:1.35;">Edits to the headline / CTA / RFWN text propagate to every linked target.</div>
-              </div>
-            </label>
-            <label class="ars-row" style="display:flex; align-items:flex-start; gap:9px; padding:5px 8px; cursor:pointer; border-radius:4px;">
-              <input type="checkbox" id="ars-ll-font" title="Include the typeface and size when live-linking generated layers" ${s.behaviour.liveLink.syncFont !== false ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
-              <div style="flex:1; min-width:0;">
-                <div style="font-size:11.5px; font-weight:600; color:var(--text-main); line-height:1.3;">Font family + weight</div>
-                <div style="font-size:10px; color:var(--text-muted); line-height:1.35;">Changing the typeface or weight syncs across canvases. Font SIZE is always independent per canvas.</div>
-              </div>
-            </label>
-            <label class="ars-row" style="display:flex; align-items:flex-start; gap:9px; padding:5px 8px; cursor:pointer; border-radius:4px;">
-              <input type="checkbox" id="ars-ll-color" title="Include the colour when live-linking generated layers" ${s.behaviour.liveLink.syncColor !== false ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
-              <div style="flex:1; min-width:0;">
-                <div style="font-size:11.5px; font-weight:600; color:var(--text-main); line-height:1.3;">Colour / fill</div>
-                <div style="font-size:10px; color:var(--text-muted); line-height:1.35;">Text colour, button fill + stroke, shape fill + stroke, line colour. Background colours included for text.</div>
-              </div>
-            </label>
-            <label class="ars-row" style="display:flex; align-items:flex-start; gap:9px; padding:5px 8px; cursor:pointer; border-radius:4px;">
-              <input type="checkbox" id="ars-ll-opacity" title="Include opacity when live-linking generated layers" ${s.behaviour.liveLink.syncOpacity !== false ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
-              <div style="flex:1; min-width:0;">
-                <div style="font-size:11.5px; font-weight:600; color:var(--text-main); line-height:1.3;">Opacity</div>
-                <div style="font-size:10px; color:var(--text-muted); line-height:1.35;">Per-element opacity / alpha changes sync across canvases.</div>
-              </div>
-            </label>
-            <label class="ars-row" style="display:flex; align-items:flex-start; gap:9px; padding:5px 8px; cursor:pointer; border-radius:4px;">
-              <input type="checkbox" id="ars-ll-anim" title="Include animation settings when live-linking generated layers" ${s.behaviour.liveLink.syncAnimations !== false ? 'checked' : ''} style="margin-top:3px; flex-shrink:0;" />
-              <div style="flex:1; min-width:0;">
-                <div style="font-size:11.5px; font-weight:600; color:var(--text-main); line-height:1.3;">Animations + effects</div>
-                <div style="font-size:10px; color:var(--text-muted); line-height:1.35;">In-transitions (Fade in, Slide up, etc.) and Animation FX (Pulse, Wiggle, Spin) sync across canvases.</div>
-              </div>
-            </label>
-          </div>
+          <!-- The five per-category toggles (text / font / colour / opacity / animations)
+               are gone. Live linking is one decision now: link the generated layers, or do
+               not. Five sub-switches nobody changed made the section four times as tall as
+               the choice it was actually offering. -->
           <div style="font-size:10px; color:var(--text-muted); padding:4px 8px 0 8px; font-style:italic; line-height:1.4;">
-            Position, size, and font size are always independent per canvas — that's the point of the resize.
+            Live linking covers text, font family and weight, colour and fill, opacity, and animations. Position, size, and font size are always independent per canvas — that's the point of the resize.
           </div>
         </div>
       </div>
@@ -2312,21 +2325,6 @@ function openAutoResizeSettingsModal() {
   bg.querySelector('#ars-cancel').onclick = close;
   bg.onclick = (e) => { if (e.target === bg) close(); };
 
-  // Dim the live-link sub-toggles when the master toggle is off so the
-  // hierarchy of choices is visually obvious.
-  const llMaster = bg.querySelector('#ars-ll-enabled');
-  const llSub    = bg.querySelector('#ars-ll-sub');
-  const syncLlDim = () => {
-    if (llSub) {
-      llSub.style.opacity = llMaster.checked ? '1' : '0.4';
-      llSub.style.pointerEvents = llMaster.checked ? '' : 'none';
-    }
-  };
-  if (llMaster) {
-    llMaster.addEventListener('change', syncLlDim);
-    syncLlDim();
-  }
-
   bg.querySelector('#ars-reset').onclick = () => {
     state.autoResizeSettings = JSON.parse(JSON.stringify(AUTO_RESIZE_DEFAULT_SETTINGS));
     close();
@@ -2342,6 +2340,7 @@ function openAutoResizeSettingsModal() {
       next.relations[cb.dataset.rel] = cb.checked;
     });
     next.behaviour.includeUnassigned     = bg.querySelector('#ars-include-unassigned').checked;
+    next.behaviour.lockAutoArranged      = bg.querySelector('#ars-lock-arranged').checked;
     next.behaviour.lockBrandElements     = bg.querySelector('#ars-lock-brand').checked;
     next.behaviour.showModalInCtxMenu    = bg.querySelector('#ars-show-ctx-modal').checked;
     next.behaviour.syncCanvasBg         = bg.querySelector('#ars-sync-canvas-bg').checked;
@@ -2364,19 +2363,32 @@ function openAutoResizeSettingsModal() {
       }
     }
 
+    // Categories are no longer configurable, so they are written on rather than read from
+    // a UI that no longer exists — which also clears any project still carrying one of
+    // them switched off, since that would be a setting nobody could see or change.
     next.behaviour.liveLink = {
       enabled:        bg.querySelector('#ars-ll-enabled').checked,
-      syncText:       bg.querySelector('#ars-ll-text').checked,
-      syncFont:       bg.querySelector('#ars-ll-font').checked,
-      syncColor:      bg.querySelector('#ars-ll-color').checked,
-      syncOpacity:    bg.querySelector('#ars-ll-opacity').checked,
-      syncAnimations: bg.querySelector('#ars-ll-anim').checked
+      syncText:       true,
+      syncFont:       true,
+      syncColor:      true,
+      syncOpacity:    true,
+      syncAnimations: true
     };
     state.autoResizeSettings = next;
+
+    // Locks are reconciled HERE, not only on the next arrange: unticking the lock has to
+    // release what is already locked, or the toggle looks broken.
+    const relocked = reconcileAutoArrangeLocks();
+
     pushHistory();
     close();
-    if (typeof render === 'function') render(true);
-    showCanvasNotification('Auto-Resize settings saved.', { type: 'success' });
+    if (typeof render === 'function') render();
+    if (typeof renderProps === 'function') renderProps();
+    showCanvasNotification(
+      relocked
+        ? `Settings saved. ${relocked} arranged layer${relocked === 1 ? '' : 's'} updated to match the lock setting.`
+        : 'Settings saved.',
+      { type: 'success' });
   };
 }
 
